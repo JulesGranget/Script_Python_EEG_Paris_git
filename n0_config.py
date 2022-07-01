@@ -22,7 +22,7 @@ enable_big_execute = False
 perso_repo_computation = False
 
 #### subjects
-sujet = 'Pilote'
+sujet = 'pilote_sub01'
 
 #sujet = 'DEBUG'
 
@@ -89,37 +89,37 @@ elif PC_ID == 'pc-jules':
 
     PC_working = 'Jules_Labo_Linux'
     if perso_repo_computation:
-        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Lyon_git'
+        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
     else:    
-        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ/Script_Python_EEG_Lyon_git'
-    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ'
-    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ/Mmap'
+        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
+    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Mmap'
     n_core = 6
 
 elif PC_ID == 'pc-valentin':
 
     PC_working = 'Valentin_Labo_Linux'
     if perso_repo_computation:
-        path_main_workdir = '/home/valentin/Bureau/perso_repo_computation/Script_Python_EEG_Lyon_git'
+        path_main_workdir = '/home/valentin/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
     else:    
-        path_main_workdir = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ/Script_Python_EEG_Lyon_git'
-    path_general = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ'
-    path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ/Mmap'
+        path_main_workdir = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
+    path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Mmap'
     n_core = 6
 
 elif PC_ID == 'nodeGPU':
 
     PC_working = 'nodeGPU'
-    path_main_workdir = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ/Script_Python_EEG_Lyon_git'
-    path_general = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ'
+    path_main_workdir = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
     path_memmap = '/mnt/data/julesgranget'
     n_core = 15
 
 else:
 
     PC_working = 'crnl_cluster'
-    path_main_workdir = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ/Script_Python_EEG_Lyon_git'
-    path_general = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Lyon_VJ'
+    path_main_workdir = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
     path_memmap = '/mnt/data/julesgranget'
     n_core = 10
     

@@ -3,7 +3,6 @@
 
 import numpy as np
 import pandas as pd
-import glob
 import os
 
 from n0_config import *
@@ -16,93 +15,59 @@ from n0bis_analysis_functions import *
 
 
 #session_eeg = 0
-def logtrigg_to_df(sujet, session_eeg):
+def STAI_short_process(sujet, session_eeg):
 
     #### get to logtrig
     os.chdir(os.path.join(path_data, sujet))
-    os.chdir(f'./{os.listdir()[0]}')
     os.chdir(f'ses_0{session_eeg+2}')
 
-    logtrig_file = [file_i for file_i in os.listdir() if file_i.find('LogTrigger') != -1][0]
-    random_bloc_file = [file_i for file_i in os.listdir() if file_i.find('random') != -1][0]
+    #### compute
+    df = pd.read_excel(f'{sujet}_ses0{session_eeg+2}_STAI_short_raw.xlsx')
+    df[df.columns[-7:]] = ( df[df.columns[-7:]] *100 / 150 ).values.astype(int)
+    df.to_excel(f'{sujet}_ses0{session_eeg+2}_STAI_short_processed.xlsx')
 
-    logtrigg = pd.read_fwf(logtrig_file, colspecs = [(0,1000000)]).values
-    random_bloc = pd.read_fwf(random_bloc_file, colspecs = [(0,1000000)]).values
-    bloc_order = random_bloc.reshape(random_bloc.shape[0],)[0].rsplit(sep = " ")
+    conditions = df['cond'].values
 
-    bloc_order.insert(0, 'entrainement')
-    bloc_order.insert(0, 'baseline')
-    bloc_order.insert(len(bloc_order), 'baseline')
-    
-    bloc_types = list(set(bloc_order))
-    bloc_labeled = []
-    bloc_pos = {}
-    for bloc in bloc_types:
-        bloc_pos[bloc] = np.where(np.array(bloc_order) == bloc)[0]
+    etats = {}
+    #cond = conditions[0]
+    for cond in conditions:
+        etat = 100 - df[df['cond'] == cond]['calme'].values[0] + df[df['cond'] == cond]['tendu'].values[0] + df[df['cond'] == cond]['emu'].values[0] + 100 - df[df['cond'] == cond]['decontracte'].values[0] + 100 - df[df['cond'] == cond]['satisfait'].values[0] + df[df['cond'] == cond]['inquiet'].values[0]
+        etats[cond] = etat
         
-    bloc_nums = bloc_order.copy()
-    trial_nums = bloc_order.copy()
-    for bloc in bloc_order:
-        for i, idx in enumerate(list(bloc_pos[bloc])):
-            bloc_nums[idx] = f'{bloc}{i+1}'
-            trial_nums[idx] = f'trial{i+1}'
-            
-    items = [
-        'calme',
-        'crispé',
-        'ému',
-        'décontracté',
-        'satisfait',
-        'inquiet',
-        'attention',
-        'relaxé'
-    ]
-
-
-
-    df = pd.DataFrame(columns=items)
+    df = df[df.columns[:-7]]
     
-    for item in items:
-        value_item = []
-        for line in logtrigg:
-            if item in line[0]:
-                value = int(line[0][len(line[0]) - 2 :])
-                value_item.append(value)
-        for i, value in enumerate(value_item):
-            df.loc[i+1, item] = value
+    df.insert(df.shape[1], 'etat', etats.values())
 
-    df.index = bloc_nums
-    
-    odor = odor_order[sujet][f's{session_eeg+1}'] # here session_eeg +1 and not +2 because for the rest of the analysis its +1 that is used
+    df.to_excel(f'{sujet}_ses0{session_eeg+2}_STAI_short_processed.xlsx')
 
-    etats = []
-    for index in bloc_nums:
-        etat = 100 - df.loc[index,'calme'] + df.loc[index,'crispé'] + df.loc[index,'ému'] + 100 - df.loc[index,'décontracté'] + 100 - df.loc[index,'satisfait'] + df.loc[index,'inquiet']
-        etats.append(etat)
-        
-    df = df.reset_index().rename(columns = {"index":"trial"})
-    df['trial'] = trial_nums
-    
-    session_eeg_col = [f'{session_eeg+1}' for i in range(df.shape[0])]
-    odeur_col = [f'odor_{odor}' for i in range(df.shape[0])]
-    sujet_col = [f'{sujet}' for i in range(df.shape[0])]
-    
-    df.insert(df.shape[1], 'état', etats)
-    df.insert(0, 'blocs', bloc_order)
-    df.insert(0, 'odeur', odeur_col)
-    df.insert(0, 'session', session_eeg_col)
-    df.insert(0, 'participant', sujet_col)
 
-    df.to_excel(f'{sujet}_{session_eeg+2}_stai_shortform.xlsx')
+
+
+def processing_odor_cotation(sujet):
+
+    #### get to data
+    os.chdir(os.path.join(path_data, sujet))
+    os.chdir(f'ses_0{session_eeg+1}')
+
+    #### compute
+    df = pd.read_excel(f'{sujet}_odor_absolute_raw.xlsx')
+    df['appreciation_absolue'] = ( df['appreciation_absolue'] *100 / 150 ).values.astype(int) - 50
+    df.to_excel(f'{sujet}_odor_absolute_processed.xlsx')
+
+    df = pd.read_excel(f'{sujet}_odor_relative_raw.xlsx')
+    df['appreciation_relative'] = ( df['appreciation_relative'] *100 / 150 ).values.astype(int) - 50
+    df[df.columns[-4:]] = ( df[df.columns[-4:]] *100 / 150 ).values.astype(int) 
+    df.to_excel(f'{sujet}_odor_relative_processed.xlsx')
+
+
 
 
 
 def processing_stai_longform(sujet):
 
-    #### get data
+    #### get to data
     os.chdir(os.path.join(path_data, sujet))
-    os.chdir(f'./{os.listdir()[0]}')
-    os.chdir(f'ses_01')
+    os.chdir(f'ses_0{session_eeg+1}')
 
     file_to_open = f'{sujet}_stai_longform_raw.xlsx'
 
@@ -158,8 +123,7 @@ def processing_maia(sujet):
 
     #### get data
     os.chdir(os.path.join(path_data, sujet))
-    os.chdir(f'./{os.listdir()[0]}')
-    os.chdir(f'ses_01')
+    os.chdir(f'ses_0{session_eeg+1}')
 
     file_to_open = f'{sujet}_maia_raw.xlsx'
 
@@ -199,7 +163,9 @@ if __name__ == '__main__':
 
     processing_stai_longform(sujet)
     processing_maia(sujet)
+    processing_odor_cotation(sujet)
+
     
     for session_eeg in range(3):
-        logtrigg_to_df(sujet, session_eeg)
+        STAI_short_process(sujet, session_eeg)
     
