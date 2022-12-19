@@ -10,7 +10,7 @@ import scipy.signal
 from bycycle.cyclepoints import find_extrema
 import respirationtools
 
-from n0_config import *
+from n0_config_params import *
 
 debug = False
 

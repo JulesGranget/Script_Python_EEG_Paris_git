@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 
-from n0_config import *
+from n0_config_params import *
 
 
 debug = False
@@ -351,13 +351,14 @@ def generate_folder_structure(sujet):
         #### precompute
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute'))
     construct_token = create_folder(sujet, construct_token)
+    construct_token = create_folder('allplot', construct_token)
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute', sujet))
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('TF', construct_token)
     construct_token = create_folder('PSD_Coh', construct_token)
+    construct_token = create_folder('baselines', construct_token)
+    construct_token = create_folder('DFC', construct_token)
     construct_token = create_folder('FC', construct_token)
-    construct_token = create_folder('Baselines', construct_token)
-
 
         #### anatomy
     os.chdir(os.path.join(path_general, 'Analyses', 'anatomy'))
@@ -366,15 +367,18 @@ def generate_folder_structure(sujet):
         #### results
     os.chdir(os.path.join(path_general, 'Analyses', 'results'))
     construct_token = create_folder(sujet, construct_token)
+    construct_token = create_folder('allplot', construct_token)
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet))
+    construct_token = create_folder('TOPOPLOT', construct_token)
+    construct_token = create_folder('PSYCHO', construct_token)
     construct_token = create_folder('RESPI', construct_token)
     construct_token = create_folder('TF', construct_token)
     construct_token = create_folder('PSD_Coh', construct_token)
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('FC', construct_token)
+    construct_token = create_folder('DFC', construct_token)
     construct_token = create_folder('HRV', construct_token)
-    construct_token = create_folder('TOPOPLOT', construct_token)
-    construct_token = create_folder('PSYCHO', construct_token)
+    construct_token = create_folder('df', construct_token)
 
             #### TF
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
@@ -391,24 +395,88 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
 
-            #### FC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'FC'))
-    construct_token = create_folder('PLI', construct_token)
-    construct_token = create_folder('ISPC', construct_token)
+            #### DFC
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'DFC'))
+    construct_token = create_folder('summary', construct_token)
+    construct_token = create_folder('allcond', construct_token)
+
+        #### allplot
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot'))
+    construct_token = create_folder('allcond', construct_token)
+    construct_token = create_folder('FR_CV', construct_token)
+    construct_token = create_folder('anatomy', construct_token)
+    construct_token = create_folder('df', construct_token)
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond'))
+    construct_token = create_folder('TF', construct_token)
+    construct_token = create_folder('ITPC', construct_token)
+    construct_token = create_folder('FC', construct_token)
+    construct_token = create_folder('DFC', construct_token)
+    construct_token = create_folder('PSD_Coh', construct_token)
+
+            #### DFC
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'DFC'))
+    construct_token = create_folder('summary', construct_token)
+    construct_token = create_folder('allcond', construct_token) 
+
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV'))
+    construct_token = create_folder('TF', construct_token)
+    construct_token = create_folder('ITPC', construct_token)
+    construct_token = create_folder('DFC', construct_token)
+    construct_token = create_folder('PSD_Coh', construct_token)
+    construct_token = create_folder('stats', construct_token)
+
+            #### TF
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'TF'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)            
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'TF'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)
+
+            #### PSD_Coh
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'PSD_Coh'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)            
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'PSD_Coh'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)
+
+            #### ITPC
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'ITPC'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)            
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'ITPC'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)
+
+            #### DFC
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'DFC'))
+    construct_token = create_folder('ROI', construct_token)
+    construct_token = create_folder('Lobes', construct_token)  
+
+            #### FC          
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'FC'))
+    construct_token = create_folder('summary', construct_token)
+    construct_token = create_folder('allcond', construct_token) 
 
     #### Data
     os.chdir(os.path.join(path_general, 'Data'))
-    construct_token = create_folder('raw_data', construct_token)
+    construct_token = create_folder(sujet, construct_token)
 
         #### raw_data
-    os.chdir(os.path.join(path_general, 'Data', 'raw_data'))    
-    construct_token = create_folder(sujet, construct_token)
-    
-            #### anatomy
-    os.chdir(os.path.join(path_general, 'Data', 'raw_data', sujet))    
-    construct_token = create_folder('anatomy', construct_token)
+    os.chdir(os.path.join(path_general, 'Data', sujet))    
+    construct_token = create_folder('ses01', construct_token)
+    construct_token = create_folder('ses02', construct_token)
+    construct_token = create_folder('ses03', construct_token)
+    construct_token = create_folder('ses04', construct_token)
 
     return construct_token
+
+
+
+
+    
+
 
 
 
@@ -583,6 +651,62 @@ def extract_chanlist_srate_conditions_for_sujet(sujet_tmp, conditions_allsubject
 
 
 
+
+
+
+
+################################
+######## WAVELETS ########
+################################
+
+
+def get_wavelets(band_prep, freq):
+
+    #### select wavelet parameters
+    if band_prep == 'wb':
+        wavetime = np.arange(-2,2,1/srate)
+        nfrex = nfrex_lf
+        ncycle_list = np.linspace(ncycle_list_wb[0], ncycle_list_wb[1], nfrex) 
+
+    if band_prep == 'lf':
+        wavetime = np.arange(-2,2,1/srate)
+        nfrex = nfrex_lf
+        ncycle_list = np.linspace(ncycle_list_lf[0], ncycle_list_lf[1], nfrex) 
+
+    if band_prep == 'hf':
+        wavetime = np.arange(-.5,.5,1/srate)
+        nfrex = nfrex_hf
+        ncycle_list = np.linspace(ncycle_list_hf[0], ncycle_list_hf[1], nfrex)
+
+    #### compute wavelets
+    frex  = np.linspace(freq[0],freq[1],nfrex)
+    wavelets = np.zeros((nfrex,len(wavetime)) ,dtype=complex)
+
+    # create Morlet wavelet family
+    for fi in range(0,nfrex):
+        
+        s = ncycle_list[fi] / (2*np.pi*frex[fi])
+        gw = np.exp(-wavetime**2/ (2*s**2)) 
+        sw = np.exp(1j*(2*np.pi*frex[fi]*wavetime))
+        mw =  gw * sw
+
+        wavelets[fi,:] = mw
+
+    return wavelets, nfrex
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ############################
 ######## LOAD DATA ########
 ############################
@@ -618,26 +742,29 @@ def load_data(band_prep, session_eeg, cond, session_i):
 
     return data
 
-
-def load_data_sujet(sujet_tmp, band_prep, cond, session_i):
+#sujet, band_prep, cond, odor = 'PD01', 'wb', 'FR_CV_1', 'o'
+def load_data_sujet(sujet, band_prep, cond, odor):
 
     path_source = os.getcwd()
     
-    os.chdir(os.path.join(path_prep, sujet_tmp, 'sections'))
+    os.chdir(os.path.join(path_prep, sujet, 'sections'))
 
     load_i = []
     for i, session_name in enumerate(os.listdir()):
-        if ( session_name.find(cond) != -1 ) & ( session_name.find(band_prep) != -1 ):
+        if ( session_name.find(cond) != -1 ) & ( session_name.find(band_prep) != -1 ) & ( session_name.find(odor) != -1 ):
             load_i.append(i)
         else:
             continue
 
-    load_list = [os.listdir()[i] for i in load_i]
-    load_name = load_list[session_i]
+    load_name = [os.listdir()[i] for i in load_i][0]
 
     raw = mne.io.read_raw_fif(load_name, preload=True, verbose='critical')
 
     data = raw.get_data() 
+
+    #### verify that srate is correct
+    if srate != int(raw.info['sfreq']):
+        raise ValueError('!!! SRATE != de 500 !!!')
 
     #### go back to path source
     os.chdir(path_source)
@@ -961,4 +1088,59 @@ def modify_name(chan_list):
     return chan_list_modified, chan_list_keep
 
 
+
+
+
+
+########################################
+######## SCRIPT ADVANCEMENT ########
+########################################
+
+
+def print_advancement(i, i_final, steps=[25, 50, 75]):
+
+    steps_i = {}
+    for step in steps:
+
+        step_i = 0
+        while (step_i/i_final*100) < step:
+            step_i += 1
+
+        steps_i[step] = step_i
+
+    for step, step_i in steps_i.items():
+
+        if i == step_i:
+            print(f'{step}%')
+
+
+
+
+
+
+
+
+################################
+######## MISCALLENOUS ########
+################################
+
+
+def zscore(x):
+
+    x_zscore = (x - x.mean()) / x.std()
+
+    return x_zscore
+
+
+
+
+def zscore_mat(x):
+
+    _zscore_mat = np.zeros(( x.shape[0], x.shape[1] ))
+    
+    for i in range(x.shape[0]):
+
+        _zscore_mat[i,:] = zscore(x[i,:])
+
+    return _zscore_mat
 

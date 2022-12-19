@@ -9,10 +9,10 @@ import pandas as pd
 import respirationtools
 import joblib
 
-from n3_respi_analysis import analyse_resp
+from n2_prep_respi_analysis import analyse_resp
 
-from n0_config import *
-from n0bis_analysis_functions import *
+from n0_config_params import *
+from n0bis_config_analysis_functions import *
 
 
 debug = False

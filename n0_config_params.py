@@ -23,22 +23,23 @@ perso_repo_computation = False
 
 #### subjects
 sujet = 'pilote_sub01'
+sujet = 'PD01'
 
 #sujet = 'DEBUG'
 
-conditions_allsubjects = ['FR_CV', 'RD_CV', 'RD_FV', 'RD_SV']
+conditions_allsubjects = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 sujet_list = ['Pilote']
 
 band_prep_list = ['wb']
 
-freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40]},
+freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]},
                 'lf' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'whole' : [2,50]},
                 'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
 
 
-session_protocol_EEG = ['2', '3', '4']
+odor_list = ['o', '+', '-']
 
-srate = 1000
+srate = 500
 
 
 ################################
@@ -47,7 +48,7 @@ srate = 1000
 
 odor_order = {
 
-'Pilote' : {'s1' : '+', 's2' : 'o', 's3' : '-'}
+'PD01' : {'ses01' : 'o', 'ses02' : '+', 'ses03' : '-'}
 
 }
 
@@ -153,12 +154,6 @@ electrodes_to_remove = {
 ################################
 
 
-conditions_trig = {
-'RD_CV' : ['31', '32'], # RespiDriver Comfort Ventilation
-'RD_FV' : ['51', '52'], # RespiDriver Fast Ventilation  
-'RD_SV' : ['11', '12'], # RespiDriver Slow Ventilation
-'FR_CV' : ['61', '62'], # FreeVentilation Comfort Ventilation
-}
 
 sujet_adjust_trig = {
 'Pilote' : False
@@ -166,12 +161,6 @@ sujet_adjust_trig = {
 }
 
 
-EOG_chan = {
-'Pilote' : {'HEOG': 'PO9', 'VEOG' : 'PO10'}, # chan 27 left from the eye HEOG, chan 32 down the eye VEOG
-
-'DEBUG' : {'EOG1': 'PO9', 'EOG2' : 'PO10'}, # OK
-
-}
 
 
 ################################
@@ -207,7 +196,7 @@ prep_step_debug = {
 prep_step_wb = {
 'reref' : {'execute': False, 'params' : ['chan']}, #chan = chan to reref
 'mean_centered' : {'execute': True},
-'line_noise_removing' : {'execute': False},
+'line_noise_removing' : {'execute': True},
 'high_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
 'low_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
 'ICA_computation' : {'execute': True},

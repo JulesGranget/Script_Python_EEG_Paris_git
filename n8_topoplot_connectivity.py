@@ -8,8 +8,8 @@ import pandas as pd
 import pickle
 import xarray as xr
 
-from n0_config import *
-from n0bis_analysis_functions import *
+from n0_config_params import *
+from n0bis_config_analysis_functions import *
 
 
 debug = False
