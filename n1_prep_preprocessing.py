@@ -6,6 +6,8 @@ import scipy.signal
 import mne
 import pandas as pd
 
+import physio
+
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
 from n1bis_prep_trigger_info import *
@@ -24,11 +26,14 @@ debug = False
 def open_raw_data_session(sujet, session_i):
 
     #### open raw
-    os.chdir(os.path.join(path_data, sujet, f'ses0{str(session_i+1)}'))
+    os.chdir(os.path.join(path_data, 'eeg'))
 
-    raw = mne.io.read_raw_brainvision(f'{sujet}_ses0{session_i+1}.vhdr', preload=True)
+    raw = mne.io.read_raw_brainvision(f'{sujet}_ses0{session_i+2}.vhdr', preload=True)
 
     srate = int(raw.info['sfreq'])
+
+    if srate != 500:
+        raise ValueError(f'#### WARNING : {sujet} srate != 500 ####')
 
     #### Data vizualisation
     if debug == True :
@@ -58,14 +63,44 @@ def open_raw_data_session(sujet, session_i):
     select_chan = ['PRESS','ECG','TRIG']
     raw_aux = raw_aux.pick_channels(select_chan)
 
-    #### generate triggers
     if debug:
         plt.plot(zscore(raw_aux.get_data()[0,:]), label='PRESS')
+        plt.plot(zscore(raw_aux.get_data()[1,:]), label='ECG')
         plt.plot(zscore(raw_aux.get_data()[2,:]), label='TRIG')
         plt.legend()
         plt.show()
 
-    trig = dict_trig_sujet[sujet][f'ses0{session_i+1}']
+    #### extract trig
+    trig_sig = raw_aux.get_data()[-1,:]*-1
+    peaks = scipy.signal.find_peaks(trig_sig, height=trig_sig.max()/2, distance=srate*60)[0]
+
+    if debug:
+        respi = raw_aux.get_data()[0,:]
+        plt.plot(respi)
+        plt.vlines(peaks, ymin=respi.min(), ymax=respi.max(), color='r')
+        plt.show()
+
+        trig_list = [1,3,6,8]
+        peaks[trig_list]
+
+        plt.plot(respi)
+        plt.vlines(peaks[trig_list], ymin=respi.min(), ymax=respi.max(), color='r')
+        plt.show()
+
+    #### generate trig
+    trig = {}
+    #cond = conditions[0]
+    for cond in conditions:
+        
+        _stop = dict_trig_sujet[sujet][f'ses0{session_i+2}'][cond]
+        _start = _stop - (srate*5*60)
+        trig[cond] = np.array([_start, _stop])
+
+        if debug:
+            respi = raw_aux.get_data()[0,:]
+            plt.plot(respi)
+            plt.vlines([_start, _stop], ymin=respi.min(), ymax=respi.max(), color='r')
+            plt.show()
 
     #### remove trig
     raw_aux.drop_channels(['TRIG'])
@@ -98,22 +133,35 @@ def ecg_detection(raw_aux):
     
     #### adjust ECG
     if sujet_ecg_adjust.get(sujet) == 'inverse':
-        data_aux[0,:] = data_aux[0,:] * -1
+        data_aux[1,:] = data_aux[1,:] * -1
+
+    #### filtre
+    ecg_clean = physio.preprocess(data_aux[1,:], srate, band=[5., 45.], ftype='bessel', order=5, normalize=True)
+
+    ecg_events_time = physio.detect_peak(ecg_clean, srate, thresh=10, exclude_sweep_ms=4.0) # thresh = n MAD
+
+    if debug:
+        plt.plot(data_aux[1,:])
+        plt.plot(ecg_clean)
+        plt.vlines(ecg_events_time, ymin=ecg_clean.min(), ymax=ecg_clean.max(), color='r')
+        plt.show()
     
-    #### notch ECG
+    #### replace
+    data_aux[1,:] = ecg_clean.copy()
+
     ch_types = ['misc'] * (np.size(data_aux,0)) # ‘ecg’, ‘stim’, ‘eog’, ‘misc’, ‘seeg’, ‘eeg’
 
     info_aux = mne.create_info(chan_list_aux, srate, ch_types=ch_types)
     raw_aux = mne.io.RawArray(data_aux, info_aux)
 
-    raw_aux.notch_filter(50, picks='misc', verbose='critical')
+    # raw_aux.notch_filter(50, picks='misc', verbose='critical')
 
     # ECG
-    event_id = 999
-    ch_name = 'ECG'
-    qrs_threshold = .5 #between o and 1
-    ecg_events = mne.preprocessing.find_ecg_events(raw_aux, event_id=event_id, ch_name=ch_name, qrs_threshold=qrs_threshold, verbose='critical')
-    ecg_events_time = list(ecg_events[0][:,0])
+    # event_id = 999
+    # ch_name = 'ECG'
+    # qrs_threshold = .5 #between o and 1
+    # ecg_events = mne.preprocessing.find_ecg_events(raw_aux, event_id=event_id, ch_name=ch_name, qrs_threshold=qrs_threshold, verbose='critical')
+    # ecg_events_time = list(ecg_events[0][:,0])
 
     return raw_aux, ecg_events_time
 
@@ -140,6 +188,10 @@ def respi_preproc(raw_aux):
         plt.legend()
         plt.xlim(0,60)
         plt.show()
+
+    #### invert if needed to have inspi down
+    if sujet_respi_adjust[sujet] == 'inverse':
+        respi *= -1
 
     #### filter respi   
     fcutoff = 1.5
@@ -172,10 +224,11 @@ def respi_preproc(raw_aux):
 
     #### replace respi 
     data = raw_aux.get_data()
-    data[-1,:] = respi_filt
+    data[0,:] = respi_filt
     raw_aux._data = data
 
-    #plt.plot(raw_aux.get_data()[-1,:]),plt.show()
+    #### verif
+    #plt.plot(raw_aux.get_data()[0,:]),plt.show()
 
     return raw_aux
 
@@ -246,7 +299,6 @@ def preprocessing_ieeg(raw, prep_step):
 
     def reref_eeg(raw, new_ref):
 
-        raw.info['ch_names']
         raw_eeg_reref = raw.copy()
         raw_eeg_reref, refdata = mne.set_eeg_reference(raw, ref_channels=new_ref)
 
@@ -498,6 +550,11 @@ def preprocessing_ieeg(raw, prep_step):
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
+    if prep_step['csd_computation']['execute']:
+        print('csd_computation')
+        raw_post = csd_computation(raw)
+        #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
+        raw = raw_post
 
     if prep_step['ICA_computation']['execute']:
         print('ICA_computation')
@@ -509,13 +566,6 @@ def preprocessing_ieeg(raw, prep_step):
     if prep_step['average_reref']['execute']:
         print('average_reref')
         raw_post = average_reref(raw)
-        #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
-        raw = raw_post
-
-
-    if prep_step['csd_computation']['execute']:
-        print('csd_computation')
-        raw_post = csd_computation(raw)
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
@@ -535,7 +585,7 @@ def preprocessing_ieeg(raw, prep_step):
 ######## CHOP & SAVE ########
 ################################
 
-#raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session_i, export_info = raw_preproc_wb, raw_aux, trig, ecg_events_time, 'wb', session_i, True
+#band_preproc = 'wb'
 def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session_i, export_info):
 
     print('#### SAVE ####')
@@ -556,7 +606,7 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
     #### save chan_list
     os.chdir(os.path.join(path_anatomy, sujet))
-    keep_plot_textfile = open(sujet + "_chanlist_ieeg.txt", "w")
+    keep_plot_textfile = open(sujet + "_chanlist.txt", "w")
     for element in chan_list_all[:-4]:
         keep_plot_textfile.write(element + "\n")
     keep_plot_textfile.close()
@@ -576,15 +626,15 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
     os.chdir(os.path.join(path_prep, sujet, 'sections'))
 
     #### save all cond
-    odor_code = odor_order[sujet][f'ses0{session_i}']
+    odor_code = odor_order[sujet][f'ses0{session_i+2}']
     raw_all.save(f'{sujet}_{odor_code}_allcond_{band_preproc}.fif')
 
     #### save every cond
-    #cond = conditions_allsubjects[1]
+    #cond = conditions_allsubjects[0]
     for cond in conditions_allsubjects:
 
         raw_chunk = raw_all.copy()
-        raw_chunk.crop( tmin = (trig_df['time'][trig_df['name'] == f'{cond}_start'].values[0])/srate , tmax= (trig_df['time'][trig_df['name'] == f'{cond}_stop'].values[0])/srate )
+        raw_chunk.crop( tmin = trig_df.query(f"name == '{cond}'")['time'].values[0][0]/srate , tmax= trig_df.query(f"name == '{cond}'")['time'].values[0][1]/srate )
 
         raw_chunk.save(f'{sujet}_{odor_code}_{cond}_{band_preproc}.fif')
 
@@ -635,98 +685,142 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
 if __name__== '__main__':
 
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
 
-    ########################################
-    ######## CONSTRUCT ARBORESCENCE ########
-    ########################################
-
-
-    construct_token = generate_folder_structure(sujet)
-
-    if construct_token != 0 :
-        
-        raise ValueError("""Folder structure has been generated 
-        Lauch the script again for preproc""")
+        ########################################
+        ######## CONSTRUCT ARBORESCENCE ########
+        ########################################
 
 
-    ########################
-    ######## PARAMS ########
-    ########################
+        construct_token = generate_folder_structure(sujet)
+
+        if construct_token != 0 :
+            
+            raise ValueError("""Folder structure has been generated 
+            Lauch the script again for preproc""")
 
 
-    # sujet, session_i = 'Pilote', 1
-    sujet, session_i = 'PD01', 1
+        for session_i in range(3):
 
 
 
+            ########################
+            ######## PARAMS ########
+            ########################
 
-    ################################
-    ######## EXTRACT DATA ########
-    ################################
+            # session_i = 0
+            # session_i = 1
+            # session_i = 2
 
-    raw_eeg, raw_aux, trig, srate = open_raw_data_session(sujet, session_i)
-    #raw_eeg.info['ch_names'] # verify
-    
-    #### verif power
-    if debug == True:
-        mne.viz.plot_raw_psd(raw_eeg)
-
-    ################################
-    ######## AUX PROCESSING ########
-    ################################
-
-    raw_aux, ecg_events_time = ecg_detection(raw_aux)
-
-    raw_aux = respi_preproc(raw_aux)
-
-    if debug == True:
-        #### verif ECG
-        chan_list_aux = raw_aux.info['ch_names']
-        ecg_i = chan_list_aux.index('ECG')
-        ecg = raw_aux.get_data()[ecg_i,:]
-        plt.plot(ecg)
-        plt.vlines(ecg_events_time, ymin=min(ecg), ymax=max(ecg), colors='k')
-        trig_values = []
-        for trig_i in trig.values():
-            [trig_values.append(i) for i in trig_i]
-        plt.vlines(trig_values, ymin=min(ecg), ymax=max(ecg), colors='r', linewidth=3)
-
-        plt.legend()
-        plt.show()
-
-        #### add events if necessary
-        corrected = []
-        cR_init = trig['time'].values
-        ecg_events_corrected = np.hstack([cR_init, np.array(corrected)])
-
-        #### find an event to remove
-        around_to_find = 1000
-        value_to_find = 3265670    
-        ecg_cR_array = np.array(ecg_events_time) 
-        ecg_cR_array[ ( np.array(ecg_events_time) >= (value_to_find - around_to_find) ) & ( np.array(ecg_events_time) <= (value_to_find + around_to_find) ) ] 
-
-        #### verify add events
-        plt.plot(ecg)
-        plt.vlines(ecg_events_time, ymin=min(ecg), ymax=max(ecg), colors='k')
-        plt.vlines(ecg_events_corrected, ymin=min(ecg), ymax=max(ecg), colors='r', linewidth=3)
-        plt.legend()
-        plt.show()
-
-    ################################################
-    ######## PREPROCESSING, CHOP AND SAVE ########
-    ################################################
-
-    raw_preproc_wb  = preprocessing_ieeg(raw_eeg, prep_step_wb)
-    #compare_pre_post(raw_eeg, raw_preproc_whole_band, 5) # to verify
-
-    chop_save_trc(raw_preproc_wb, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
+            # sujet = 'PD01'
+            # sujet = 'MJ02'
+            # sujet = 'VN03'
+            # sujet = 'GB04'
+            # sujet = 'LV05'
+            # sujet = 'EF06'
+            # sujet = 'PB07'
+            # sujet = 'DM08'
+            # sujet = 'TA09'
+            # sujet = 'BH10'
+            # sujet = 'FA11'
+            # sujet = 'BD12'
+            # sujet = 'FP13'
+            # sujet = 'MD14'
+            # sujet = 'LG15'
+            # sujet = 'GM16'
+            # sujet = 'JR17'
+            # sujet = 'SE18'
+            # sujet = 'TM19'
+            # sujet = 'TY20'
+            # sujet = 'ZV21'
+            # sujet = 'DI22'
+            # sujet = 'LF23'
+            # sujet = 'TJ24'
+            # sujet = 'DF25'
+            # sujet = 'MN26'
+            # sujet = 'BD27'
+            # sujet = 'NT28'
+            # sujet = 'SC29'
+            # sujet = 'AR30'
+            # sujet = 'HJ31'
+            # sujet = 'CM32'
+            # sujet = 'MA33'
 
 
-    del raw_preproc_wb
+            ################################
+            ######## EXTRACT DATA ########
+            ################################
 
-    #### verif
-    if debug == True:
-        compare_pre_post(raw_eeg, raw_preproc_wb, 0)
+            raw_eeg, raw_aux, trig, srate = open_raw_data_session(sujet, session_i)
+            #raw_eeg.info['ch_names'] # verify
+            
+            #### verif power
+            if debug == True:
+                mne.viz.plot_raw_psd(raw_eeg)
+
+            ################################
+            ######## AUX PROCESSING ########
+            ################################
+
+            #### verif ecg orientation
+            if debug:
+                _ecg = raw_aux.get_data()[-1]
+                plt.plot(_ecg)
+                plt.show()
+
+            raw_aux, ecg_events_time = ecg_detection(raw_aux)
+
+            raw_aux = respi_preproc(raw_aux)
+
+            if debug == True:
+                #### verif ECG
+                chan_list_aux = raw_aux.info['ch_names']
+                ecg_i = chan_list_aux.index('ECG')
+                ecg = raw_aux.get_data()[ecg_i,:]
+                plt.plot(ecg)
+                plt.vlines(ecg_events_time, ymin=min(ecg), ymax=max(ecg), colors='k')
+                trig_values = []
+                for trig_i in trig.values():
+                    [trig_values.append(i) for i in trig_i]
+                plt.vlines(trig_values, ymin=min(ecg), ymax=max(ecg), colors='r', linewidth=3)
+
+                plt.legend()
+                plt.show()
+
+                #### add events if necessary
+                corrected = []
+                cR_init = trig['time'].values
+                ecg_events_corrected = np.hstack([cR_init, np.array(corrected)])
+
+                #### find an event to remove
+                around_to_find = 1000
+                value_to_find = 3265670    
+                ecg_cR_array = np.array(ecg_events_time) 
+                ecg_cR_array[ ( np.array(ecg_events_time) >= (value_to_find - around_to_find) ) & ( np.array(ecg_events_time) <= (value_to_find + around_to_find) ) ] 
+
+                #### verify add events
+                plt.plot(ecg)
+                plt.vlines(ecg_events_time, ymin=min(ecg), ymax=max(ecg), colors='k')
+                plt.vlines(ecg_events_corrected, ymin=min(ecg), ymax=max(ecg), colors='r', linewidth=3)
+                plt.legend()
+                plt.show()
+
+            ################################################
+            ######## PREPROCESSING, CHOP AND SAVE ########
+            ################################################
+
+            raw_preproc_wb  = preprocessing_ieeg(raw_eeg, prep_step_wb)
+            #compare_pre_post(raw_eeg, raw_preproc_wb, 5) # to verify
+
+            chop_save_trc(raw_preproc_wb, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
+
+
+            del raw_preproc_wb
+
+            #### verif
+            if debug == True:
+                compare_pre_post(raw_eeg, raw_preproc_wb, 0)
 
 
 

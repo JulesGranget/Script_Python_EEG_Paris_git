@@ -76,8 +76,8 @@ def compute_PxxCxyCyclefreq_for_cond(band_prep, session_eeg, cond, session_i, nb
 
     #### extract data
     chan_i = prms['chan_list'].index('Respi')
-    respi = load_data(band_prep, session_eeg, cond, session_i)[chan_i,:]
-    data_tmp = load_data(band_prep, session_eeg, cond, session_i)
+    respi = load_data_sujet(sujet, band_prep, cond, session_i)[chan_i,:]
+    data_tmp = load_data_sujet(sujet, band_prep, cond, session_i)
     if stretch_point_surrogates == stretch_point_TF:
         nb_point_by_cycle = stretch_point_surrogates
     else:

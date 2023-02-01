@@ -1,68 +1,145 @@
 
 
-import matplotlib.pyplot as plt
-
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
-
-debug = False
 
 
-#### to correct error
-raw_aux = []
-srate = 500
-session_i = []
-ecg_events_time = []
-
-#### verif trig with raw_aux from preproc
-if debug:
-    plt.plot(zscore(raw_aux.get_data()[0,:]), label='PRESS')
-    plt.plot(zscore(raw_aux.get_data()[2,:]), label='TRIG')
-    plt.legend()
-    plt.show()
 
 
 #### trigger value
 dict_trig_sujet = {
 
-'PD01' :    {'ses02' :  {'FR_CV_1_start' : int(1473), 'FR_CV_1_stop' : int(1473 + (srate*300)), 
-                        'MECA_start' : int(5.249e5), 'MECA_stop' : int(5.249e5 + (srate*300)), 
-                        'CO2_start' : int(1.4398e6 - (srate*300)), 'CO2_stop' : int(1.4398e6), 
-                        'FR_CV_2_start' : int(1.5931e6), 'FR_CV_2_stop' : int(1.5931e6 + (srate*300))},
-            }
+'PD01' :    {'ses02' :  {'FR_CV_1' : 159648, 'MECA' : 681150, 'CO2' : 1439606, 'FR_CV_2' : 1747688},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'MJ02' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'VN03' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'GB04' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'LV05' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'EF06' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'PB07' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'DM08' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'TA09' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'BH10' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'FA11' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'BD12' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'FP13' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'MD14' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'LG15' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'GM16' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'JR17' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'SE18' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'TM19' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'TY20' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'ZV21' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'DI22' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'LF23' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'TJ24' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'DF25' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'MN26' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'BD27' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'NT28' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'SC29' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'AR30' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'HJ31' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'CM32' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
+
+'MA33' :    {'ses02' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses03' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()},
+            'ses04' :  {'FR_CV_1' : int(), 'MECA' : int(), 'CO2' : int(), 'FR_CV_2' : int()}},
 
 }
-
-
-#### verif trig 
-if debug:
-    plt.plot(zscore(raw_aux.get_data()[0,:]), label='PRESS')
-    plt.plot(zscore(raw_aux.get_data()[2,:]), label='TRIG')
-    plt.vlines(dict_trig_sujet[sujet][f'ses0{session_i+1}'].values(), ymin=zscore(raw_aux.get_data()[0,:]).min(), ymax=zscore(raw_aux.get_data()[0,:]).max(), color='g')
-    plt.legend()
-    plt.show()
-
-
-
-#### ecg correction
-dict_ecg_correction = {
-
-'PD01' :    {'ses02' :  {'add' : [], 'remove' : []},
-            'ses03' :  {'add' : [], 'remove' : []},
-            'ses04' :  {'add' : [], 'remove' : []},
-            }
-
-}
-
-#### add
-ecg_events_corrected = [2799780, 2802240, 2803050, 2808680, 2811270, 2809297, 2812524, 2813138, 2816806, 2816992, 2817652, 2818294, 2818923, 2819521, 2820121, 2820693, 2821269, 2821804, 2940129, 2973382, 2973777, 3065220, 3065711]
-ecg_events_time += ecg_events_corrected
-ecg_events_time.sort()
-#### remove
-ecg_events_to_remove = []
-[ecg_events_time.remove(i) for i in ecg_events_to_remove]
-
-
 
 
 

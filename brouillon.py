@@ -768,7 +768,7 @@ plt.show()
 plt.show(time)
 
 
-
+get_wpli_ispc_fc_dfc(sujet, cond, band_prep, band, freq, electrode_recording_type)
 
 
 
@@ -794,7 +794,18 @@ fit_lm de matlab
 plot avec l'axe des y inveré pas * -1
 
 
+import matplotlib.pyplot as plt
+import numpy as np
 
+def onpick(event):
+    artist = event.artist
+    print(artist.get_offsets())
 
+fig, ax = plt.subplots()
+fig.canvas.mpl_connect('pick_event', onpick)
 
-
+srate = 100
+times = np.arange(srate*60)/srate
+for i in range(times.shape[0]):
+    ax.scatter(times, 10*np.sin(2*np.pi*10*times), picker=True, marker='o', linestyle='None', pickradius=1)
+plt.show()

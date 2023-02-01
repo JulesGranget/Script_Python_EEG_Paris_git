@@ -27,8 +27,12 @@ sujet = 'PD01'
 
 #sujet = 'DEBUG'
 
+conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
+
 conditions_allsubjects = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
-sujet_list = ['Pilote']
+sujet_list = np.array(['PD01','MJ02','VN03','GB04','LV05','EF06','PB07','DM08','TA09','BH10','FA11','BD12','FP13',
+'MD14','LG15','GM16','JR17','SE18','TM19','TY20','ZV21','DI22','LF23','TJ24','DF25','MN26','BD27','NT28','SC29',
+'AR30','HJ31','CM32','MA33'])
 
 band_prep_list = ['wb']
 
@@ -48,9 +52,10 @@ srate = 500
 
 odor_order = {
 
-'PD01' : {'ses01' : 'o', 'ses02' : '+', 'ses03' : '-'}
+'PD01' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'}
 
 }
+
 
 
 ########################################
@@ -137,6 +142,13 @@ path_slurm = os.path.join(path_general, 'Script_slurm')
 mem_crnl_cluster = '10G'
 n_core_slurms = 10
 
+
+
+
+
+
+
+
 ################################################
 ######## ELECTRODES REMOVED BEFORE LOCA ######## 
 ################################################
@@ -163,12 +175,38 @@ sujet_adjust_trig = {
 
 
 
+
+################################
+######## RESPI PARAMS ########
+################################ 
+
+#### INSPI DOWN
+sujet_respi_adjust = {
+'PD01':'inverse',   'MJ02':'',   'VN03':'',   'GB04':'',   'LV05':'',
+'EF06':'',   'PB07':'',   'DM08':'',   'TA09':'',   'BH10':'',
+'FA11':'',   'BD12':'',   'FP13':'',   'MD14':'',   'LG15':'',
+'GM16':'',   'JR17':'',   'SE18':'',   'TM19':'',   'TY20':'',
+'ZV21':'',   'DI22':'',   'LF23':'',   'TJ24':'',   'DF25':'',
+'MN26':'',   'BD27':'',   'NT28':'',   'SC29':'',   'AR30':'',
+'HJ31':'',   'CM32':'',   'MA33':''
+}
+
+
+
+
+
 ################################
 ######## ECG PARAMS ########
 ################################ 
 
 sujet_ecg_adjust = {
-'Pilote' : 'inverse',
+'PD01':'inverse',   'MJ02':'',   'VN03':'',   'GB04':'',   'LV05':'',
+'EF06':'',   'PB07':'',   'DM08':'',   'TA09':'',   'BH10':'',
+'FA11':'',   'BD12':'',   'FP13':'',   'MD14':'',   'LG15':'',
+'GM16':'',   'JR17':'',   'SE18':'',   'TM19':'',   'TY20':'',
+'ZV21':'',   'DI22':'',   'LF23':'',   'TJ24':'',   'DF25':'',
+'MN26':'',   'BD27':'',   'NT28':'',   'SC29':'',   'AR30':'',
+'HJ31':'',   'CM32':'',   'MA33':''
 }
 
 
@@ -194,14 +232,14 @@ prep_step_debug = {
 }
 
 prep_step_wb = {
-'reref' : {'execute': False, 'params' : ['chan']}, #chan = chan to reref
+'reref' : {'execute': True, 'params' : ['TP9', 'TP10']}, #chan = chan to reref
 'mean_centered' : {'execute': True},
 'line_noise_removing' : {'execute': True},
 'high_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
 'low_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
+'csd_computation' : {'execute': False},
 'ICA_computation' : {'execute': True},
 'average_reref' : {'execute': False},
-'csd_computation' : {'execute': False},
 }
 
 prep_step_lf = {

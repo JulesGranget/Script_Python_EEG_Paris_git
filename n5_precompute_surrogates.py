@@ -52,7 +52,7 @@ def precompute_surrogates_coh(band_prep, session_eeg, cond, session_i):
     conditions, chan_list, chan_list_ieeg, srate = extract_chanlist_srate_conditions(sujet, conditions_allsubjects)
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
 
-    data_tmp = load_data(band_prep, session_eeg, cond, session_i)
+    data_tmp = load_data_sujet(sujet, band_prep, cond, session_i)
 
     if os.path.exists(sujet + f'_s{session_eeg+1}_' + cond + '_' + str(session_i+1) + '_Coh.npy'):
         print('ALREADY COMPUTED')
@@ -113,7 +113,7 @@ def precompute_surrogates_cyclefreq(band_prep, session_eeg, cond, session_i):
 
     os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
 
-    data_tmp = load_data(band_prep, session_eeg, cond, session_i)
+    data_tmp = load_data_sujet(sujet, band_prep, cond, session_i)
 
     if os.path.exists(sujet + f'_s{session_eeg+1}_' + cond + '_' + str(session_i+1) + '_cyclefreq_' +  band_prep + '.npy'):
         print('ALREADY COMPUTED')

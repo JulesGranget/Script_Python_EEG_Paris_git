@@ -44,7 +44,7 @@ def compute_fc_metrics_mat(session_eeg, band_prep, freq, band, cond, session_i, 
         return pli_mat, ispc_mat 
     
     #### load_data
-    data = load_data(band_prep, session_eeg, cond, session_i)
+    data = load_data_sujet(sujet, band_prep, cond, session_i)
 
     #### select wavelet parameters
     if band_prep == 'wb':

@@ -125,7 +125,7 @@ def precompute_tf(session_eeg, cond, session_i, band_prep_list):
     for band_prep in band_prep_list:
 
         #### select data without aux chan
-        data = load_data(band_prep, session_eeg, cond, session_i)[:len(chan_list_ieeg),:]
+        data = load_data_sujet(sujet, band_prep, cond, session_i)[:len(chan_list_ieeg),:]
 
         freq_band = freq_band_dict[band_prep] 
 
@@ -234,7 +234,7 @@ def precompute_tf_itpc(session_eeg, cond, session_i, band_prep_list):
     for band_prep in band_prep_list:
 
         #### select data without aux chan
-        data = load_data(band_prep, session_eeg, cond, session_i)[:len(chan_list_ieeg),:]
+        data = load_data_sujet(sujet, band_prep, cond, session_i)[:len(chan_list_ieeg),:]
 
         freq_band = freq_band_dict[band_prep]
 

@@ -357,7 +357,6 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('TF', construct_token)
     construct_token = create_folder('PSD_Coh', construct_token)
     construct_token = create_folder('baselines', construct_token)
-    construct_token = create_folder('DFC', construct_token)
     construct_token = create_folder('FC', construct_token)
 
         #### anatomy
@@ -376,7 +375,6 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('PSD_Coh', construct_token)
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('FC', construct_token)
-    construct_token = create_folder('DFC', construct_token)
     construct_token = create_folder('HRV', construct_token)
     construct_token = create_folder('df', construct_token)
 
@@ -395,11 +393,6 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
 
-            #### DFC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'DFC'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('allcond', construct_token)
-
         #### allplot
     os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot'))
     construct_token = create_folder('allcond', construct_token)
@@ -410,11 +403,10 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('TF', construct_token)
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('FC', construct_token)
-    construct_token = create_folder('DFC', construct_token)
     construct_token = create_folder('PSD_Coh', construct_token)
 
-            #### DFC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'DFC'))
+            #### FC
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'FC'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token) 
 
@@ -449,26 +441,10 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('ROI', construct_token)
     construct_token = create_folder('Lobes', construct_token)
 
-            #### DFC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'DFC'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)  
-
             #### FC          
     os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'FC'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token) 
-
-    #### Data
-    os.chdir(os.path.join(path_general, 'Data'))
-    construct_token = create_folder(sujet, construct_token)
-
-        #### raw_data
-    os.chdir(os.path.join(path_general, 'Data', sujet))    
-    construct_token = create_folder('ses01', construct_token)
-    construct_token = create_folder('ses02', construct_token)
-    construct_token = create_folder('ses03', construct_token)
-    construct_token = create_folder('ses04', construct_token)
 
     return construct_token
 
@@ -537,7 +513,7 @@ def get_params(sujet):
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
     count_session = count_all_session(sujet)
 
-    params = {'conditions' : conditions, 'chan_list' : chan_list, 'chan_list_ieeg' : chan_list_ieeg, 'srate' : srate, 
+    params = {'conditions' : conditions, 'chan_list' : chan_list, 'chan_list_eeg' : chan_list_ieeg, 'srate' : srate, 
     'nwind' : nwind, 'nfft' : nfft, 'noverlap' : noverlap, 'hannw' : hannw,
     'count_session' : count_session, 'respi_ratio_allcond' : respi_ratio_allcond}
 
@@ -714,36 +690,8 @@ def get_wavelets(band_prep, freq):
 
 
 
-def load_data(band_prep, session_eeg, cond, session_i):
-
-    path_source = os.getcwd()
-    
-    os.chdir(os.path.join(path_prep, sujet, 'sections'))
-
-    load_i = []
-    for session_name_i, session_name in enumerate(os.listdir()):
-        if np.sum([(session_name.find(cond) > 0), (session_name.find(f's{session_eeg+1}') > 0), (session_name.find(band_prep) > 0), (session_name.find('lf') != -1 or session_name.find('wb') != -1)]) == 4:                    
-            load_i.append(session_name_i)
-        else:
-            continue
-
-    load_list = [os.listdir()[i] for i in load_i]
-    load_name = load_list[session_i]
-
-    raw = mne.io.read_raw_fif(load_name, preload=True, verbose='critical')
-
-    data = raw.get_data() 
-
-    #### go back to path source
-    os.chdir(path_source)
-
-    #### free memory
-    del raw
-
-    return data
-
 #sujet, band_prep, cond, odor = 'PD01', 'wb', 'FR_CV_1', 'o'
-def load_data_sujet(sujet, band_prep, cond, odor):
+def load_data_sujet(sujet, band_prep, cond, session_i):
 
     path_source = os.getcwd()
     
@@ -751,7 +699,7 @@ def load_data_sujet(sujet, band_prep, cond, odor):
 
     load_i = []
     for i, session_name in enumerate(os.listdir()):
-        if ( session_name.find(cond) != -1 ) & ( session_name.find(band_prep) != -1 ) & ( session_name.find(odor) != -1 ):
+        if ( session_name.find(cond) != -1 ) & ( session_name.find(band_prep) != -1 ) & ( session_name.find(session_i) != -1 ):
             load_i.append(i)
         else:
             continue
