@@ -21,18 +21,14 @@ import scipy.signal
 enable_big_execute = False
 perso_repo_computation = False
 
-#### subjects
-sujet = 'pilote_sub01'
-sujet = 'PD01'
-
 #sujet = 'DEBUG'
 
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
 conditions_allsubjects = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
-sujet_list = np.array(['PD01','MJ02','VN03','GB04','LV05','EF06','PB07','DM08','TA09','BH10','FA11','BD12','FP13',
-'MD14','LG15','GM16','JR17','SE18','TM19','TY20','ZV21','DI22','LF23','TJ24','DF25','MN26','BD27','NT28','SC29',
-'AR30','HJ31','CM32','MA33'])
+sujet_list = np.array(['01PD','02MJ','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
+'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
+'30AR','31HJ','32CM','33MA'])
 
 band_prep_list = ['wb']
 
@@ -52,9 +48,19 @@ srate = 500
 
 odor_order = {
 
-'PD01' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'}
-
+'01PD' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   '02MJ' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '03VN' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   
+'04GB' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '05LV' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '06EF' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   
+'07PB' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   '08DM' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},   '09TA' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   
+'10BH' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '11FA' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   '12BD' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   
+'13FP' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '14MD' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '15LG' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},
+'16GM' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '17JR' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '18SE' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   
+'19TM' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '20TY' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},   '21ZV' : {'ses02' : 'o', 'ses03' : '+', 'ses04' : '-'},   
+'22DI' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   '23LF' : {'ses02' : '+', 'ses03' : '-', 'ses04' : 'o'},   '24TJ' : {'ses02' : '-', 'ses03' : '+', 'ses04' : 'o'},   
+'25DF' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '26MN' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '27BD' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   
+'28NT' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},   '29SC' : {'ses02' : 'o', 'ses03' : '-', 'ses04' : '+'},   '30AR' : {'ses02' : '+', 'ses03' : 'o', 'ses04' : '-'},
+'31HJ' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '32CM' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'},   '33MA' : {'ses02' : '-', 'ses03' : 'o', 'ses04' : '+'}
 }
+
 
 
 
@@ -182,16 +188,22 @@ sujet_adjust_trig = {
 
 #### INSPI DOWN
 sujet_respi_adjust = {
-'PD01':'inverse',   'MJ02':'',   'VN03':'',   'GB04':'',   'LV05':'',
-'EF06':'',   'PB07':'',   'DM08':'',   'TA09':'',   'BH10':'',
-'FA11':'',   'BD12':'',   'FP13':'',   'MD14':'',   'LG15':'',
-'GM16':'',   'JR17':'',   'SE18':'',   'TM19':'',   'TY20':'',
-'ZV21':'',   'DI22':'',   'LF23':'',   'TJ24':'',   'DF25':'',
-'MN26':'',   'BD27':'',   'NT28':'',   'SC29':'',   'AR30':'',
-'HJ31':'',   'CM32':'',   'MA33':''
+'01PD':'inverse',   '02MJ':'inverse',   '03VN':'inverse',   '04GB':'inverse',   '05LV':'inverse',
+'06EF':'inverse',   '07PB':'inverse',   '08DM':'inverse',   '09TA':'inverse',   '10BH':'inverse',
+'11FA':'inverse',   '12BD':'inverse',   '13FP':'inverse',   '14MD':'inverse',   '15LG':'inverse',
+'16GM':'inverse',   '17JR':'inverse',   '18SE':'inverse',   '19TM':'inverse',   '20TY':'inverse',
+'21ZV':'inverse',   '22DI':'inverse',   '23LF':'inverse',   '24TJ':'inverse',   '25DF':'inverse',
+'26MN':'inverse',   '27BD':'inverse',   '28NT':'inverse',   '29SC':'inverse',   '30AR':'inverse',
+'31HJ':'inverse',   '32CM':'inverse',   '33MA':'inverse'
 }
 
 
+cycle_detection_params = {
+'exclusion_metrics' : 'med',
+'metric_coeff_exclusion' : 3,
+'inspi_coeff_exclusion' : 2,
+'respi_scale' : [0.1, 0.35], #Hz
+}
 
 
 
@@ -200,13 +212,13 @@ sujet_respi_adjust = {
 ################################ 
 
 sujet_ecg_adjust = {
-'PD01':'inverse',   'MJ02':'',   'VN03':'',   'GB04':'',   'LV05':'',
-'EF06':'',   'PB07':'',   'DM08':'',   'TA09':'',   'BH10':'',
-'FA11':'',   'BD12':'',   'FP13':'',   'MD14':'',   'LG15':'',
-'GM16':'',   'JR17':'',   'SE18':'',   'TM19':'',   'TY20':'',
-'ZV21':'',   'DI22':'',   'LF23':'',   'TJ24':'',   'DF25':'',
-'MN26':'',   'BD27':'',   'NT28':'',   'SC29':'',   'AR30':'',
-'HJ31':'',   'CM32':'',   'MA33':''
+'01PD':'inverse',   '02MJ':'inverse',   '03VN':'inverse',   '04GB':'inverse',   '05LV':'inverse',
+'06EF':'inverse',   '07PB':'inverse',   '08DM':'inverse',   '09TA':'inverse',   '10BH':'inverse',
+'11FA':'inverse',   '12BD':'inverse',   '13FP':'inverse',   '14MD':'inverse',   '15LG':'inverse',
+'16GM':'inverse',   '17JR':'inverse',   '18SE':'inverse',   '19TM':'inverse',   '20TY':'inverse',
+'21ZV':'inverse',   '22DI':'inverse',   '23LF':'inverse',   '24TJ':'inverse',   '25DF':'inverse',
+'26MN':'inverse',   '27BD':'inverse',   '28NT':'inverse',   '29SC':'inverse',   '30AR':'inverse',
+'31HJ':'inverse',   '32CM':'inverse',   '33MA':'inverse'
 }
 
 
@@ -314,7 +326,7 @@ percentile_cyclefreq_dw = .01
 #### stretch
 stretch_point_TF = 1000
 stretch_TF_auto = False
-ratio_stretch_TF = 0.45
+ratio_stretch_TF = 0.5
 
 #### TF & ITPC
 nfrex_hf = 50

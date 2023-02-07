@@ -25,15 +25,32 @@ debug = False
 #sujet, session_i = 'PD01', 1
 def open_raw_data_session(sujet, session_i):
 
-    #### open raw
+    #### open raw and adjust for sujet
     os.chdir(os.path.join(path_data, 'eeg'))
 
-    raw = mne.io.read_raw_brainvision(f'{sujet}_ses0{session_i+2}.vhdr', preload=True)
+    sujet_eeg_open = sujet[-2:] + sujet[:-2]
+
+    if sujet_eeg_open == 'NT28' and session_i == 0:
+
+        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
+        raw_2 = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}_2.vhdr', preload=True)
+
+        raw = mne.concatenate_raws([raw, raw_2])
+
+    elif sujet_eeg_open == 'AR30' and session_i == 2:
+
+        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
+        srate = int(raw.info['sfreq'])
+        raw.crop(tmin=1076000/srate, tmax=None)
+
+    else:
+
+        raw = mne.io.read_raw_brainvision(f'{sujet_eeg_open}_ses0{session_i+2}.vhdr', preload=True)
 
     srate = int(raw.info['sfreq'])
 
     if srate != 500:
-        raise ValueError(f'#### WARNING : {sujet} srate != 500 ####')
+        raise ValueError(f'#### WARNING : {sujet_eeg_open} srate != 500 ####')
 
     #### Data vizualisation
     if debug == True :
@@ -80,7 +97,8 @@ def open_raw_data_session(sujet, session_i):
         plt.vlines(peaks, ymin=respi.min(), ymax=respi.max(), color='r')
         plt.show()
 
-        trig_list = [1,3,6,8]
+        #### tag block ending
+        trig_list = [1,3,5,7]
         peaks[trig_list]
 
         plt.plot(respi)
@@ -92,7 +110,7 @@ def open_raw_data_session(sujet, session_i):
     #cond = conditions[0]
     for cond in conditions:
         
-        _stop = dict_trig_sujet[sujet][f'ses0{session_i+2}'][cond]
+        _stop = dict_trig_sujet[sujet_eeg_open][f'ses0{session_i+2}'][cond]
         _start = _stop - (srate*5*60)
         trig[cond] = np.array([_start, _stop])
 
@@ -585,7 +603,7 @@ def preprocessing_ieeg(raw, prep_step):
 ######## CHOP & SAVE ########
 ################################
 
-#band_preproc = 'wb'
+#band_preproc, export_info = 'wb', True
 def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session_i, export_info):
 
     print('#### SAVE ####')
@@ -685,7 +703,7 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[1]
     for sujet in sujet_list:
 
         ########################################
@@ -703,49 +721,47 @@ if __name__== '__main__':
 
         for session_i in range(3):
 
-
-
             ########################
             ######## PARAMS ########
             ########################
 
-            # session_i = 0
-            # session_i = 1
-            # session_i = 2
+            sujet = '01PD'
+            sujet = '02MJ'
+            sujet = '03VN'
+            sujet = '04GB'
+            sujet = '05LV'
+            sujet = '06EF'
+            sujet = '07PB'
+            sujet = '08DM'
+            sujet = '09TA'
+            sujet = '10BH'
+            sujet = '11FA'
+            sujet = '12BD'
+            sujet = '13FP'
+            sujet = '14MD'
+            sujet = '15LG'
+            sujet = '16GM'
+            sujet = '17JR'
+            sujet = '18SE'
+            sujet = '19TM'
+            sujet = '20TY'
+            sujet = '21ZV'
+            sujet = '22DI'
+            sujet = '23LF'
+            sujet = '24TJ'
+            sujet = '25DF'
+            sujet = '26MN'
+            sujet = '27BD'
+            sujet = '28NT'
+            sujet = '29SC'
+            sujet = '30AR'
+            sujet = '31HJ'
+            sujet = '32CM'
+            sujet = '33MA'
 
-            # sujet = 'PD01'
-            # sujet = 'MJ02'
-            # sujet = 'VN03'
-            # sujet = 'GB04'
-            # sujet = 'LV05'
-            # sujet = 'EF06'
-            # sujet = 'PB07'
-            # sujet = 'DM08'
-            # sujet = 'TA09'
-            # sujet = 'BH10'
-            # sujet = 'FA11'
-            # sujet = 'BD12'
-            # sujet = 'FP13'
-            # sujet = 'MD14'
-            # sujet = 'LG15'
-            # sujet = 'GM16'
-            # sujet = 'JR17'
-            # sujet = 'SE18'
-            # sujet = 'TM19'
-            # sujet = 'TY20'
-            # sujet = 'ZV21'
-            # sujet = 'DI22'
-            # sujet = 'LF23'
-            # sujet = 'TJ24'
-            # sujet = 'DF25'
-            # sujet = 'MN26'
-            # sujet = 'BD27'
-            # sujet = 'NT28'
-            # sujet = 'SC29'
-            # sujet = 'AR30'
-            # sujet = 'HJ31'
-            # sujet = 'CM32'
-            # sujet = 'MA33'
+            session_i = 0
+            session_i = 1
+            session_i = 2
 
 
             ################################
@@ -763,10 +779,14 @@ if __name__== '__main__':
             ######## AUX PROCESSING ########
             ################################
 
-            #### verif ecg orientation
+            #### verif ecg and respi orientation
             if debug:
                 _ecg = raw_aux.get_data()[-1]
                 plt.plot(_ecg)
+                plt.show()
+
+                _respi = raw_aux.get_data()[0]
+                plt.plot(_respi)
                 plt.show()
 
             raw_aux, ecg_events_time = ecg_detection(raw_aux)
