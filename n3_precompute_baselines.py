@@ -35,7 +35,6 @@ def compute_and_save_baseline(sujet, odor_i, band_prep):
         print(f'{sujet}_{odor_i} : BASELINES ALREADY COMPUTED')
         return
             
-
     #### open raw
     data_allcond = load_data_sujet(sujet, band_prep, 'allcond', odor_i)
 
@@ -68,8 +67,13 @@ def compute_and_save_baseline(sujet, odor_i, band_prep):
 
     #### get trig values
     session_i = list(odor_order[sujet].keys())[list(odor_order[sujet].values()).index(odor_i)]
-    session_i = f'{session_i[:-1]}{int(session_i[-1])+1}'
-    trig = dict_trig_sujet[sujet][session_i]
+    srate = get_params()['srate']
+
+    trig = {}
+    for cond in conditions:
+        trig_stop = dict_trig_sujet[sujet][session_i][cond]
+        trig_start = trig_stop - 300*srate
+        trig[cond] = [trig_start, trig_stop]
 
     #### compute convolutions
     n_band_to_compute = len(list(freq_band_dict[band_prep].keys()))
@@ -94,10 +98,10 @@ def compute_and_save_baseline(sujet, odor_i, band_prep):
                 fi_conv = abs(scipy.signal.fftconvolve(x, wavelets_to_conv[band][fi,:], 'same'))**2
 
                 #### chunk data
-                fi_conv_chunked = np.concatenate((  fi_conv[int(trig['FR_CV_1_start']) : int(trig['FR_CV_1_stop'])],
-                                                    fi_conv[int(trig['MECA_start']) : int(trig['MECA_stop'])],
-                                                    fi_conv[int(trig['CO2_start']) : int(trig['CO2_stop'])],
-                                                    fi_conv[int(trig['FR_CV_2_start']) : int(trig['FR_CV_2_stop'])],
+                fi_conv_chunked = np.concatenate((  fi_conv[trig['FR_CV_1'][0] : trig['FR_CV_1'][1]],
+                                                    fi_conv[trig['MECA'][0] : trig['MECA'][1]],
+                                                    fi_conv[trig['CO2'][0] : trig['CO2'][1]],
+                                                    fi_conv[trig['FR_CV_2'][0] : trig['FR_CV_2'][1]],
                                                     ), axis=0)
 
                 baseline_coeff_band = np.append(baseline_coeff_band, np.median(fi_conv_chunked))
@@ -107,7 +111,7 @@ def compute_and_save_baseline(sujet, odor_i, band_prep):
     joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(baseline_convolutions)(n_chan) for n_chan in range(np.size(data_allcond,0)))
 
     #### save baseline
-    os.chdir(os.path.join(path_precompute, sujet, 'Baselines'))
+    os.chdir(os.path.join(path_precompute, sujet, 'baselines'))
 
     for band_i, band in enumerate(list(freq_band_dict[band_prep].keys())):
     
@@ -116,6 +120,11 @@ def compute_and_save_baseline(sujet, odor_i, band_prep):
     #### remove memmap
     os.chdir(path_memmap)
     os.remove(f'{sujet}_{odor_i}_baseline_convolutions.dat')
+
+
+
+
+
 
 
 
@@ -129,7 +138,7 @@ if __name__== '__main__':
 
 
     #### params
-    sujet = 'PD01'
+    sujet = '01PD'
     band_prep = 'wb'
     odor_i = 'o'
 
@@ -137,9 +146,11 @@ if __name__== '__main__':
     #compute_and_save_baseline(sujet, odor_i, band_prep)
     
     #### slurm execution
-    for odor_i in odor_list:
-        for band_prep in band_prep_list:
-            execute_function_in_slurm_bash('n2_baseline_computation', 'compute_and_save_baseline', [sujet, odor_i, band_prep])
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
+        for odor_i in odor_list:
+            for band_prep in band_prep_list:
+                execute_function_in_slurm_bash('n3_precompute_baselines', 'compute_and_save_baseline', [sujet, odor_i, band_prep])
 
 
 

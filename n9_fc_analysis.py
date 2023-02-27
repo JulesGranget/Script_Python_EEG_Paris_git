@@ -177,7 +177,7 @@ def compute_fc_metrics_mat(session_eeg, band_prep, freq, band, cond, session_i, 
 def compute_pli_ispc_allband(sujet, session_eeg):
 
     #### get params
-    prms = get_params(sujet)
+    prms = get_params()
 
     #### compute
     pli_allband = {}
@@ -247,7 +247,7 @@ def compute_pli_ispc_allband(sujet, session_eeg):
 def get_pli_ispc_allsession(sujet):
 
     #### get params
-    prms = get_params(sujet)
+    prms = get_params()
 
     #### compute
     pli_allband = {}
@@ -560,7 +560,7 @@ def save_fig_FC(pli_allband_reduced, ispc_allband_reduced, prms):
 
 def save_fig_for_allsession(sujet):
 
-    prms = get_params(sujet)
+    prms = get_params()
 
     pli_allband_reduced, ispc_allband_reduced = get_pli_ispc_allsession(sujet)
 

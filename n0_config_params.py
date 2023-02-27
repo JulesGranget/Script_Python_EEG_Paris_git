@@ -25,21 +25,39 @@ perso_repo_computation = False
 
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
-conditions_allsubjects = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 sujet_list = np.array(['01PD','02MJ','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
 '14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
 '30AR','31HJ','32CM','33MA'])
 
 band_prep_list = ['wb']
 
-freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]},
+freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120], 'whole' : [2,50]},
                 'lf' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'whole' : [2,50]},
                 'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
 
+freq_band_list_precompute = {'wb' : {'theta_1' : [2,10], 'theta_2' : [4,8], 'alpha_1' : [8,12], 'alpha_2' : [8,14], 
+                                    'beta_1' : [12,40], 'beta_2' : [10,40], 'whole_1' : [2,50], 'l_gamma_1' : [50, 80], 
+                                    'h_gamma_1' : [80, 120]} }
+
+freq_band_dict_FC = {'wb' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40]},
+                'lf' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40], 'whole' : [2,50]},
+                'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
 
 odor_list = ['o', '+', '-']
 
+phase_list = ['whole', 'inspi', 'expi']
+
 srate = 500
+
+chan_list = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
+            'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2', 
+            'PRESS', 'ECG', 'ECG_cR']
+            
+chan_list_eeg = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
+            'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']
+
+
+
 
 
 ################################
@@ -106,7 +124,7 @@ elif PC_ID == 'pc-jules':
         path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
     path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
     path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Mmap'
-    n_core = 6
+    n_core = 4
 
 elif PC_ID == 'pc-valentin':
 
@@ -149,34 +167,6 @@ mem_crnl_cluster = '10G'
 n_core_slurms = 10
 
 
-
-
-
-
-
-
-################################################
-######## ELECTRODES REMOVED BEFORE LOCA ######## 
-################################################
-
-electrodes_to_remove = {
-
-'Pilote' : [],
-
-}
-
-
-
-################################
-######## PREP INFO ######## 
-################################
-
-
-
-sujet_adjust_trig = {
-'Pilote' : False
-
-}
 
 
 
@@ -302,7 +292,7 @@ if zero_pad_coeff - 5 <= 0:
 remove_zero_pad = zero_pad_coeff - 5
 
 #### stretch
-stretch_point_surrogates = 1000
+stretch_point_surrogates = 500
 
 #### coh
 n_surrogates_coh = 1000
@@ -324,7 +314,7 @@ percentile_cyclefreq_dw = .01
 ################################
 
 #### stretch
-stretch_point_TF = 1000
+stretch_point_TF = 500
 stretch_TF_auto = False
 ratio_stretch_TF = 0.5
 
@@ -336,6 +326,10 @@ ncycle_list_lf = [7, 15]
 ncycle_list_hf = [20, 30]
 ncycle_list_wb = [7, 30]
 srate_dw = 10
+
+
+#### STATS
+n_surrogates_tf = 1000
 
 
 
@@ -369,6 +363,20 @@ nfft_hrv = nwind_hrv
 noverlap_hrv = np.round(nwind_hrv/10)
 win_hrv = scipy.signal.windows.hann(nwind_hrv)
 f_RRI = (.1, .5)
+
+
+
+
+################################
+######## HRV TRACKER ########
+################################
+
+cond_label_tracker = {'FR_CV_1' : 1, 'MECA' : 2, 'CO2' : 3, 'FR_CV_2' : 1}
+
+
+
+
+
 
 
 

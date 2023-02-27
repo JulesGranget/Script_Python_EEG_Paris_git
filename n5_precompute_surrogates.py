@@ -16,192 +16,262 @@ debug = False
 
 
 
+
+
+
 ################################################
-######## PRECOMPUTE AND SAVE SURROGATES ########
+######## CXY CYCLE FREQ SURROGATES ########
 ################################################
 
 
-def shuffle_CycleFreq(x):
-
-    cut = int(np.random.randint(low=0, high=len(x), size=1))
-    x_cut1 = x[:cut]
-    x_cut2 = x[cut:]*-1
-    x_shift = np.concatenate((x_cut2, x_cut1), axis=0)
-
-    return x_shift
-    
-
-def shuffle_Cxy(x):
-   half_size = x.shape[0]//2
-   ind = np.random.randint(low=0, high=half_size)
-   x_shift = x.copy()
-   
-   x_shift[ind:ind+half_size] *= -1
-   if np.random.rand() >=0.5:
-       x_shift *= -1
-
-   return x_shift
 
 
-def precompute_surrogates_coh(band_prep, session_eeg, cond, session_i):
+def precompute_surrogates_coh(sujet, band_prep, cond):
     
     os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
     
     print(cond)
 
-    conditions, chan_list, chan_list_ieeg, srate = extract_chanlist_srate_conditions(sujet, conditions_allsubjects)
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
 
-    data_tmp = load_data_sujet(sujet, band_prep, cond, session_i)
+    for odor_i in odor_list:
 
-    if os.path.exists(sujet + f'_s{session_eeg+1}_' + cond + '_' + str(session_i+1) + '_Coh.npy'):
-        print('ALREADY COMPUTED')
-        return
+        data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
 
-    respi_i = chan_list.index('Respi')
+        if os.path.exists(f"{sujet}_{cond}_{odor_i}_Coh.npy"):
+            print('ALREADY COMPUTED')
+            return
+        
+        respi = data_tmp[chan_list.index('PRESS'),:]
 
-    respi = data_tmp[respi_i,:]
+        hzCxy = np.linspace(0,srate/2,int(nfft/2+1))
+        mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
+        hzCxy = hzCxy[mask_hzCxy]
 
-    hzCxy = np.linspace(0,srate/2,int(nfft/2+1))
-    mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
-    hzCxy = hzCxy[mask_hzCxy]
+        surrogates_n_chan = np.zeros((data_tmp.shape[0],len(hzCxy)))
 
-    surrogates_n_chan = np.zeros((np.size(data_tmp,0),len(hzCxy)))
+        def compute_surrogates_coh_n_chan(n_chan):
 
-    def compute_surrogates_coh_n_chan(n_chan):
+            print_advancement(n_chan, data_tmp.shape[0], steps=[25, 50, 75])
 
-        if n_chan/np.size(data_tmp,0) % .2 <= .01:
-            print('{:.2f}'.format(n_chan/np.size(data_tmp,0)))
+            x = data_tmp[n_chan,:]
+            y = respi
 
-        x = data_tmp[n_chan,:]
-        y = respi
+            surrogates_val_tmp = np.zeros((n_surrogates_coh,len(hzCxy)))
 
-        surrogates_val_tmp = np.zeros((n_surrogates_coh,len(hzCxy)))
-        for surr_i in range(n_surrogates_coh):
-            
-            #if surr_i%100 == 0:
-            #    print(surr_i) 
+            for surr_i in range(n_surrogates_coh):
 
-            x_shift = shuffle_Cxy(x)
-            #y_shift = shuffle_Cxy(y)
-            hzCxy_tmp, Cxy = scipy.signal.coherence(x_shift, y, fs=srate, window=hannw, nperseg=None, noverlap=noverlap, nfft=nfft)
+                x_shift = shuffle_Cxy(x)
+                #y_shift = shuffle_Cxy(y)
+                hzCxy_tmp, Cxy = scipy.signal.coherence(x_shift, y, fs=srate, window=hannw, nperseg=nwind, noverlap=noverlap, nfft=nfft)
 
-            surrogates_val_tmp[surr_i,:] = Cxy[mask_hzCxy]
+                surrogates_val_tmp[surr_i,:] = Cxy[mask_hzCxy]
 
-        surrogates_val_tmp_sorted = np.sort(surrogates_val_tmp, axis=0)
-        percentile_i = int(np.floor(n_surrogates_coh*percentile_coh))
-        compute_surrogates_coh_tmp = surrogates_val_tmp_sorted[percentile_i,:]
+            surrogates_val_tmp_sorted = np.sort(surrogates_val_tmp, axis=0)
+            percentile_i = int(np.floor(n_surrogates_coh*percentile_coh))
+            compute_surrogates_coh_tmp = surrogates_val_tmp_sorted[percentile_i,:]
 
-        return compute_surrogates_coh_tmp
-    
-    compute_surrogates_coh_results = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_surrogates_coh_n_chan)(n_chan) for n_chan in range(np.size(data_tmp,0)))
+            return compute_surrogates_coh_tmp
+        
+        compute_surrogates_coh_results = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_surrogates_coh_n_chan)(n_chan) for n_chan in range(data_tmp.shape[0]))
 
-    for n_chan in range(np.size(data_tmp,0)):
+        for n_chan in range(data_tmp.shape[0]):
 
-        surrogates_n_chan[n_chan,:] = compute_surrogates_coh_results[n_chan]
+            surrogates_n_chan[n_chan,:] = compute_surrogates_coh_results[n_chan]
 
-    np.save(sujet + f'_s{session_eeg+1}_' + cond + '_' + str(session_i+1) + '_Coh.npy', surrogates_n_chan)
+        #### save
+        np.save(f'{sujet}_{cond}_{odor_i}_Coh.npy', surrogates_n_chan)
+
+        print('done')
 
 
 
-#band_prep, session_eeg, cond, session_i = 'wb', 0, 'FR_CV', 0
-def precompute_surrogates_cyclefreq(band_prep, session_eeg, cond, session_i):
+def precompute_surrogates_cyclefreq(sujet, band_prep, cond):
     
     print(cond)
 
-    respfeatures_allcond, respi_mean_allcond = load_respfeatures(sujet)
+    #### load params
+    respfeatures_allcond = load_respfeatures(sujet)
 
+    #### load data
     os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
 
-    data_tmp = load_data_sujet(sujet, band_prep, cond, session_i)
+    for odor_i in odor_list:
 
-    if os.path.exists(sujet + f'_s{session_eeg+1}_' + cond + '_' + str(session_i+1) + '_cyclefreq_' +  band_prep + '.npy'):
-        print('ALREADY COMPUTED')
-        return
+        data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
 
-    surrogates_n_chan = np.zeros((3,np.size(data_tmp,0), stretch_point_surrogates))
+        if os.path.exists(f'{sujet}_{cond}_{odor_i}_cyclefreq_{band_prep}.npy') == True :
+            print('ALREADY COMPUTED')
+            return
 
-    respfeatures_i = respfeatures_allcond[f's{session_eeg+1}'][cond][session_i]
+        #### compute surrogates
+        surrogates_n_chan = np.zeros((3, data_tmp.shape[0], stretch_point_surrogates))
 
-    def compute_surrogates_cyclefreq_nchan(n_chan):
+        respfeatures_i = respfeatures_allcond[cond][odor_i]
 
-        if n_chan/np.size(data_tmp,0) % .2 <= .01:
-            print('{:.2f}'.format(n_chan/np.size(data_tmp,0)))
+        #n_chan = 0
+        def compute_surrogates_cyclefreq_nchan(n_chan):
 
-        x = data_tmp[n_chan,:]
+            print_advancement(n_chan, data_tmp.shape[0], steps=[25, 50, 75])
 
-        surrogates_val_tmp = np.zeros((n_surrogates_cyclefreq,stretch_point_surrogates))
-        for surr_i in range(n_surrogates_cyclefreq):
+            x = data_tmp[n_chan,:]
+
+            surrogates_val_tmp = np.zeros((n_surrogates_cyclefreq, stretch_point_surrogates))
+
+            # surr_i = 0
+            for surr_i in range(n_surrogates_cyclefreq):
+
+                # print_advancement(surr_i, n_surrogates_cyclefreq, steps=[25, 50, 75])
+
+                x_shift = shuffle_Cxy(x)
+                #y_shift = shuffle_Cxy(y)
+
+                x_stretch, mean_inspi_ratio = stretch_data(respfeatures_i, stretch_point_surrogates, x_shift, srate)
+
+                x_stretch_mean = np.mean(x_stretch, axis=0)
+
+                surrogates_val_tmp[surr_i,:] = x_stretch_mean
+
+            mean_surrogate_tmp = np.mean(surrogates_val_tmp, axis=0)
+            surrogates_val_tmp_sorted = np.sort(surrogates_val_tmp, axis=0)
+            percentile_i_up = int(np.floor(n_surrogates_cyclefreq*percentile_cyclefreq_up))
+            percentile_i_dw = int(np.floor(n_surrogates_cyclefreq*percentile_cyclefreq_dw))
+
+            up_percentile_values_tmp = surrogates_val_tmp_sorted[percentile_i_up,:]
+            dw_percentile_values_tmp = surrogates_val_tmp_sorted[percentile_i_dw,:]
+
+            return mean_surrogate_tmp, up_percentile_values_tmp, dw_percentile_values_tmp
+
+        compute_surrogates_cyclefreq_results = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_surrogates_cyclefreq_nchan)(n_chan) for n_chan in range(np.size(data_tmp,0)))
+
+        #### fill results
+        for n_chan in range(np.size(data_tmp,0)):
+
+            surrogates_n_chan[0, n_chan, :] = compute_surrogates_cyclefreq_results[n_chan][0]
+            surrogates_n_chan[1, n_chan, :] = compute_surrogates_cyclefreq_results[n_chan][1]
+            surrogates_n_chan[2, n_chan, :] = compute_surrogates_cyclefreq_results[n_chan][2]
+        
+        #### save
+        np.save(f'{sujet}_{cond}_{odor_i}_cyclefreq_{band_prep}.npy', surrogates_n_chan)
+
+        print('done')
+
+
+
+
+
+
+################################
+######## MI / MVL ########
+################################
+
+
+
+
+#x = x_stretch_linear
+def shuffle_windows(x):
+
+    n_cycles_stretch = int( x.shape[0]/stretch_point_surrogates )
+
+    shuffle_win = np.zeros(( n_cycles_stretch, stretch_point_surrogates ))
+
+    for cycle_i in range(n_cycles_stretch):
+
+        cut_i = np.random.randint(0, x.shape[0]-stretch_point_surrogates, 1)
+        shuffle_win[cycle_i,:] = x[int(cut_i):int(cut_i+stretch_point_surrogates)]
+
+    x_shuffled = np.mean(shuffle_win, axis=0)
+
+    if debug:
+        plt.plot(x_shuffled)
+        plt.show()
+
+    return x_shuffled
+
+
+
+
+def precompute_MVL(sujet, band_prep, cond):
+
+    print(cond)
+
+    #### load params
+    respfeatures_allcond = load_respfeatures(sujet)
+
+    for odor_i in odor_list:
+
+        respfeatures_i = respfeatures_allcond[cond][odor_i]
+
+        #### load data
+        os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
+
+        data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
+
+        if os.path.exists(f'{sujet}_{cond}_{odor_i}_MVL_{band_prep}.npy') == True :
+            print('ALREADY COMPUTED')
+            return
+
+        #### compute surrogates
+        #n_chan = 0
+        def compute_surrogates_cyclefreq_nchan(n_chan):
+
+            print_advancement(n_chan, data_tmp.shape[0], steps=[25, 50, 75])
+
+            #### stretch
+            x = data_tmp[n_chan,:]
+            x_zscore = zscore(x)
+            x_stretch, mean_inspi_ratio = stretch_data(respfeatures_i, stretch_point_surrogates, x_zscore, srate)
+
+            MVL_nchan = get_MVL(np.mean(x_stretch,axis=0)-np.mean(x_stretch,axis=0).min())
+
+            x_stretch_linear = x_stretch.reshape(-1) 
             
-            #if surr_i%100 == 0:
-            #    print(surr_i)
+            #### surrogates
+            surrogates_stretch_tmp = np.zeros((n_surrogates_cyclefreq, stretch_point_surrogates))
 
-            x_shift = shuffle_CycleFreq(x)
-            #y_shift = shuffle_CycleFreq(y)
+            for surr_i in range(n_surrogates_cyclefreq):
 
-            x_stretch, mean_inspi_ratio = stretch_data(respfeatures_i, stretch_point_surrogates, x_shift, srate)
+                # print_advancement(surr_i, n_surrogates_cyclefreq, steps=[25, 50, 75])
 
-            x_stretch_mean = np.mean(x_stretch, axis=0)
+                surrogates_stretch_tmp[surr_i,:] = shuffle_windows(x_stretch_linear)
 
-            surrogates_val_tmp[surr_i,:] = x_stretch_mean
+            #### compute MVL
+            MVL_surrogates_i = np.array([])
 
-        mean_surrogate_tmp = np.mean(surrogates_val_tmp, axis=0)
-        surrogates_val_tmp_sorted = np.sort(surrogates_val_tmp, axis=0)
-        percentile_i_up = int(np.floor(n_surrogates_cyclefreq*percentile_cyclefreq_up))
-        percentile_i_dw = int(np.floor(n_surrogates_cyclefreq*percentile_cyclefreq_dw))
+            for surr_i in range(n_surrogates_cyclefreq):
 
-        up_percentile_values_tmp = surrogates_val_tmp_sorted[percentile_i_up,:]
-        dw_percentile_values_tmp = surrogates_val_tmp_sorted[percentile_i_dw,:]
+                x = surrogates_stretch_tmp[surr_i,:]
+                
+                MVL_surrogates_i = np.append(MVL_surrogates_i, get_MVL(x-x.min()))
 
-        return mean_surrogate_tmp, up_percentile_values_tmp, dw_percentile_values_tmp
+            return MVL_nchan, MVL_surrogates_i
 
-    compute_surrogates_cyclefreq_results = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_surrogates_cyclefreq_nchan)(n_chan) for n_chan in range(np.size(data_tmp,0)))
+        compute_surrogates_MVL = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_surrogates_cyclefreq_nchan)(n_chan) for n_chan in range(data_tmp.shape[0]))
 
-    for n_chan in range(np.size(data_tmp,0)):
+        #### fill results
+        MVL_surrogates = np.zeros(( data_tmp.shape[0], n_surrogates_cyclefreq ))
+        MVL_val = np.zeros(( data_tmp.shape[0] ))
 
-        surrogates_n_chan[0,n_chan,:] = compute_surrogates_cyclefreq_results[n_chan][0]
-        surrogates_n_chan[1,n_chan,:] = compute_surrogates_cyclefreq_results[n_chan][1]
-        surrogates_n_chan[2,n_chan,:] = compute_surrogates_cyclefreq_results[n_chan][2]
-    
-    np.save(sujet + f'_s{session_eeg+1}_' + cond + '_' + str(session_i+1) + '_cyclefreq_' +  band_prep + '.npy', surrogates_n_chan)
+        for n_chan in range(data_tmp.shape[0]):
+
+            MVL_surrogates[n_chan,:] = compute_surrogates_MVL[n_chan][1]
+            MVL_val[n_chan] = compute_surrogates_MVL[n_chan][0]
+
+        #### verif
+        if debug:
+            n_chan = 0
+            count, values, fig = plt.hist(MVL_surrogates[n_chan,:])
+            plt.vlines(np.percentile(MVL_surrogates[n_chan,:], 99), ymin=0, ymax=count.max())
+            plt.vlines(np.percentile(MVL_surrogates[n_chan,:], 95), ymin=0, ymax=count.max())
+            plt.vlines(MVL_val[n_chan], ymin=0, ymax=count.max(), color='r')
+            plt.show()
+        
+        #### save
+        np.save(f'{sujet}_{cond}_{odor_i}_MVL_{band_prep}.npy', MVL_surrogates)
+
+        print('done')
 
 
-
-
-
-################################
-######## CHECK STATUS ########
-################################
-
-def check_precompute_status():
-
-    print('#### For Cxy to compute : ####')
-
-    os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
-
-    to_compute = []
-    #session_eeg, band_prep, cond, session_i = 0, band_prep_list[0], 'RD_FV', 0
-    for session_eeg in range(3):
-        for band_prep in band_prep_list:
-            for cond in conditions:
-                for session_i in range(len(respfeatures_allcond[f's{session_eeg+1}'][cond])):
-                    to_compute.append(f'{sujet}_s{session_eeg+1}_{cond}_{str(session_i+1)}_Coh.npy')
-    
-    print([file_i for file_i in to_compute if file_i not in os.listdir() and file_i.find('cyclefreq') == -1])
-
-    print('#### For Cyclefreq to compute : ####')
-
-    os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
-
-    to_compute = []
-    #session_eeg, band_prep, cond, session_i = 0, band_prep_list[0], 'RD_FV', 0
-    for session_eeg in range(3):
-        for band_prep in band_prep_list:
-            for cond in conditions:
-                for session_i in range(len(respfeatures_allcond[f's{session_eeg+1}'][cond])):
-                    to_compute.append(f'{sujet}_s{session_eeg+1}_{cond}_{str(session_i+1)}_cyclefreq_{band_prep}.npy')
-    
-    print([file_i for file_i in to_compute if file_i not in os.listdir() and file_i.find('Coh') == -1])
 
 
 
@@ -209,53 +279,33 @@ def check_precompute_status():
 ######## EXECUTE ########
 ################################
 
+
 if __name__ == '__main__':
 
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:    
 
-    #### load data
-    conditions, chan_list, chan_list_ieeg, srate = extract_chanlist_srate_conditions(sujet, conditions_allsubjects)
-    respfeatures_allcond, respi_mean_allcond = load_respfeatures(sujet)
-
-    #### params surrogates
-    nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
-
-    #### indicate which file is missing
-    check_precompute_status()
-
-    #### compute and save
-    print('######## COMPUTE SURROGATES ########')
-
-    #session_eeg = 1
-    for session_eeg in range(3):
+        #### compute and save
+        print('######## COMPUTE SURROGATES ########')
 
         #band_prep = band_prep_list[0]
         for band_prep in band_prep_list:
 
-            print('COMPUTE FOR ' + band_prep)
+            print(f'COMPUTE FOR {band_prep}')
 
-            #cond = 'RD_FV'
+            #cond = conditions[0]
             for cond in conditions:
 
-                if len(respfeatures_allcond[f's{session_eeg+1}'][cond]) == 1:
+                # precompute_surrogates_cyclefreq(sujet, band_prep, cond)
+                execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
 
-                    #precompute_surrogates_cyclefreq(band_prep, session_eeg, cond, 0)
-                    execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [band_prep, session_eeg, cond, 0])
+                # precompute_MVL(sujet, band_prep, cond)
+                execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
 
-                    if band_prep == 'wb':
-                        #precompute_surrogates_coh(band_prep, session_eeg, cond, 0)
-                        execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [band_prep, session_eeg, cond, 0])
+                # precompute_surrogates_coh(sujet, band_prep, cond)
+                execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
 
-                elif len(respfeatures_allcond[f's{session_eeg+1}'][cond]) > 1:
-
-                    for session_i in range(len(respfeatures_allcond[f's{session_eeg+1}'][cond])):
-
-                        #precompute_surrogates_cyclefreq(band_prep, session_eeg, cond, session_i)
-                        execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [band_prep, session_eeg, cond, session_i])
-
-                        if band_prep == 'wb':
-                            #precompute_surrogates_coh(band_prep, session_eeg, cond, session_i)
-                            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [band_prep, session_eeg, cond, session_i])
-
+            
 
 
 

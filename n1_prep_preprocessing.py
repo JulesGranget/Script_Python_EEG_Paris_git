@@ -110,7 +110,7 @@ def open_raw_data_session(sujet, session_i):
     #cond = conditions[0]
     for cond in conditions:
         
-        _stop = dict_trig_sujet[sujet_eeg_open][f'ses0{session_i+2}'][cond]
+        _stop = dict_trig_sujet[sujet][f'ses0{session_i+2}'][cond]
         _start = _stop - (srate*5*60)
         trig[cond] = np.array([_start, _stop])
 
@@ -212,18 +212,22 @@ def respi_preproc(raw_aux):
         respi *= -1
 
     #### filter respi   
-    fcutoff = 1.5
-    transw  = .2
-    order   = np.round( 7*srate/fcutoff )
-    if order%2==0:
-        order += 1
+    # fcutoff = 1.5
+    # transw  = .2
+    # order   = np.round( 7*srate/fcutoff )
+    # if order%2==0:
+    #     order += 1
 
-    shape   = [ 1,1,0,0 ]
-    frex    = [ 0, fcutoff, fcutoff+fcutoff*transw, srate/2 ]
+    # shape   = [ 1,1,0,0 ]
+    # frex    = [ 0, fcutoff, fcutoff+fcutoff*transw, srate/2 ]
 
-    filtkern = scipy.signal.firls(order,frex,shape,fs=srate)
+    # filtkern = scipy.signal.firls(order,frex,shape,fs=srate)
 
-    respi_filt = scipy.signal.filtfilt(filtkern,1,respi)
+    # respi_filt = scipy.signal.filtfilt(filtkern,1,respi)
+
+    #### filter respi physio
+    respi_filt = physio.preprocess(respi, srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
+    respi_filt = physio.smooth_signal(respi_filt, srate, win_shape='gaussian', sigma_ms=40.0)
 
     if debug:
         plt.plot(respi, label='respi')
@@ -649,7 +653,7 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
     #### save every cond
     #cond = conditions_allsubjects[0]
-    for cond in conditions_allsubjects:
+    for cond in conditions:
 
         raw_chunk = raw_all.copy()
         raw_chunk.crop( tmin = trig_df.query(f"name == '{cond}'")['time'].values[0][0]/srate , tmax= trig_df.query(f"name == '{cond}'")['time'].values[0][1]/srate )
@@ -677,7 +681,7 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
         #### export trig, count_session, cR
         os.chdir(os.path.join(path_prep, sujet, 'info'))
         
-        trig_df.to_excel(sujet + '_trig.xlsx')
+        trig_df.to_excel(f'{sujet}_{session_i}_trig.xlsx')
 
         cR = pd.DataFrame(ecg_events_time, columns=['cR_time'])
         cR.to_excel(sujet +'_cR_time.xlsx')
@@ -703,7 +707,7 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[1]
+    #sujet = sujet_list[4]
     for sujet in sujet_list:
 
         ########################################
@@ -718,50 +722,49 @@ if __name__== '__main__':
             raise ValueError("""Folder structure has been generated 
             Lauch the script again for preproc""")
 
+        ########################
+        ######## PARAMS ########
+        ########################
+
+        sujet = '01PD'
+        sujet = '02MJ'
+        sujet = '03VN'
+        sujet = '04GB'
+        sujet = '05LV'
+        sujet = '06EF'
+        sujet = '07PB'
+        sujet = '08DM'
+        sujet = '09TA'
+        sujet = '10BH'
+        sujet = '11FA'
+        sujet = '12BD'
+        sujet = '13FP'
+        sujet = '14MD'
+        sujet = '15LG'
+        sujet = '16GM'
+        sujet = '17JR'
+        sujet = '18SE'
+        sujet = '19TM'
+        sujet = '20TY'
+        sujet = '21ZV'
+        sujet = '22DI'
+        sujet = '23LF'
+        sujet = '24TJ'
+        sujet = '25DF'
+        sujet = '26MN'
+        sujet = '27BD'
+        sujet = '28NT'
+        sujet = '29SC'
+        sujet = '30AR'
+        sujet = '31HJ'
+        sujet = '32CM'
+        sujet = '33MA'
+
+        session_i = 0
+        session_i = 1
+        session_i = 2
 
         for session_i in range(3):
-
-            ########################
-            ######## PARAMS ########
-            ########################
-
-            sujet = '01PD'
-            sujet = '02MJ'
-            sujet = '03VN'
-            sujet = '04GB'
-            sujet = '05LV'
-            sujet = '06EF'
-            sujet = '07PB'
-            sujet = '08DM'
-            sujet = '09TA'
-            sujet = '10BH'
-            sujet = '11FA'
-            sujet = '12BD'
-            sujet = '13FP'
-            sujet = '14MD'
-            sujet = '15LG'
-            sujet = '16GM'
-            sujet = '17JR'
-            sujet = '18SE'
-            sujet = '19TM'
-            sujet = '20TY'
-            sujet = '21ZV'
-            sujet = '22DI'
-            sujet = '23LF'
-            sujet = '24TJ'
-            sujet = '25DF'
-            sujet = '26MN'
-            sujet = '27BD'
-            sujet = '28NT'
-            sujet = '29SC'
-            sujet = '30AR'
-            sujet = '31HJ'
-            sujet = '32CM'
-            sujet = '33MA'
-
-            session_i = 0
-            session_i = 1
-            session_i = 2
 
 
             ################################

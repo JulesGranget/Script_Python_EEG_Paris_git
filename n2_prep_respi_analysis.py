@@ -31,11 +31,15 @@ debug = False
 def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coeff_exclusion=3, inspi_coeff_exclusion=2, respi_scale=[0.1, 0.35]):
 
     cycles_init = cycles.copy()
+    next_inspi = cycles_init[:,-1]
 
     #### exclude regarding inspi/expi diff
-    _diff = np.log(np.diff(cycles_init[:-1,:], axis=1).reshape(-1))
+    _diff = np.log(np.diff(cycles_init[:,:2], axis=1).reshape(-1))
 
     if debug:
+        plt.plot(respi)
+        plt.show()
+
         plt.plot(zscore(_diff))
         plt.plot(zscore(np.log(_diff)))
         plt.show()
@@ -59,12 +63,13 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
 
     cycle_inspi_excluded_i = [i for i, val in enumerate(cycles_init[:,0]) if val in cycles_init[inspi_time_excluded_i][:,0]]
 
-    cycles = cycles_init[inspi_time_included_i,:]
+    cycles = cycles_init[inspi_time_included_i,:2]
+    next_inspi = next_inspi[inspi_time_included_i]
     inspi_starts = cycles[:,0]
 
     if debug:
 
-        inspi_starts_init = cycles_init[:-1,0]
+        inspi_starts_init = cycles_init[:,0]
         fig, ax = plt.subplots()
         ax.plot(respi)
         ax.scatter(inspi_starts_init, respi[inspi_starts_init], color='g')
@@ -107,6 +112,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
     cycle_metrics_cleaned = cycle_metrics[cycle_duration_sel_i]
 
     cycles = cycles[cycle_duration_sel_i, :]
+    next_inspi = next_inspi[cycle_duration_sel_i]
 
     #### exclude regarding metric
     if exclusion_metrics == 'med':
@@ -141,8 +147,12 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
         plt.legend()
         plt.show()
 
+        plt.plot(respi)
+        plt.scatter()
+
     #### final cleaning
-    cycles_final = np.concatenate((cycles, cycles_init[-1, :].reshape(1, -1)), axis=0)
+    next_inspi_final = np.append(cycles[1:,0], next_inspi[-1])
+    cycles_final = np.concatenate((cycles, next_inspi_final.reshape(-1,1)), axis=1)
     cycles_mask_keep = np.ones((cycles_final.shape[0]), dtype='int')
     cycles_mask_keep[cycle_metrics_excluded_i] = 0
     cycles_mask_keep[-1] = 0
@@ -150,7 +160,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
     #### fig for all detection
     time_vec = np.arange(respi.shape[0])/srate
     
-    inspi_starts_init = cycles_init[:-1,0]
+    inspi_starts_init = cycles_init[:,0]
     fig_respi_exclusion, ax = plt.subplots(figsize=(18, 10))
     ax.plot(time_vec, respi)
     ax.scatter(inspi_starts_init/srate, respi[inspi_starts_init], color='g', label='inspi_selected')
@@ -163,7 +173,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
     plt.close()
 
     #### fig final
-    inspi_starts_init = cycles_init[:-1,0]
+    inspi_starts_init = cycles_init[:,0]
     fig_final, ax = plt.subplots(figsize=(18, 10))
     ax.plot(time_vec, respi)
     ax.scatter(cycles[:,0]/srate, respi[cycles[:,0]], color='g', label='inspi_selected')
@@ -174,82 +184,6 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
     plt.close()
 
     return cycles_final, cycles_mask_keep, fig_respi_exclusion, fig_final
-
-
-
-
-
-
-def get_all_respiration_features(respi, srate, cycles, cycles_mask_keep, t_start = 0.):
-    
-    times = np.arange(respi.size)/srate + t_start
-    
-    assert cycles.dtype.kind == 'i'
-    
-    n = cycles.shape[0]-1
-    
-    index = np.arange(n, dtype = 'int64')
-    df = pd.DataFrame(index = index)
-    
-    insp = times[cycles[:-1,0]]
-    expi = times[cycles[:-1,1]]
-    insp_next = times[cycles[1:,0]]
-
-    ix1 = cycles[:-1,0]
-    ix2 = cycles[:-1,1]
-    ix3 = cycles[1:,0]
-    
-    df['cycle_num'] = pd.Series(range(n) , index = index, dtype = int)
-    df['inspi_index'] = pd.Series(ix1 , index = index, dtype = 'int64')
-    df['expi_index'] = pd.Series(ix2 , index = index, dtype = 'int64')
-    df['inspi_time'] = pd.Series(insp , index = index)
-    df['expi_time'] = pd.Series(expi , index = index)
-    df['cycle_duration'] = pd.Series(insp_next - insp  , index = index)
-    df['insp_duration'] = pd.Series(expi - insp  , index = index)
-    df['exp_duration'] = pd.Series(insp_next - expi  , index = index)
-    df['cycle_freq'] = 1./df['cycle_duration']
-    for k in ('insp_volume', 'exp_volume', 'total_amplitude', 'insp_amplitude', 'exp_amplitude'):
-        df[k] = pd.Series(index = index)
-    
-    #missing cycle
-    mask = ix2==-1
-    df.loc[mask, ['expi_time', 'cycle_duration', 'insp_duration', 'exp_duration', 'cycle_freq']] = np.nan
-    
-    for c in range(n):
-        i1, i2, i3 = ix1[c], ix2[c], ix3[c]
-        if i2 == -1:
-            #this is a missing cycle in the middle
-            continue
-        #~ print(i1, i2, i3)
-        df.loc[c, 'insp_volume'] = np.sum(respi[i1:i2])/srate
-        df.loc[c, 'exp_volume'] = np.sum(respi[i2:i3])/srate
-        df.loc[c, 'insp_amplitude'] = np.max(np.abs(respi[i1:i2]))
-        df.loc[c, 'exp_amplitude'] = np.max(np.abs(respi[i2:i3]))
-    
-    df['total_amplitude'] = df['insp_amplitude']+df['exp_amplitude']
-
-    #### ad select columns
-    select_vec = np.ones((df.index.shape[0]), dtype='int')
-    select_vec[cycles_mask_keep] = 0
-    df.insert(df.columns.shape[0], 'select', select_vec)
-
-    #### insert last cycle
-    last_cycle = {}
-    for columns_i in df.columns:
-        if columns_i == 'cycle_num':
-            last_cycle[columns_i] = df['cycle_num'].shape[0]
-        elif columns_i == 'inspi_index':
-            last_cycle[columns_i] = cycles[-1,0]
-        elif columns_i == 'expi_index':
-            last_cycle[columns_i] = cycles[-1,1]
-        elif columns_i == 'inspi_time':
-            last_cycle[columns_i] = cycles[-1,0]/srate
-        else:
-            last_cycle[columns_i] = 0
-
-    df = df.append(last_cycle, ignore_index=True)     
-        
-    return df
 
 
 
@@ -267,11 +201,11 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
     #### load data
     os.chdir(os.path.join(path_prep, sujet, 'sections'))
 
-    srate = get_params(sujet)['srate']
+    srate = get_params()['srate']
 
     raw_allcond = {}
 
-    for cond in conditions_allsubjects:
+    for cond in conditions:
 
         raw_allcond[cond] = {}
 
@@ -318,12 +252,25 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
 
             cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',inspration_ajust_on_derivative=True)
 
-            cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
-                                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
-                                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=cycle_detection_params['respi_scale'])
+            if sujet in ['18SE', '26MN', '32CM']:
 
-            resp_features_i = get_all_respiration_features(respi_allcond[cond][odor_i], srate, cycles, cycles_mask_keep, t_start=0.)
+                cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
+                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
+                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=[0.1, 0.5])
 
+            else:
+
+                cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
+                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
+                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=cycle_detection_params['respi_scale'])
+
+            #### get resp_features
+            resp_features_i = physio.compute_respiration_cycle_features(respi_allcond[cond][odor_i], srate, cycles, baseline=None)
+    
+            select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
+            select_vec[cycles_mask_keep] = 0
+            resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
+            
             respfeatures_allcond[cond][odor_i] = [resp_features_i, fig_respi_exclusion, fig_final]
 
 
@@ -341,7 +288,7 @@ def load_respi_allcond_data_recompute(sujet, cond, odor_i, cycle_detection_param
     #### load data
     os.chdir(os.path.join(path_prep, sujet, 'sections'))
 
-    srate = get_params(sujet)['srate']
+    srate = get_params()['srate']
 
     load_i = []
     for session_i, session_name in enumerate(os.listdir()):
@@ -371,7 +318,12 @@ def load_respi_allcond_data_recompute(sujet, cond, odor_i, cycle_detection_param
                                 exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
                                 inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=cycle_detection_params['respi_scale'])
 
-    resp_features_i = get_all_respiration_features(respi_allcond[cond][odor_i], srate, cycles, cycles_mask_keep, t_start=0.)
+    #### get resp_features
+    resp_features_i = physio.compute_respiration_cycle_features(respi_allcond[cond][odor_i], srate, cycles, baseline=None)
+
+    select_vec = np.ones((resp_features_i.index.shape[0]), dtype='int')
+    select_vec[cycles_mask_keep] = 0
+    resp_features_i.insert(resp_features_i.columns.shape[0], 'select', select_vec)
 
     respfeatures = [resp_features_i, fig_respi_exclusion, fig_final]
 
@@ -390,9 +342,7 @@ def load_respi_allcond_data_recompute(sujet, cond, odor_i, cycle_detection_param
 
 
 #respi_allcond = respi_allcond_bybycle
-def edit_df_for_sretch_cycles_deleted(sujet, respi_allcond, respfeatures_allcond):
-
-    prms = get_params(sujet)
+def edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond):
 
     for cond in conditions:
         
@@ -409,13 +359,19 @@ def edit_df_for_sretch_cycles_deleted(sujet, respi_allcond, respfeatures_allcond
                 plt.show()
 
             i_to_update = respfeatures_allcond[cond][odor_i][0].index.values[~np.isin(respfeatures_allcond[cond][odor_i][0].index.values, cycles)]
-            respfeatures_allcond[cond][odor_i][0]['select'][i_to_update] = np.array([0]*i_to_update.shape[0])
+            for i_to_update_i in i_to_update:
+                
+                if i_to_update_i == respfeatures_allcond[cond][odor_i][0].shape[0] - 1:
+                    continue
 
-    
+                else:
+                    respfeatures_allcond[cond][odor_i][0]['select'][i_to_update_i] = 0
+
+    return respfeatures_allcond
 
 
 
-def export_sniff_count(sujet, respfeatures_allcond):
+def export_cycle_count(sujet, respfeatures_allcond):
 
     #### generate df
     df_count_cycle = pd.DataFrame(columns={'sujet' : [], 'cond' : [], 'odor' : [], 'count' : []})
@@ -431,43 +387,6 @@ def export_sniff_count(sujet, respfeatures_allcond):
     #### export
     os.chdir(os.path.join(path_results, sujet, 'RESPI'))
     df_count_cycle.to_excel(f'{sujet}_count_cycles.xlsx')
-
-
-
-
-
-
-
-############################
-######## SAVE DATA ########
-############################
-
-
-def save_all_respfeatures(respi_allcond, respi_allcond_bybycle, conditions, export):
-
-    #### when everything ok classic
-    if export == 'sam':
-        os.chdir(os.path.join(path_results, sujet, 'RESPI'))
-
-        for cond_i in conditions:
-
-            for i in range(len(respi_allcond[cond_i])):
-
-                respi_allcond[cond_i][i][0].to_excel(sujet + '_' + cond_i + '_' + str(i+1) + '_respfeatures.xlsx')
-                respi_allcond[cond_i][i][1].savefig(sujet + '_' + cond_i + '_' + str(i+1) + '_fig0.jpeg')
-                respi_allcond[cond_i][i][2].savefig(sujet + '_' + cond_i + '_' + str(i+1) + '_fig1.jpeg')
-
-    #### when everything ok bycycle
-    if export == 'bycycle':
-        os.chdir(os.path.join(path_results, sujet, 'RESPI'))
-
-        for cond_i in conditions:
-
-            for i in range(len(respi_allcond_bybycle[cond_i])):
-
-                respi_allcond_bybycle[cond_i][i][0].to_excel(sujet + '_' + cond_i + '_' + str(i+1) + '_respfeatures.xlsx')
-                respi_allcond_bybycle[cond_i][i][1].savefig(sujet + '_' + cond_i + '_' + str(i+1) + '_fig0.jpeg')
-                respi_allcond_bybycle[cond_i][i][2].savefig(sujet + '_' + cond_i + '_' + str(i+1) + '_fig1.jpeg')
 
 
 
@@ -492,91 +411,101 @@ if __name__ == '__main__':
 
     
     #### whole protocole
-    sujet = 'PD01'
-    sujet = 'MJ02'
-    sujet = 'VN03'
-    sujet = 'GB04'
-    sujet = 'LV05'
-    sujet = 'EF06'
-    sujet = 'PB07'
-    sujet = 'DM08'
-    sujet = 'TA09'
-    sujet = 'BH10'
-    sujet = 'FA11'
-    sujet = 'BD12'
-    sujet = 'FP13'
-    sujet = 'MD14'
-    sujet = 'LG15'
-    sujet = 'GM16'
-    sujet = 'JR17'
-    sujet = 'SE18'
-    sujet = 'TM19'
-    sujet = 'TY20'
-    sujet = 'ZV21'
-    sujet = 'DI22'
-    sujet = 'LF23'
-    sujet = 'TJ24'
-    sujet = 'DF25'
-    sujet = 'MN26'
-    sujet = 'BD27'
-    sujet = 'NT28'
-    sujet = 'SC29'
-    sujet = 'AR30'
-    sujet = 'HJ31'
-    sujet = 'CM32'
-    sujet = 'MA33'
+    sujet = '01PD'
+    sujet = '02MJ'
+    sujet = '03VN'
+    sujet = '04GB'
+    sujet = '05LV'
+    sujet = '06EF'
+    sujet = '07PB'
+    sujet = '08DM'
+    sujet = '09TA'
+    sujet = '10BH'
+    sujet = '11FA'
+    sujet = '12BD'
+    sujet = '13FP'
+    sujet = '14MD'
+    sujet = '15LG'
+    sujet = '16GM'
+    sujet = '17JR'
+    sujet = '18SE'
+    sujet = '19TM'
+    sujet = '20TY'
+    sujet = '21ZV'
+    sujet = '22DI'
+    sujet = '23LF'
+    sujet = '24TJ'
+    sujet = '25DF'
+    sujet = '26MN'
+    sujet = '27BD'
+    sujet = '28NT'
+    sujet = '29SC'
+    sujet = '30AR'
+    sujet = '31HJ'
+    sujet = '32CM'
+    sujet = '33MA'
 
-    #### load data
-    os.chdir(os.path.join(path_data, 'respi_detection'))
-    
-    raw_allcond, respi_allcond, respfeatures_allcond = load_respi_allcond_data(sujet, cycle_detection_params)
+    for sujet in sujet_list:
 
+        print(f"#### #### ####")
+        print(f"#### {sujet} ####")
+        print(f"#### #### ####")
 
-
-
-
-    ########################################
-    ######## VERIF RESPIFEATURES ########
-    ########################################
-    
-    if debug == True :
-
-        cond = 'FR_CV_1'
-        cond = 'FR_CV_2' 
-        cond = 'MECA' 
-        cond = 'CO2'
+        #### load data
+        os.chdir(os.path.join(path_data, 'respi_detection'))
         
-        odor_i = 'o'
-        odor_i = '-'
-        odor_i = '+'
-
-        respfeatures_allcond[cond][odor_i][1].show()
-        respfeatures_allcond[cond][odor_i][2].show()
-
-
-
-
-    ########################################
-    ######## EDIT CYCLES SELECTED ########
-    ########################################
-
-    respfeatures_allcond= edit_df_for_sretch_cycles_deleted(sujet, respi_allcond, respfeatures_allcond)
-
-    export_sniff_count(sujet, respfeatures_allcond)
+        raw_allcond, respi_allcond, respfeatures_allcond = load_respi_allcond_data(sujet, cycle_detection_params)
 
 
 
 
 
-    ################################
-    ######## SAVE FIG ########
-    ################################
+        ########################################
+        ######## VERIF RESPIFEATURES ########
+        ########################################
+        
+        if debug == True :
 
-    #### select export
-    # export = 'sam'
-    export = 'bycycle'
+            cond = 'FR_CV_1'
+            cond = 'FR_CV_2' 
+            cond = 'MECA' 
+            cond = 'CO2'
+            
+            odor_i = 'o'
+            odor_i = '-'
+            odor_i = '+'
 
-    save_all_respfeatures(respi_allcond, respfeatures_allcond, conditions, export)
+            respfeatures_allcond[cond][odor_i][1].show()
+            respfeatures_allcond[cond][odor_i][2].show()
 
 
-    
+
+
+        ########################################
+        ######## EDIT CYCLES SELECTED ########
+        ########################################
+
+        respfeatures_allcond = edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond)
+
+        export_cycle_count(sujet, respfeatures_allcond)
+
+
+
+
+
+        ################################
+        ######## SAVE FIG ########
+        ################################
+
+        os.chdir(os.path.join(path_results, sujet, 'RESPI'))
+
+        for cond in conditions:
+
+            for odor_i in odor_list:
+
+                respfeatures_allcond[cond][odor_i][0].to_excel(f"{sujet}_{cond}_{odor_i}_respfeatures.xlsx")
+                respfeatures_allcond[cond][odor_i][1].savefig(f"{sujet}_{cond}_{odor_i}_fig0.jpeg")
+                respfeatures_allcond[cond][odor_i][2].savefig(f"{sujet}_{cond}_{odor_i}_fig1.jpeg")
+
+
+        

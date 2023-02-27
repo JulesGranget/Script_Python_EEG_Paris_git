@@ -76,8 +76,8 @@ def compute_PxxCxyCyclefreq_for_cond(band_prep, session_eeg, cond, session_i, nb
 
     #### extract data
     chan_i = prms['chan_list'].index('Respi')
-    respi = load_data_sujet(sujet, band_prep, cond, session_i)[chan_i,:]
-    data_tmp = load_data_sujet(sujet, band_prep, cond, session_i)
+    respi = load_data_sujet(sujet, band_prep, cond, odor_i)[chan_i,:]
+    data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
     if stretch_point_surrogates == stretch_point_TF:
         nb_point_by_cycle = stretch_point_surrogates
     else:
@@ -400,7 +400,7 @@ def plot_save_PSD_Coh(n_chan, session_eeg):
 
     #### load data
     Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond = get_Pxx_Cxy_Cyclefreq_Surrogates_allcond(sujet, session_eeg)
-    prms = get_params(sujet)
+    prms = get_params()
     respfeatures_allcond, respi_mean_allcond = load_respfeatures(sujet)
     
     #### compute
@@ -633,7 +633,7 @@ def get_tf_itpc_stretch_allcond(session_eeg, tf_mode):
 def save_TF_ITPC_n_chan(n_chan, session_eeg, tf_mode, band_prep):
 
     #### load data
-    prms = get_params(sujet)
+    prms = get_params()
     tf_stretch_allcond = get_tf_itpc_stretch_allcond(session_eeg, tf_mode)
 
 
@@ -735,7 +735,7 @@ def save_TF_ITPC_n_chan(n_chan, session_eeg, tf_mode, band_prep):
 
 def compilation_compute_Pxx_Cxy_Cyclefreq(session_eeg):
     
-    prms = get_params(sujet)
+    prms = get_params()
     respfeatures_allcond, respi_mean_allcond = load_respfeatures(sujet)
         
     surrogates_allcond = load_surrogates_session(session_eeg, prms)
@@ -754,7 +754,7 @@ def compilation_compute_Pxx_Cxy_Cyclefreq(session_eeg):
 
 def compilation_compute_TF_ITPC(session_eeg):
 
-    prms = get_params(sujet)
+    prms = get_params()
 
     compute_TF_ITPC(session_eeg, prms)
     

@@ -220,7 +220,7 @@ if __name__ == '__main__':
     #### params
     around_respi_Cxy = 0.05
 
-    prms = get_params(sujet)
+    prms = get_params()
     respfeatures_allcond, respi_mean_allcond = load_respfeatures(sujet)
 
     #### get data
