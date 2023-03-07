@@ -501,7 +501,7 @@ def precompute_tf_STATS_inter_session(sujet):
 
                     os.chdir(os.path.join(path_precompute, sujet, 'TF'))
 
-                    np.save(f'{sujet}_tf_STATS_{conditions[0]}_{odor_list[0]}_inter_{str(freq[0])}_{str(freq[1])}.npy', pixel_based_distrib)
+                    np.save(f'{sujet}_tf_STATS_{cond}_{odor_i}_inter_{str(freq[0])}_{str(freq[1])}.npy', pixel_based_distrib)
                     
 
                 #### remove baselines after cond computing

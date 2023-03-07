@@ -39,8 +39,8 @@ freq_band_list_precompute = {'wb' : {'theta_1' : [2,10], 'theta_2' : [4,8], 'alp
                                     'beta_1' : [12,40], 'beta_2' : [10,40], 'whole_1' : [2,50], 'l_gamma_1' : [50, 80], 
                                     'h_gamma_1' : [80, 120]} }
 
-freq_band_dict_FC = {'wb' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40]},
-                'lf' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40], 'whole' : [2,50]},
+freq_band_dict_FC = {'wb' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]},
+                'lf' : {'theta' : [4,8], 'alpha' : [8,12], 'beta' : [12,40]},
                 'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
 
 odor_list = ['o', '+', '-']
@@ -56,7 +56,8 @@ chan_list = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'C
 chan_list_eeg = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
             'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']
 
-
+chan_list_eeg_fc = ['Fp1', 'Fp2', 'F3', 'F4', 'F7', 'F8','Fz', 'FC1', 'FC2', 'FC5', 'FC6', 'FT9', 'FT10', 'Cz', 'C3', 'C4',
+                    'CP1', 'CP2', 'CP5', 'CP6', 'Pz', 'P3', 'P4', 'P7', 'P8', 'T7', 'T8', 'TP9', 'TP10', 'Oz', 'O1', 'O2']
 
 
 
@@ -345,10 +346,41 @@ coh_computation_interval = .02 #Hz around respi
 ######## FC ANALYSIS ########
 ################################
 
+
 #### band to remove
 freq_band_fc_analysis = {'theta' : [4, 8], 'alpha' : [9,12], 'beta' : [15,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]}
 
+percentile_thresh = 90
 
+#### for DFC
+slwin_dict = {'theta' : 5, 'alpha' : 3, 'beta' : 1, 'l_gamma' : .3, 'h_gamma' : .3} # seconds
+slwin_step_coeff = .1  # in %, 10% move
+
+band_name_fc_dfc = ['theta', 'alpha', 'beta', 'l_gamma', 'h_gamma']
+
+#### cond definition
+cond_FC_DFC = ['FR_CV', 'AL', 'SNIFF', 'AC']
+
+#### down sample for AL
+dw_srate_fc_AL = 10
+
+#### down sample for AC
+dw_srate_fc_AC = 50
+
+#### n points for AL interpolation
+n_points_AL_interpolation = 10000
+n_points_AL_chunk = 1000
+
+#### for df computation
+percentile_graph_metric = 25
+
+
+
+################################
+######## TOPOPLOT ########
+################################
+
+around_respi_Cxy = 0.025
 
 
 ################################

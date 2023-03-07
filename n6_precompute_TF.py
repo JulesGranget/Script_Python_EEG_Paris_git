@@ -113,7 +113,7 @@ def precompute_tf(sujet, cond):
 
                 os.chdir(os.path.join(path_precompute, sujet, 'TF'))
 
-                if os.path.exists(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}.npy'):
+                if os.path.exists(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy'):
                     print('ALREADY COMPUTED')
                     continue
                 
@@ -125,7 +125,7 @@ def precompute_tf(sujet, cond):
 
                 #### compute
                 os.chdir(path_memmap)
-                tf_allchan = np.memmap(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_precompute_convolutions.dat', dtype=np.float64, mode='w+', shape=(data.shape[0], nfrex, data.shape[1]))
+                tf_allchan = np.memmap(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}_precompute_convolutions.dat', dtype=np.float64, mode='w+', shape=(data.shape[0], nfrex, data.shape[1]))
 
                 def compute_tf_convolution_nchan(n_chan):
 
@@ -151,10 +151,10 @@ def precompute_tf(sujet, cond):
                 print('SAVE')
                 os.chdir(os.path.join(path_precompute, sujet, 'TF'))
 
-                np.save(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}.npy', tf_allband_stretched)
+                np.save(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy', tf_allband_stretched)
                 
                 os.chdir(path_memmap)
-                os.remove(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_precompute_convolutions.dat')
+                os.remove(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}_precompute_convolutions.dat')
 
 
 
@@ -196,7 +196,7 @@ def precompute_itpc(sujet, cond):
 
                 os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
 
-                if os.path.exists(f'{sujet}_itpc_{str(freq[0])}_{str(freq[1])}_{cond}.npy') :
+                if os.path.exists(f'{sujet}_itpc_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy') :
                     print('ALREADY COMPUTED')
                     continue
                 
@@ -248,7 +248,7 @@ def precompute_itpc(sujet, cond):
                 #### save
                 print('SAVE')
                 os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
-                np.save(f'{sujet}_itpc_{str(freq[0])}_{str(freq[1])}_{cond}.npy', itpc_allchan)
+                np.save(f'{sujet}_itpc_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy', itpc_allchan)
 
                 del itpc_allchan
 

@@ -194,7 +194,13 @@ def generate_folder_structure(sujet):
         #### precompute
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute'))
     construct_token = create_folder(sujet, construct_token)
-    construct_token = create_folder('allplot', construct_token)
+    construct_token = create_folder('allsujet', construct_token)
+
+            #### allsujet
+    os.chdir(os.path.join(path_general, 'Analyses', 'precompute', 'allsujet'))
+    construct_token = create_folder('HRV', construct_token)
+
+            #### sujet
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute', sujet))
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('TF', construct_token)
@@ -212,7 +218,6 @@ def generate_folder_structure(sujet):
     construct_token = create_folder(sujet, construct_token)
     construct_token = create_folder('allplot', construct_token)
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet))
-    construct_token = create_folder('TOPOPLOT', construct_token)
     construct_token = create_folder('PSYCHO', construct_token)
     construct_token = create_folder('RESPI', construct_token)
     construct_token = create_folder('TF', construct_token)
@@ -226,16 +231,49 @@ def generate_folder_structure(sujet):
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
+    construct_token = create_folder('topoplot', construct_token)
+
+                #### topoplot
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF', 'topoplot'))
+    construct_token = create_folder('condition', construct_token)
+    construct_token = create_folder('odor', construct_token)  
+
+                #### summary
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF', 'summary'))
+    construct_token = create_folder('condition', construct_token)
+    construct_token = create_folder('odor', construct_token)           
 
             #### PSD_Coh
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
+    construct_token = create_folder('topoplot', construct_token)
+
+                #### topoplot
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh', 'topoplot'))
+    construct_token = create_folder('condition', construct_token)
+    construct_token = create_folder('odor', construct_token)  
+
+                #### summary
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh', 'summary'))
+    construct_token = create_folder('condition', construct_token)
+    construct_token = create_folder('odor', construct_token)      
 
             #### ITPC
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
+    construct_token = create_folder('topoplot', construct_token)
+
+                #### topoplot
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC', 'topoplot'))
+    construct_token = create_folder('condition', construct_token)
+    construct_token = create_folder('odor', construct_token)  
+
+                #### summary
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC', 'summary'))
+    construct_token = create_folder('condition', construct_token)
+    construct_token = create_folder('odor', construct_token) 
 
         #### allplot
     os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot'))
@@ -756,7 +794,23 @@ def get_srate(sujet):
     return srate
 
 
+def get_pos_file(sujet, band_prep):
 
+    path_source = os.getcwd()
+    
+    os.chdir(os.path.join(path_prep, sujet, 'sections'))
+
+    raw = mne.io.read_raw_fif(f'{sujet}_o_FR_CV_1_{band_prep}.fif', preload=True, verbose='critical')
+    
+    info = raw.info
+
+    #### go back to path source
+    os.chdir(path_source)
+
+    #### free memory
+    del raw
+
+    return info
 
 
 

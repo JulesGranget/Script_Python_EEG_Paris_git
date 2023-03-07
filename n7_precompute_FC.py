@@ -112,21 +112,21 @@ def get_pli_ispc_fc_dfc_trial(sujet, cond, odor_i, band_prep, band, freq):
         as1_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, as1, prms['srate'])[0]
         as2_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, as2, prms['srate'])[0]
 
-        #phase = 'inspi'
+        #phase = 'whole'
         for phase_i, phase in enumerate(phase_list):
 
             #### chunk
             if phase == 'whole':
-                as1_stretch_chunk =  as1_stretch.reshape((nfrex, -1))
-                as2_stretch_chunk =  as2_stretch.reshape((nfrex, -1))
+                as1_stretch_chunk =  np.transpose(as1_stretch, (1, 0, 2)).reshape((nfrex, -1))
+                as2_stretch_chunk =  np.transpose(as2_stretch, (1, 0, 2)).reshape((nfrex, -1))
 
             if phase == 'inspi':
-                as1_stretch_chunk =  as1_stretch[:,:,:int(stretch_point_TF*ratio_stretch_TF)].reshape((nfrex, -1))
-                as2_stretch_chunk =  as2_stretch[:,:,:int(stretch_point_TF*ratio_stretch_TF)].reshape((nfrex, -1))
+                as1_stretch_chunk =  np.transpose(as1_stretch[:,:,:int(stretch_point_TF*ratio_stretch_TF)], (1, 0, 2)).reshape((nfrex, -1))
+                as2_stretch_chunk =  np.transpose(as2_stretch[:,:,:int(stretch_point_TF*ratio_stretch_TF)], (1, 0, 2)).reshape((nfrex, -1))
 
             if phase == 'expi':
-                as1_stretch_chunk =  as1_stretch[:,:,int(stretch_point_TF*ratio_stretch_TF):].reshape((nfrex, -1))
-                as2_stretch_chunk =  as2_stretch[:,:,int(stretch_point_TF*ratio_stretch_TF):].reshape((nfrex, -1))
+                as1_stretch_chunk =  np.transpose(as1_stretch[:,:,int(stretch_point_TF*ratio_stretch_TF):], (1, 0, 2)).reshape((nfrex, -1))
+                as2_stretch_chunk =  np.transpose(as2_stretch[:,:,int(stretch_point_TF*ratio_stretch_TF):], (1, 0, 2)).reshape((nfrex, -1))
 
             ##### collect "eulerized" phase angle differences
             cdd = np.exp(1j*(np.angle(as1_stretch_chunk)-np.angle(as2_stretch_chunk)))
@@ -171,7 +171,7 @@ def get_pli_ispc_fc_dfc_trial(sujet, cond, odor_i, band_prep, band, freq):
 def get_wpli_ispc_fc_dfc(sujet, cond, band_prep, band, freq):
 
     #### verif computation
-    if os.path.exists(os.path.join(path_precompute, sujet, 'FC', f'{sujet}_FC_wpli_ispc_{cond}_{odor_i}_{band}_allpairs.nc')):
+    if os.path.exists(os.path.join(path_precompute, sujet, 'FC', f'{sujet}_FC_wpli_ispc_{cond}_o_{band}_allpairs.nc')):
         print(f'ALREADY DONE FC {cond} {band}')
         return
 
@@ -202,7 +202,7 @@ def get_wpli_ispc_fc_dfc(sujet, cond, band_prep, band, freq):
             plt.legend()
             plt.show()
 
-        wavelets, nfrex = get_wavelets()
+        wavelets, nfrex = get_wavelets(band_prep, freq)
 
         #### export
         os.chdir(os.path.join(path_precompute, sujet, 'FC'))
@@ -229,7 +229,7 @@ if __name__ == '__main__':
     for sujet in sujet_list:
 
         print('######## PRECOMPUTE DFC ########') 
-        # cond = 'FR_CV_1'
+        #cond = 'FR_CV_1'
         for cond in conditions:
             #band_prep = 'wb'
             for band_prep in band_prep_list:
@@ -237,7 +237,7 @@ if __name__ == '__main__':
                 for band, freq in freq_band_dict_FC[band_prep].items():
 
                     # get_wpli_ispc_fc_dfc(sujet, cond, band_prep, band, freq, monopol)
-                    execute_function_in_slurm_bash_mem_choice('n_precompute_FC', 'get_wpli_ispc_fc_dfc', [sujet, cond, band_prep, band, freq], '35G')
+                    execute_function_in_slurm_bash_mem_choice('n7_precompute_FC', 'get_wpli_ispc_fc_dfc', [sujet, cond, band_prep, band, freq], '35G')
 
     
 
