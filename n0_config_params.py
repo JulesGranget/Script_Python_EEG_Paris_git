@@ -336,12 +336,14 @@ Pxx_wavelet_norm = 1000
 
 #### STATS
 n_surrogates_tf = 500
-tf_percentile_sel_stats = 2 # for both side
+tf_percentile_sel_stats_dw = 5 
+tf_percentile_sel_stats_up = 95 
+tf_stats_percentile_cluster = 95
 norm_method = 'rscore'# 'zscore', 'dB'
 exclude_frex_range = [48, 52]
 
 #### plot
-tf_plot_percentile_scale = 1 #for one side
+tf_plot_percentile_scale = 99 #for one side
 
 
 

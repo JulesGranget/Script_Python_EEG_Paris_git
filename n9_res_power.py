@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.signal
 import pandas as pd
 import joblib
+import cv2
 
 import pickle
 import gc
@@ -694,6 +695,8 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
         #### save
         os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
         fig.savefig(f'{sujet}_Pxx_{band}_{band_prep}_topo.jpeg', dpi=150)
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet'))
+        fig.savefig(f'Pxx_{band}_{sujet}_{band_prep}_topo.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
@@ -741,6 +744,8 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
             #### save
             os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
             fig.savefig(f'{sujet}_{metric_type}_{data_type}_{band_prep}_topo.jpeg', dpi=150)
+            os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet'))
+            fig.savefig(f'{data_type}_{metric_type}_{sujet}_{band_prep}_topo.jpeg', dpi=150)
             fig.clf()
             plt.close('all')
             gc.collect()
@@ -838,6 +843,7 @@ def compute_TF_ITPC(sujet):
 #tf, nchan = tf_plot, n_chan
 def get_tf_stats(tf, pixel_based_distrib):
 
+    #### thresh data
     tf_thresh = tf.copy()
     #wavelet_i = 0
     for wavelet_i in range(tf.shape[0]):
@@ -848,6 +854,39 @@ def get_tf_stats(tf, pixel_based_distrib):
     if debug:
 
         plt.pcolormesh(tf_thresh)
+        plt.show()
+
+    #### if empty return
+    if tf_thresh.sum() == 0:
+
+        return tf_thresh
+
+    #### thresh cluster
+    tf_thresh = tf_thresh.astype('uint8')
+    nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(tf_thresh)
+    #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+    sizes = stats[1:, -1]
+    nb_blobs -= 1
+    min_size = np.percentile(sizes,tf_stats_percentile_cluster)  
+
+    if debug:
+
+        plt.hist(sizes, bins=100)
+        plt.vlines(np.percentile(sizes,95), ymin=0, ymax=20, colors='r')
+        plt.show()
+
+    tf_thresh = np.zeros_like(im_with_separated_blobs)
+    for blob in range(nb_blobs):
+        if sizes[blob] >= min_size:
+            tf_thresh[im_with_separated_blobs == blob + 1] = 1
+
+    if debug:
+    
+        time = np.arange(tf.shape[-1])
+
+        plt.pcolormesh(time, frex, tf, shading='gouraud', cmap='seismic')
+        plt.contour(time, frex, tf_thresh, levels=0, colors='g')
+        plt.yscale('log')
         plt.show()
 
     return tf_thresh
@@ -863,9 +902,9 @@ def compilation_compute_TF_ITPC(sujet, band_prep):
 
     # compute_TF_ITPC(sujet)
 
-    if os.path.exists(os.path.join(path_results, sujet, 'TF', 'summary', f'{sujet}_Fp1_inter_{band_prep}.jpeg')):
-        print('TF PLOT ALREADY COMPUTED')
-        return
+    # if os.path.exists(os.path.join(path_results, sujet, 'TF', 'summary', f'{sujet}_Fp1_inter_{band_prep}.jpeg')):
+    #     print('TF PLOT ALREADY COMPUTED')
+    #     return
     
     #tf_mode = 'TF'
     for tf_mode in ['TF', 'ITPC']:
@@ -903,13 +942,13 @@ def compilation_compute_TF_ITPC(sujet, band_prep):
             vals_diff = np.abs(vals - np.median(vals))
 
             count, _, _ = plt.hist(vals_diff, bins=500)
-            thresh = np.percentile(vals_diff, 100-tf_plot_percentile_scale)
+            thresh = np.percentile(vals_diff, tf_plot_percentile_scale)
             val_max = vals_diff.max()
             plt.vlines([thresh, val_max], ymin=0, ymax=count.max(), color='r')
             plt.show()
 
         # median_diff = np.max([np.abs(np.median(vals) - vals.min()), np.abs(np.median(vals) + vals.max())])
-        median_diff = np.percentile(np.abs(vals - np.median(vals)), 100-tf_plot_percentile_scale)
+        median_diff = np.percentile(np.abs(vals - np.median(vals)), tf_plot_percentile_scale)
 
         vmin = np.median(vals) - median_diff
         vmax = np.median(vals) + median_diff
@@ -919,15 +958,15 @@ def compilation_compute_TF_ITPC(sujet, band_prep):
         #### inspect stats
         if debug:
 
-            tf_stats_type = 'intra'
-            n_chan, chan_name = 0, chan_list_eeg[0]
-            r, odor_i = 0, odor_list[0]
-            c, cond = 1, conditions[1]
+            tf_stats_type = 'inter'
+            n_chan, chan_name = 11, chan_list_eeg[11]
+            r, odor_i = 2, odor_list[2]
+            c, cond = 0, conditions[0]
 
             tf_plot = data_allcond[cond][odor_i][n_chan,:,:]
 
             os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-            pixel_based_distrib = np.load(f'{sujet}_{tf_mode.lower()}_STATS_{cond}_{odor_i}_intra.npy')[n_chan]
+            pixel_based_distrib = np.load(f'{sujet}_{tf_mode.lower()}_STATS_{cond}_{odor_i}_{tf_stats_type}.npy')[n_chan]
 
             plt.pcolormesh(time, frex, tf_plot, vmin=vmin, vmax=vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
             plt.yscale('log')
@@ -1008,17 +1047,28 @@ def compilation_compute_TF_ITPC(sujet, band_prep):
                             if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
                                 ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
 
-                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[1], colors='g')
+                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
                         ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
 
                 #plt.show()
 
+                #### save
                 if tf_mode == 'TF':
                     os.chdir(os.path.join(path_results, sujet, 'TF', 'summary'))
                 elif tf_mode == 'ITPC':
                     os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary'))
 
-                #### save
+                if tf_stats_type == 'inter':
+                    fig.savefig(f'{sujet}_{chan_name}_inter_{band_prep}.jpeg', dpi=150)
+                if tf_stats_type == 'intra':
+                    fig.savefig(f'{sujet}_{chan_name}_intra_{band_prep}.jpeg', dpi=150)
+
+                #### save for allsujet
+                if tf_mode == 'TF':
+                    os.chdir(os.path.join(path_results, 'allplot', 'TF', 'allsujet', chan_name))
+                elif tf_mode == 'ITPC':
+                    os.chdir(os.path.join(path_results, 'allplot', 'ITPC', 'allsujet', chan_name))
+
                 if tf_stats_type == 'inter':
                     fig.savefig(f'{sujet}_{chan_name}_inter_{band_prep}.jpeg', dpi=150)
                 if tf_stats_type == 'intra':
@@ -1051,7 +1101,7 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep):
         joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(plot_save_PSD_Cxy_CF_MVL)(sujet, n_chan, chan_name, band_prep) for n_chan, chan_name in enumerate(chan_list_eeg))
 
     print('######## PLOT & SAVE TOPOPLOT ########')
-    if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', f'{sujet}_Cxy_raw_{band_prep}_topo.jpeg')):
+    if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', f'{sujet}_Cxy_raw_{band_prep}_topo.jpeg')) and os.path.exists(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet', f'raw_Cxy_{sujet}_{band_prep}_topo.jpeg')):
         print('TOPOPLOT ALREADY COMPUTED')
     else:    
         plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep)
@@ -1071,17 +1121,17 @@ if __name__ == '__main__':
 
     band_prep = 'wb'
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[32]
     for sujet in sujet_list:
 
         print(sujet)
 
         #### Pxx Cxy CycleFreq
-        # compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
-        execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
+        compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
+        # execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
 
         #### TF & ITPC
         # compilation_compute_TF_ITPC(sujet, band_prep)
-        execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep], '15G')
+        # execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep], '15G')
 
 

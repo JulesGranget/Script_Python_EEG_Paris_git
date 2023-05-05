@@ -11,7 +11,7 @@ import sys
 import stat
 import subprocess
 import xarray as xr
-# import physio
+import physio
 
 from bycycle.cyclepoints import find_extrema
 import neurokit2 as nk
@@ -1268,7 +1268,7 @@ def print_advancement(i, i_final, steps=[25, 50, 75]):
     for step, step_i in steps_i.items():
 
         if i == step_i:
-            print(f'{step}%')
+            print(f'{step}%', flush=True)
 
 
 

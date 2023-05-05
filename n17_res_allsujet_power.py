@@ -6,6 +6,7 @@ import scipy.signal
 import pandas as pd
 import joblib
 import xarray as xr
+import cv2
 
 import pickle
 import gc
@@ -57,7 +58,7 @@ def get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet):
         
 
 
-def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet():
+def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute):
 
     metric_to_load = ['Cxy', 'MVL', 'Cxy_surr', 'MVL_surr', 'Pxx_theta', 'Pxx_alpha', 'Pxx_beta', 'Pxx_l_gamma', 'Pxx_h_gamma']
     xr_data = np.zeros(( len(sujet_list_compute), len(metric_to_load), len(conditions), len(odor_list), len(chan_list_eeg)))
@@ -278,8 +279,9 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet):
 ########################################
 
 #tf = tf_plot
-def get_tf_stats(tf, pixel_based_distrib):
+def get_tf_stats_no_cluster_thresh(tf, pixel_based_distrib):
 
+    #### thresh data
     tf_thresh = tf.copy()
     #wavelet_i = 0
     for wavelet_i in range(tf.shape[0]):
@@ -290,6 +292,53 @@ def get_tf_stats(tf, pixel_based_distrib):
     if debug:
 
         plt.pcolormesh(tf_thresh)
+        plt.show()
+
+    return tf_thresh
+
+
+#tf = tf_plot
+def get_tf_stats(tf, pixel_based_distrib):
+
+    #### thresh data
+    tf_thresh = tf.copy()
+    #wavelet_i = 0
+    for wavelet_i in range(tf.shape[0]):
+        mask = np.logical_or(tf_thresh[wavelet_i, :] < pixel_based_distrib[wavelet_i, 0], tf_thresh[wavelet_i, :] > pixel_based_distrib[wavelet_i, 1])
+        tf_thresh[wavelet_i, mask] = 1
+        tf_thresh[wavelet_i, np.logical_not(mask)] = 0
+
+    if debug:
+
+        plt.pcolormesh(tf_thresh)
+        plt.show()
+
+    #### thresh cluster
+    tf_thresh = tf_thresh.astype('uint8')
+    nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(tf_thresh)
+    #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+    sizes = stats[1:, -1]
+    nb_blobs -= 1
+    min_size = np.percentile(sizes,tf_stats_percentile_cluster)  
+
+    if debug:
+
+        plt.hist(sizes, bins=100)
+        plt.vlines(np.percentile(sizes,95), ymin=0, ymax=20, colors='r')
+        plt.show()
+
+    tf_thresh = np.zeros_like(im_with_separated_blobs)
+    for blob in range(nb_blobs):
+        if sizes[blob] >= min_size:
+            tf_thresh[im_with_separated_blobs == blob + 1] = 1
+
+    if debug:
+    
+        time = np.arange(tf.shape[-1])
+
+        plt.pcolormesh(time, frex, tf, shading='gouraud', cmap='seismic')
+        plt.contour(time, frex, tf_thresh, levels=0, colors='g')
+        plt.yscale('log')
         plt.show()
 
     return tf_thresh
@@ -375,7 +424,7 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 
                     vals = np.append(vals, xr_allsujet.loc[nchan_name, cond, odor_i, :, :].values.reshape(-1))
 
-            median_diff = np.percentile(np.abs(vals - np.median(vals)), 100-tf_plot_percentile_scale)
+            median_diff = np.percentile(np.abs(vals - np.median(vals)), tf_plot_percentile_scale)
 
             vmin = np.append(vmin, np.median(vals) - median_diff)
             vmax = np.append(vmax, np.median(vals) + median_diff)
@@ -388,21 +437,25 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
             tf_stats_type = 'intra'
             n_chan, chan_name = 0, chan_list_eeg[0]
             r, odor_i = 0, odor_list[0]
-            c, cond = 1, conditions[1]
+            c, cond = 1, conditions[1] 
+            _vmin, _vmax = vmin[n_chan], vmax[n_chan]
 
-            tf_plot = xr_allsujet.loc[nchan_name, cond, odor_i, :, :]
+            tf_plot = xr_allsujet.loc[nchan_name, cond, odor_i, :, :].values
+            time = xr_allsujet['times'].values
 
             os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
-            pixel_based_distrib = np.load(f'allsujet_{tf_mode.lower()}_STATS_{cond}_{odor_i}_intra.npy')[n_chan]
+            pixel_based_distrib = np.load(f'allsujet_{tf_mode.lower()}_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy')[n_chan]
 
-            plt.pcolormesh(time, frex, tf_plot, vmin=vmin, vmax=vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            plt.pcolormesh(time, frex, tf_plot, vmin=_vmin, vmax=_vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            plt.yscale('log')
+            plt.contour(time, frex, get_tf_stats_no_cluster_thresh(tf_plot, pixel_based_distrib), levels=0, colors='g')
+            plt.show()
+
+            plt.pcolormesh(time, frex, tf_plot, vmin=_vmin, vmax=_vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
             plt.yscale('log')
             plt.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
-
             plt.show()
 
-            plt.pcolormesh(get_tf_stats(tf_plot, pixel_based_distrib))
-            plt.show()
 
             #wavelet_i = 0
             for wavelet_i in range(tf_plot.shape[0]):
@@ -471,7 +524,7 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
                             if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
                                 ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
 
-                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[1], colors='g')
+                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
                         ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
 
                 #plt.show()
@@ -497,9 +550,9 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 ######## COMPILATION FUNCTION ########
 ########################################
 
-def compilation_compute_Pxx_Cxy_Cyclefreq_MVL():
+def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet_list_compute):
 
-    xr_allsujet = compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet()
+    xr_allsujet = compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute)
 
     print('######## PLOT & SAVE TOPOPLOT ########')
     plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet)

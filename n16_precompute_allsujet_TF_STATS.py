@@ -140,34 +140,45 @@ def get_tf_stats(tf, min, max):
 #nchan = 0
 def precompute_tf_STATS(nchan, sujet_list_to_compute):
 
-    print(f'#### COMPUTE TF STATS INTRA NCHAN:{nchan} ####')
-
-    #### identify if already computed for all
-    compute_token = 0
+    print(f'#### COMPUTE TF STATS INTRA NCHAN:{nchan} ####', flush=True)
 
     cond_to_compute = [cond for cond in conditions if cond != 'FR_CV_1']
 
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
+    #odor_i = odor_list[0]
+    for odor_i in odor_list:
 
-    for cond in cond_to_compute:
+        ######## FOR FR_CV BASELINES ########
+        cond = 'FR_CV_1'
 
-        for odor_i in odor_list:
+        print('#### LOAD BASELINE ####', flush=True)
 
-            if os.path.exists(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy') == False:
-                compute_token += 1
+        #sujet_i, sujet = 0, sujet_list_to_compute[0]
+        for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
-    if compute_token == 0:
-        print('ALL COND ALREADY COMPUTED')
+            print_advancement(sujet_i, len(sujet_list_to_compute), steps=[25, 50, 75])
 
-    else:
-            
-        #odor_i = odor_list[0]
-        for odor_i in odor_list:
+            os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+            _tf_stretch_baselines = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
 
-            ######## FOR FR_CV BASELINES ########
-            cond = 'FR_CV_1'
+            if sujet_i == 0:
+                tf_stretch_baselines = _tf_stretch_baselines
+            else:     
+                tf_stretch_baselines = np.concatenate((tf_stretch_baselines, _tf_stretch_baselines), axis=0)
 
-            print('#### LOAD BASELINE ####')
+            del _tf_stretch_baselines
+
+        ######## FOR OTHER COND ########
+        
+        #cond = 'MECA'
+        for cond in cond_to_compute:
+
+            os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
+
+            if os.path.exists(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy'):
+                print(f'{cond}_{odor_i}_intra ALREADY COMPUTED', flush=True)
+                continue
+
+            print('#### LOAD COND ####', flush=True)
 
             #sujet_i, sujet = 0, sujet_list_to_compute[0]
             for sujet_i, sujet in enumerate(sujet_list_to_compute):
@@ -175,260 +186,221 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
                 print_advancement(sujet_i, len(sujet_list_to_compute), steps=[25, 50, 75])
 
                 os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-                _tf_stretch_baselines = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
+                _tf_stretch_cond = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
 
                 if sujet_i == 0:
-                    tf_stretch_baselines = _tf_stretch_baselines
+                    tf_stretch_cond = _tf_stretch_cond
                 else:     
-                    tf_stretch_baselines = np.concatenate((tf_stretch_baselines, _tf_stretch_baselines), axis=0)
+                    tf_stretch_cond = np.concatenate((tf_stretch_cond, _tf_stretch_cond), axis=0)
 
-                del _tf_stretch_baselines
+                del _tf_stretch_cond
 
-            ######## FOR OTHER COND ########
-            
-            #cond = 'MECA'
-            for cond in cond_to_compute:
+            #### verif tf
+            if debug:
 
-                print('#### LOAD COND ####')
+                plt.pcolormesh(np.median(tf_stretch_baselines, axis=0))
+                plt.show()
 
-                #sujet_i, sujet = 0, sujet_list_to_compute[0]
-                for sujet_i, sujet in enumerate(sujet_list_to_compute):
+                plt.pcolormesh(np.median(tf_stretch_cond, axis=0))
+                plt.show()
 
-                    print_advancement(sujet_i, len(sujet_list_to_compute), steps=[25, 50, 75])
+            print(f'COMPUTE {cond} {odor_i}', flush=True)
 
-                    os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-                    _tf_stretch_cond = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
+            #### define ncycle
+            n_cycle_baselines = tf_stretch_baselines.shape[0]
+            n_cycle_cond = tf_stretch_cond.shape[0]
 
-                    if sujet_i == 0:
-                        tf_stretch_cond = _tf_stretch_cond
-                    else:     
-                        tf_stretch_cond = np.concatenate((tf_stretch_cond, _tf_stretch_cond), axis=0)
+            #### space allocation
+            _min, _max = np.zeros((nfrex)), np.zeros((nfrex))
+            pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
+            tf_shuffle = np.zeros((n_cycle_cond, nfrex, stretch_point_TF))
 
-                    del _tf_stretch_cond
+            #surrogates_i = 0
+            for surrogates_i in range(n_surrogates_tf):
 
-                #### verif tf
-                if debug:
+                # _min, _max =  get_pixel_extrema_shuffle(nchan, tf_stretch_baselines, tf_stretch_cond, tf_percentile_sel_stats)
 
-                    plt.pcolormesh(np.median(tf_stretch_baselines, axis=0))
-                    plt.show()
+                print_advancement(surrogates_i, n_surrogates_tf, steps=[25, 50, 75])
 
-                    plt.pcolormesh(np.median(tf_stretch_cond, axis=0))
-                    plt.show()
+                #### random selection
+                draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
+                sel_baseline = np.random.randint(low=0, high=n_cycle_baselines, size=(draw_indicator == 1).sum())
+                sel_cond = np.random.randint(low=0, high=n_cycle_cond, size=(draw_indicator == 0).sum())
 
-                print(f'COMPUTE {cond} {odor_i}')
+                #### extract max min
+                tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[sel_baseline, :, :]
+                tf_shuffle[len(sel_baseline):,:,:] = tf_stretch_cond[sel_cond, :, :]
 
-                #### define ncycle
-                n_cycle_baselines = tf_stretch_baselines.shape[0]
-                n_cycle_cond = tf_stretch_cond.shape[0]
-
-                #### space allocation
-                _min, _max = np.zeros((nfrex)), np.zeros((nfrex))
-                pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
-                tf_shuffle = np.zeros((n_cycle_cond, nfrex, stretch_point_TF))
-
-                #surrogates_i = 0
-                for surrogates_i in range(n_surrogates_tf):
-
-                    # _min, _max =  get_pixel_extrema_shuffle(nchan, tf_stretch_baselines, tf_stretch_cond, tf_percentile_sel_stats)
-
-                    print_advancement(surrogates_i, n_surrogates_tf, steps=[25, 50, 75])
-
-                    #### random selection
-                    draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
-                    sel_baseline = np.random.randint(low=0, high=n_cycle_baselines, size=(draw_indicator == 1).sum())
-                    sel_cond = np.random.randint(low=0, high=n_cycle_cond, size=(draw_indicator == 0).sum())
-
-                    #### extract max min
-                    tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[sel_baseline, :, :]
-                    tf_shuffle[len(sel_baseline):,:,:] = tf_stretch_cond[sel_cond, :, :]
-
-                    if isinstance(tf_percentile_sel_stats, str):
-                        _min, _max = np.median(tf_shuffle, axis=0).min(axis=1), np.median(tf_shuffle, axis=0).max(axis=1)
-                    else:
-                        _min, _max = np.percentile(np.median(tf_shuffle, axis=0), int(tf_percentile_sel_stats/2), axis=1), np.percentile(np.median(tf_shuffle, axis=0), int(100 - tf_percentile_sel_stats/2), axis=1)
-                    
-                    pixel_based_distrib[:, surrogates_i, 0] = _min
-                    pixel_based_distrib[:, surrogates_i, 1] = _max
-
-                min, max = np.median(pixel_based_distrib[:,:,0], axis=1), np.median(pixel_based_distrib[:,:,1], axis=1) 
+                _min, _max = np.median(tf_shuffle, axis=0).min(axis=1), np.median(tf_shuffle, axis=0).max(axis=1)
                 
-                #### plot 
-                if debug:
+                pixel_based_distrib[:, surrogates_i, 0] = _min
+                pixel_based_distrib[:, surrogates_i, 1] = _max
 
-                    median_max_diff = np.abs(np.median(tf_stretch_cond, axis=0).reshape(-1) - np.median(np.median(tf_stretch_cond, axis=0))).max()
-                    vmin = -median_max_diff
-                    vmax = median_max_diff
+            min, max = np.median(pixel_based_distrib[:,:,0], axis=1), np.median(pixel_based_distrib[:,:,1], axis=1) 
+            # min, max = np.percentile(pixel_based_distrib[:,:,0], tf_percentile_sel_stats_dw, axis=1), np.percentile(pixel_based_distrib[:,:,1], tf_percentile_sel_stats_up, axis=1) 
 
-                    tf_plot = np.median(tf_stretch_cond, axis=0)
+            #### plot 
+            if debug:
 
-                    time = np.arange(tf_plot.shape[-1])
+                median_max_diff = np.abs(np.median(tf_stretch_cond, axis=0).reshape(-1) - np.median(np.median(tf_stretch_cond, axis=0))).max()
+                vmin = -median_max_diff
+                vmax = median_max_diff
 
-                    plt.pcolormesh(time, frex, tf_plot, shading='gouraud', cmap='seismic')
-                    plt.contour(time, frex, get_tf_stats(tf_plot, min, max), levels=0, colors='g', vmin=vmin, vmax=vmax)
-                    plt.yscale('log')
-                    plt.yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
-                    plt.title(chan_list_eeg[nchan])
-                    plt.show()
+                tf_plot = np.median(tf_stretch_cond, axis=0)
 
+                time = np.arange(tf_plot.shape[-1])
 
-                ######## SAVE ########
-
-                print(f'SAVE')
-
-                os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
-
-                np.save(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy', pixel_based_distrib)
-
-                del tf_stretch_cond
-
-            #### remove baseline
-            del tf_stretch_baselines
-            
+                plt.pcolormesh(time, frex, tf_plot, shading='gouraud', cmap='seismic')
+                plt.contour(time, frex, get_tf_stats(tf_plot, min, max), levels=0, colors='g', vmin=vmin, vmax=vmax)
+                plt.yscale('log')
+                plt.yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+                plt.title(chan_list_eeg[nchan])
+                plt.show()
 
 
+            ######## SAVE ########
+
+            print(f'SAVE', flush=True)
+
+            os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
+
+            np.save(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy', pixel_based_distrib)
+
+            del tf_stretch_cond
+
+        #### remove baseline
+        del tf_stretch_baselines
+        
 
 
 
 
 
 
-    print(f'#### COMPUTE TF STATS INTER:{nchan} ####')
 
-    #### identify if already computed for all
-    compute_token = 0
+
+    print(f'#### COMPUTE TF STATS INTER:{nchan} ####', flush=True)
 
     odor_to_compute = [odor_i for odor_i in odor_list if odor_i != 'o']
 
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
+    #cond = conditions[0]
+    for cond in conditions:
 
-    for odor_i in odor_to_compute:
+        ######## FOR FR_CV BASELINES ########
+        odor_i = 'o'
 
-        for cond in conditions:
+        #sujet_i, sujet = 0, sujet_list_to_compute[0]
+        for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
-            if os.path.exists(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy') == False:
-                compute_token += 1
+            os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+            _tf_stretch_baselines = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
 
-    if compute_token == 0:
-        print('ALL COND ALREADY COMPUTED')
+            if sujet_i == 0:
+                tf_stretch_baselines = _tf_stretch_baselines
+            else:     
+                tf_stretch_baselines = np.concatenate((tf_stretch_baselines, _tf_stretch_baselines), axis=0)
 
-    else:
-            
-        #cond = conditions[0]
-        for cond in conditions:
+            del _tf_stretch_baselines
 
-            ######## FOR FR_CV BASELINES ########
-            odor_i = 'o'
+        ######## FOR OTHER COND ########
+        
+        #odor_i = '+'
+        for odor_i in odor_to_compute:
+
+            if os.path.exists(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy'):
+                print(f'{cond} {odor_i} ALREADY COMPUTED', flush=True)
+                continue
 
             #sujet_i, sujet = 0, sujet_list_to_compute[0]
             for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
                 os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-                _tf_stretch_baselines = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
+                _tf_stretch_cond = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
 
                 if sujet_i == 0:
-                    tf_stretch_baselines = _tf_stretch_baselines
+                    tf_stretch_cond = _tf_stretch_cond
                 else:     
-                    tf_stretch_baselines = np.concatenate((tf_stretch_baselines, _tf_stretch_baselines), axis=0)
+                    tf_stretch_cond = np.concatenate((tf_stretch_cond, _tf_stretch_cond), axis=0)
 
-                del _tf_stretch_baselines
+                del _tf_stretch_cond
 
-            ######## FOR OTHER COND ########
+            #### verif tf
+            if debug:
+
+                plt.pcolormesh(np.median(tf_stretch_baselines, axis=0))
+                plt.show()
+
+                plt.pcolormesh(np.median(tf_stretch_cond, axis=0))
+                plt.show()
+
+            print(f'COMPUTE {cond} {odor_i}', flush=True)
+
+            pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
+
+            #### define ncycle
+            n_cycle_baselines = tf_stretch_baselines.shape[0]
+            n_cycle_cond = tf_stretch_cond.shape[0]
+
+            #### space allocation
+            _min, _max = np.zeros((nfrex)), np.zeros((nfrex))
+            pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
+            tf_shuffle = np.zeros((n_cycle_cond, nfrex, stretch_point_TF))
             
-            #odor_i = '+'
-            for odor_i in odor_to_compute:
+            #surrogates_i = 0
+            for surrogates_i in range(n_surrogates_tf):
 
-                #sujet_i, sujet = 0, sujet_list_to_compute[0]
-                for sujet_i, sujet in enumerate(sujet_list_to_compute):
+                # _min, _max =  get_pixel_extrema_shuffle(nchan, tf_stretch_baselines, tf_stretch_cond, tf_percentile_sel_stats)
 
-                    os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-                    _tf_stretch_cond = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
+                print_advancement(surrogates_i, n_surrogates_tf, steps=[25, 50, 75])
 
-                    if sujet_i == 0:
-                        tf_stretch_cond = _tf_stretch_cond
-                    else:     
-                        tf_stretch_cond = np.concatenate((tf_stretch_cond, _tf_stretch_cond), axis=0)
+                #### random selection
+                draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
+                sel_baseline = np.random.randint(low=0, high=n_cycle_baselines, size=(draw_indicator == 1).sum())
+                sel_cond = np.random.randint(low=0, high=n_cycle_cond, size=(draw_indicator == 0).sum())
 
-                    del _tf_stretch_cond
+                #### extract max min
+                tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[sel_baseline, :, :]
+                tf_shuffle[len(sel_baseline):,:,:] = tf_stretch_cond[sel_cond, :, :]
 
-                #### verif tf
-                if debug:
-
-                    plt.pcolormesh(np.median(tf_stretch_baselines, axis=0))
-                    plt.show()
-
-                    plt.pcolormesh(np.median(tf_stretch_cond, axis=0))
-                    plt.show()
-
-                print(f'COMPUTE {cond} {odor_i}')
-
-                pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
-
-                #### define ncycle
-                n_cycle_baselines = tf_stretch_baselines.shape[0]
-                n_cycle_cond = tf_stretch_cond.shape[0]
-
-                #### space allocation
-                _min, _max = np.zeros((nfrex)), np.zeros((nfrex))
-                pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
-                tf_shuffle = np.zeros((n_cycle_cond, nfrex, stretch_point_TF))
+                _min, _max = np.median(tf_shuffle, axis=0).min(axis=1), np.median(tf_shuffle, axis=0).max(axis=1)
                 
-                #surrogates_i = 0
-                for surrogates_i in range(n_surrogates_tf):
+                pixel_based_distrib[:, surrogates_i, 0] = _min
+                pixel_based_distrib[:, surrogates_i, 1] = _max
 
-                    # _min, _max =  get_pixel_extrema_shuffle(nchan, tf_stretch_baselines, tf_stretch_cond, tf_percentile_sel_stats)
+            min, max = np.median(pixel_based_distrib[:,:,0], axis=1), np.median(pixel_based_distrib[:,:,1], axis=1) 
+            # min, max = np.percentile(pixel_based_distrib[:,:,0], tf_percentile_sel_stats_dw, axis=1), np.percentile(pixel_based_distrib[:,:,1], tf_percentile_sel_stats_up, axis=1) 
+            
+            #### plot 
+            if debug:
 
-                    print_advancement(surrogates_i, n_surrogates_tf, steps=[25, 50, 75])
+                median_max_diff = np.abs(np.median(tf_stretch_cond, axis=0).reshape(-1) - np.median(np.median(tf_stretch_cond, axis=0))).max()
+                vmin = -median_max_diff
+                vmax = median_max_diff
 
-                    #### random selection
-                    draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
-                    sel_baseline = np.random.randint(low=0, high=n_cycle_baselines, size=(draw_indicator == 1).sum())
-                    sel_cond = np.random.randint(low=0, high=n_cycle_cond, size=(draw_indicator == 0).sum())
+                tf_plot = np.median(tf_stretch_cond, axis=0)
 
-                    #### extract max min
-                    tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[sel_baseline, :, :]
-                    tf_shuffle[len(sel_baseline):,:,:] = tf_stretch_cond[sel_cond, :, :]
+                time = np.arange(tf_plot.shape[-1])
 
-                    if isinstance(tf_percentile_sel_stats, str):
-                        _min, _max = np.median(tf_shuffle, axis=0).min(axis=1), np.median(tf_shuffle, axis=0).max(axis=1)
-                    else:
-                        _min, _max = np.percentile(np.median(tf_shuffle, axis=0), int(tf_percentile_sel_stats/2), axis=1), np.percentile(np.median(tf_shuffle, axis=0), int(100 - tf_percentile_sel_stats/2), axis=1)
-                    
-                    pixel_based_distrib[:, surrogates_i, 0] = _min
-                    pixel_based_distrib[:, surrogates_i, 1] = _max
-
-                min, max = np.median(pixel_based_distrib[:,:,0], axis=1), np.median(pixel_based_distrib[:,:,1], axis=1) 
-                
-                #### plot 
-                if debug:
-
-                    median_max_diff = np.abs(np.median(tf_stretch_cond, axis=0).reshape(-1) - np.median(np.median(tf_stretch_cond, axis=0))).max()
-                    vmin = -median_max_diff
-                    vmax = median_max_diff
-
-                    tf_plot = np.median(tf_stretch_cond, axis=0)
-
-                    time = np.arange(tf_plot.shape[-1])
-
-                    plt.pcolormesh(time, frex, tf_plot, shading='gouraud', cmap='seismic')
-                    plt.contour(time, frex, get_tf_stats(tf_plot, min, max), levels=0, colors='g', vmin=vmin, vmax=vmax)
-                    plt.yscale('log')
-                    plt.yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
-                    plt.title(chan_list_eeg[nchan])
-                    plt.show()
+                plt.pcolormesh(time, frex, tf_plot, shading='gouraud', cmap='seismic')
+                plt.contour(time, frex, get_tf_stats(tf_plot, min, max), levels=0, colors='g', vmin=vmin, vmax=vmax)
+                plt.yscale('log')
+                plt.yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+                plt.title(chan_list_eeg[nchan])
+                plt.show()
 
 
-                ######## SAVE ########
+            ######## SAVE ########
 
-                print(f'SAVE')
+            print(f'SAVE', flush=True)
 
-                os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
+            os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
 
-                np.save(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy', pixel_based_distrib)
+            np.save(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy', pixel_based_distrib)
 
-                del tf_stretch_cond
+            del tf_stretch_cond
 
-            #### remove baseline
-            del tf_stretch_baselines
+        #### remove baseline
+        del tf_stretch_baselines
 
 
 
@@ -451,7 +423,6 @@ if __name__ == '__main__':
         # precompute_tf_STATS(nchan, sujet_list_to_compute)
         execute_function_in_slurm_bash_mem_choice('n16_precompute_allsujet_TF_STATS', 'precompute_tf_STATS', [nchan, sujet_list_to_compute], '20G')
 
-    # reduce_allsujet_tf_stats(sujet_list_to_compute)
 
         
 
