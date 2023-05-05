@@ -192,8 +192,8 @@ def compute_PxxCxyCyclefreq_for_cond_session(sujet, cond, odor_i, band_prep):
     respfeatures_allcond = load_respfeatures(sujet)
     prms = get_params()
     chan_i = prms['chan_list'].index('PRESS')
-    respi = load_data_sujet(sujet, band_prep, cond, odor_i)[chan_i,:]
-    data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)[:len(chan_list_eeg),:]
+    respi = load_data_sujet(sujet, cond, odor_i)[chan_i,:]
+    data_tmp = load_data_sujet(sujet, cond, odor_i)[:len(chan_list_eeg),:]
 
     #### prepare analysis
     hzPxx = np.linspace(0,prms['srate']/2,int(prms['nfft']/2+1))
@@ -406,7 +406,7 @@ def get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet):
 
 
 #n_chan, chan_name = 0, chan_list_eeg[0]
-def plot_save_PSD_Cxy_CF_MVL(n_chan, chan_name, band_prep):
+def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name, band_prep):
 
     #### load data
     Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
@@ -473,8 +473,8 @@ def plot_save_PSD_Cxy_CF_MVL(n_chan, chan_name, band_prep):
             #plt.show() 
 
         #### save
-        os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'summary', 'odor'))
-        fig.savefig(f'{sujet}_{chan_name}_{odor_i}_{band_prep}.jpeg', dpi=150)
+        os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'summary'))
+        fig.savefig(f'{sujet}_{chan_name}_odor_{odor_i}_{band_prep}.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
@@ -531,8 +531,8 @@ def plot_save_PSD_Cxy_CF_MVL(n_chan, chan_name, band_prep):
             #plt.show() 
 
         #### save
-        os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'summary', 'condition'))
-        fig.savefig(f'{sujet}_{chan_name}_{cond}_{band_prep}.jpeg', dpi=150)
+        os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'summary'))
+        fig.savefig(f'{sujet}_{chan_name}_cond_{cond}_{band_prep}.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
@@ -593,9 +593,9 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
             topoplot_data[cond][odor_i]['MVL'] = MVL_allchan_i
 
             Cxy_allchan_surr_i = surrogates_allcond['Cxy'][cond][odor_i][:len(chan_list_eeg),hzCxy_mask].mean(axis=1)
-            topoplot_data[cond][odor_i]['Cxy_surr'] = np.array(Cxy_allchan_surr_i > Cxy_allchan_i)*1
+            topoplot_data[cond][odor_i]['Cxy_surr'] = np.array(Cxy_allchan_i > Cxy_allchan_surr_i)*1
             MVL_allchan_surr_i = np.array([np.percentile(surrogates_allcond['MVL'][cond][odor_i][nchan,:], 99) for nchan, _ in enumerate(chan_list_eeg)])
-            topoplot_data[cond][odor_i]['MVL_surr'] = np.array(MVL_allchan_surr_i > MVL_allchan_i)*1
+            topoplot_data[cond][odor_i]['MVL_surr'] = np.array(MVL_allchan_i > MVL_allchan_surr_i)*1
 
     for cond in conditions:
 
@@ -649,115 +649,26 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
                 scales_odor[data_type][cond]['min'] = val.min()
                 scales_odor[data_type][cond]['max'] = val.max()
 
-        else:
+        scales_allband[data_type] = {}
 
-            scales_allband[data_type] = {}
+        val = np.array([])
 
-            val = np.array([])
+        for odor_i in odor_list:
 
-            for odor_i in odor_list:
+            for cond in conditions:
 
-                for cond in conditions:
+                val = np.append(val, topoplot_data[cond][odor_i][data_type])
 
-                    val = np.append(val, topoplot_data[cond][odor_i][data_type])
+        scales_allband[data_type]['min'] = val.min()
+        scales_allband[data_type]['max'] = val.max()
 
-            scales_allband[data_type]['min'] = val.min()
-            scales_allband[data_type]['max'] = val.max()
-
-
-    #### plot Cxy MVL
-    #odor_i = odor_list[0]
-    for odor_i in odor_list:
-
-        fig, axs = plt.subplots(nrows=4, ncols=len(conditions))
-        plt.suptitle(f'{sujet}_{odor_i}')
-        fig.set_figheight(10)
-        fig.set_figwidth(10)
-
-        #c, cond = 0, 'FR_CV_1'
-        for c, cond in enumerate(conditions):
-                    
-            #### plot
-            ax = axs[0, c]
-            ax.set_title(cond, fontweight='bold', rotation=0)
-            if c == 0:
-                ax.set_ylabel(f'Cxy [0-1]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['Cxy'], info, axes=ax, vmin=0, vmax=1, show=False)
- 
-            ax = axs[1, c]
-            if c == 0:
-                ax.set_ylabel(f'Cxy_surr [0-1]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['Cxy_surr'], info, axes=ax, vmin=0, vmax=1, show=False)
-
-            ax = axs[2, c]
-            vmin = np.round(scales_odor['MVL'][cond]['min'], 2)
-            vmax = np.round(scales_odor['MVL'][cond]['max'], 2)
-            if c == 0:
-                ax.set_ylabel(f'MVL [{vmin}-{vmax}]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['MVL'], info, axes=ax, vmin=vmin, vmax=vmax, show=False)
-
-            ax = axs[3, c]
-            if c == 0:
-                ax.set_ylabel(f'MVL_surr [0-1]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['MVL_surr'], info, axes=ax, vmin=0, vmax=1, show=False)
-            #plt.show() 
-
-        #### save
-        os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', 'odor'))
-        fig.savefig(f'{sujet}_{odor_i}_{band_prep}_topo.jpeg', dpi=150)
-        fig.clf()
-        plt.close('all')
-        gc.collect()
-
-    #cond = 'FR_CV_1'
-    for cond in conditions:
-
-        fig, axs = plt.subplots(nrows=4, ncols=len(odor_list))
-        plt.suptitle(f'{sujet}_{cond}')
-        fig.set_figheight(10)
-        fig.set_figwidth(10)
-
-        #c, odor_i = 0, odor_list[0]
-        for c, odor_i in enumerate(odor_list):
-
-            #### plot
-            ax = axs[0, c]
-            ax.set_title(odor_i, fontweight='bold', rotation=0)
-            if c == 0:
-                ax.set_ylabel(f'Cxy [0-1]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['Cxy'], info, axes=ax, vmin=0, vmax=1, show=False)
- 
-            ax = axs[1, c]
-            if c == 0:
-                ax.set_ylabel(f'Cxy_surr [0-1]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['Cxy_surr'], info, axes=ax, vmin=0, vmax=1, show=False)
-
-            ax = axs[2, c]
-            vmin = np.round(scales_odor['MVL'][cond]['min'], 2)
-            vmax = np.round(scales_odor['MVL'][cond]['max'], 2)
-            if c == 0:
-                ax.set_ylabel(f'MVL [{vmin}-{vmax}]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['MVL'], info, axes=ax, vmin=vmin, vmax=vmax, show=False)
-
-            ax = axs[3, c]
-            if c == 0:
-                ax.set_ylabel(f'MVL_surr [0-1]')
-            mne.viz.plot_topomap(topoplot_data[cond][odor_i]['MVL_surr'], info, axes=ax, vmin=0, vmax=1, show=False)
-            #plt.show() 
-
-        #### save
-        os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', 'condition'))
-        fig.savefig(f'{sujet}_{cond}_{band_prep}_topo.jpeg', dpi=150)
-        fig.clf()
-        plt.close('all')
-        gc.collect()
-
-    #### plot Pxx
+    #### plot topo summary
     #band, freq = 'theta', [4, 8]
     for band, freq in freq_band_fc_analysis.items():
 
+        #### plot Pxx
         fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
-        plt.suptitle(f'{sujet}_{band}')
+        plt.suptitle(f'{sujet}_{band}_Pxx')
         fig.set_figheight(10)
         fig.set_figwidth(10)
 
@@ -775,17 +686,64 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
                 if c == 0:
                     ax.set_ylabel(f'{odor_i}')
                 
-                mne.viz.plot_topomap(topoplot_data[cond][odor_i][f'Pxx_{band}'], info, axes=ax, vmin=scales_allband[f'Pxx_{band}']['min'], 
-                                     vmax=scales_allband[f'Pxx_{band}']['max'], show=False)
+                mne.viz.plot_topomap(topoplot_data[cond][odor_i][f'Pxx_{band}'], info, axes=ax, vlim=(scales_allband[f'Pxx_{band}']['min'], 
+                                     scales_allband[f'Pxx_{band}']['max']), show=False)
 
         # plt.show() 
 
         #### save
         os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
-        fig.savefig(f'{sujet}_{band}_{band_prep}_topo.jpeg', dpi=150)
+        fig.savefig(f'{sujet}_Pxx_{band}_{band_prep}_topo.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
+
+    #### plot Cxy, MVL
+    for data_type in ['raw', 'stats']:
+
+        for metric_type in ['Cxy', 'MVL']:
+
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+            plt.suptitle(f'{sujet}_{metric_type}_{data_type}')
+            fig.set_figheight(10)
+            fig.set_figwidth(10)
+
+            #c, cond = 0, 'FR_CV_1'
+            for c, cond in enumerate(conditions):
+
+                #r, odor_i = 0, odor_list[0]
+                for r, odor_i in enumerate(odor_list):
+
+                    #### plot
+                    ax = axs[r, c]
+
+                    if r == 0:
+                        ax.set_title(cond, fontweight='bold', rotation=0)
+                    if c == 0:
+                        ax.set_ylabel(f'{odor_i}')
+                    
+                    if metric_type == 'Cxy' and data_type == 'stats':
+                        mne.viz.plot_topomap(topoplot_data[cond][odor_i][f'Cxy_surr'], info, axes=ax, vlim=(0,1), show=False)
+                        
+                    if metric_type == 'Cxy' and data_type == 'raw':
+                        mne.viz.plot_topomap(topoplot_data[cond][odor_i][f'Cxy'], info, axes=ax, vlim=(0,1), show=False)
+
+                    if metric_type == 'MVL' and data_type == 'stats':
+                        mne.viz.plot_topomap(topoplot_data[cond][odor_i][f'MVL_surr'], info, axes=ax, vlim=(0,1), show=False)
+                        
+                    if metric_type == 'MVL' and data_type == 'raw':
+                        vmin = np.round(scales_allband['MVL']['min'], 2)
+                        vmax = np.round(scales_allband['MVL']['max'], 2)
+                        mne.viz.plot_topomap(topoplot_data[cond][odor_i]['MVL'], info, axes=ax, vlim=(vmin,vmax), show=False)
+
+            # plt.show() 
+
+            #### save
+            os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
+            fig.savefig(f'{sujet}_{metric_type}_{data_type}_{band_prep}_topo.jpeg', dpi=150)
+            fig.clf()
+            plt.close('all')
+            gc.collect()
 
 
 
@@ -877,262 +835,200 @@ def compute_TF_ITPC(sujet):
 ######## PLOT & SAVE TF & ITPC ########
 ########################################
 
-
-def get_tf_stats(tf, nchan, pixel_based_distrib, nfrex):
+#tf, nchan = tf_plot, n_chan
+def get_tf_stats(tf, pixel_based_distrib):
 
     tf_thresh = tf.copy()
     #wavelet_i = 0
-    for wavelet_i in range(nfrex):
-        mask = np.logical_or(tf_thresh[wavelet_i, :] >= pixel_based_distrib[nchan, wavelet_i, 0], tf_thresh[wavelet_i, :] <= pixel_based_distrib[nchan, wavelet_i, 1])
+    for wavelet_i in range(tf.shape[0]):
+        mask = np.logical_or(tf_thresh[wavelet_i, :] < pixel_based_distrib[wavelet_i, 0], tf_thresh[wavelet_i, :] > pixel_based_distrib[wavelet_i, 1])
         tf_thresh[wavelet_i, mask] = 1
         tf_thresh[wavelet_i, np.logical_not(mask)] = 0
+
+    if debug:
+
+        plt.pcolormesh(tf_thresh)
+        plt.show()
 
     return tf_thresh
 
 
 
 
-def get_tf_itpc_stretch_allcond(sujet, tf_mode):
 
-    source_path = os.getcwd()
-
-    if tf_mode == 'TF':
-
-        os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-
-        with open(f'allcond_{sujet}_tf_stretch.pkl', 'rb') as f:
-            tf_stretch_allcond = pickle.load(f)
+    
 
 
-    elif tf_mode == 'ITPC':
+def compilation_compute_TF_ITPC(sujet, band_prep):
+
+    # compute_TF_ITPC(sujet)
+
+    if os.path.exists(os.path.join(path_results, sujet, 'TF', 'summary', f'{sujet}_Fp1_inter_{band_prep}.jpeg')):
+        print('TF PLOT ALREADY COMPUTED')
+        return
+    
+    #tf_mode = 'TF'
+    for tf_mode in ['TF', 'ITPC']:
         
-        os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
+        if tf_mode == 'TF':
+            print('######## PLOT & SAVE TF ########')
+        if tf_mode == 'ITPC':
+            continue
+            print('######## PLOT & SAVE ITPC ########')
 
-        with open(f'allcond_{sujet}_itpc_stretch.pkl', 'rb') as f:
-            tf_stretch_allcond = pickle.load(f)
+        #### load data
+        os.chdir(os.path.join(path_precompute, sujet, tf_mode))
 
-    os.chdir(source_path)
+        data_allcond = {}
 
-    return tf_stretch_allcond
-
-
-
-
-
-
-#n_chan = 0
-def save_TF_ITPC_n_chan(n_chan, tf_mode, band_prep):
-
-    if tf_mode == 'TF':
-        os.chdir(os.path.join(path_results, sujet, 'TF', 'summary'))
-    elif tf_mode == 'ITPC':
-        os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary'))
-
-    print_advancement(n_chan, len(chan_list_eeg), steps=[25, 50, 75])
-
-    chan_name = chan_list_eeg[n_chan]
-
-    #band_prep_plot = 'lf'
-    for band_prep_plot in ['lf', 'hf']:
-
-        freq_band = freq_band_dict[band_prep_plot]
-
-        #odor_i = odor_list[0]
-        for odor_i in odor_list:
-
-            #### scale
-            # vmaxs = {}
-            # vmins = {}
-            # for cond in prms['conditions']:
-
-            #     scales = {'vmin_val' : np.array(()), 'vmax_val' : np.array(()), 'median_val' : np.array(())}
-
-            #     for i, (band, freq) in enumerate(freq_band.items()) :
-
-            #         if band == 'whole' or band == 'l_gamma':
-            #             continue
-
-            #         data = get_tf_itpc_stretch_allcond(sujet, tf_mode)[band_prep][cond][band][n_chan, :, :]
-            #         frex = np.linspace(freq[0], freq[1], np.size(data,0))
-
-            #         scales['vmin_val'] = np.append(scales['vmin_val'], np.min(data))
-            #         scales['vmax_val'] = np.append(scales['vmax_val'], np.max(data))
-            #         scales['median_val'] = np.append(scales['median_val'], np.median(data))
-
-            #         del data
-
-            #     median_diff = np.max([np.abs(np.min(scales['vmin_val']) - np.median(scales['median_val'])), np.abs(np.max(scales['vmax_val']) - np.median(scales['median_val']))])
-
-            #     vmin = np.median(scales['median_val']) - median_diff
-            #     vmax = np.median(scales['median_val']) + median_diff
-
-            #     vmaxs[cond] = vmax
-            #     vmins[cond] = vmin
-
-            #### plot
-            fig, axs = plt.subplots(nrows=len(freq_band), ncols=len(conditions))
-
-            plt.suptitle(f'{sujet}_{chan_name}')
-
-            fig.set_figheight(10)
-            fig.set_figwidth(10)
-
-            #### for plotting l_gamma down
-            if band_prep == 'hf':
-                keys_list_reversed = list(freq_band.keys())
-                keys_list_reversed.reverse()
-                freq_band_reversed = {}
-                for key_i in keys_list_reversed:
-                    freq_band_reversed[key_i] = freq_band[key_i]
-                freq_band = freq_band_reversed
-
-            #c, cond = 1, conditions[1]
-            for c, cond in enumerate(conditions):
-
-                #### plot
-                #i, (band, freq) = 0, list(freq_band.items())[0] 
-                for i, (band, freq) in enumerate(freq_band.items()) :
-
-                    data = get_tf_itpc_stretch_allcond(sujet, tf_mode)[band_prep][cond][odor_i][band][n_chan, :, :]
-                    frex = np.linspace(freq[0], freq[1], np.size(data,0))
-                
-                    ax = axs[i,c]
-
-                    if i == 0 :
-                        ax.set_title(cond, fontweight='bold', rotation=0)
-
-                    time = range(stretch_point_TF)
-
-                    ax.pcolormesh(time, frex, rscore_mat(data), vmin=-rscore_mat(data).max(), vmax=rscore_mat(data).max(), shading='gouraud', cmap=plt.get_cmap('seismic'))
-
-                    if tf_mode == 'TF' and cond != 'FR_CV_1':
-                        os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-
-                        pixel_based_distrib = np.load(f'{sujet}_tf_STATS_{cond}_{odor_i}_intra_{str(freq[0])}_{str(freq[1])}.npy')
-                        
-                        _, nfrex = get_wavelets(band_prep, freq)
-                        if get_tf_stats(rscore_mat(data), n_chan, pixel_based_distrib, nfrex).sum() != 0:
-                            ax.contour(time, frex, get_tf_stats(rscore_mat(data), n_chan, pixel_based_distrib, nfrex), levels=0, colors='g')
-
-                    if c == 0:
-                        ax.set_ylabel(band)
-
-                    ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=freq[0], ymax=freq[1], colors='g')
-
-                    del data
-
-            #plt.show()
-
-            if tf_mode == 'TF':
-                os.chdir(os.path.join(path_results, sujet, 'TF', 'summary', 'odor'))
-            elif tf_mode == 'ITPC':
-                os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary', 'odor'))
-
-            #### save
-            fig.savefig(f'{sujet}_{chan_name}_{odor_i}_{band_prep}.jpeg', dpi=150)
-                
-            fig.clf()
-            plt.close('all')
-            gc.collect()
-
-
-        #cond = conditions[0]
         for cond in conditions:
 
-            #### scale
-            # vmaxs = {}
-            # vmins = {}
-            # for cond in prms['conditions']:
+            data_allcond[cond] = {}
 
-            #     scales = {'vmin_val' : np.array(()), 'vmax_val' : np.array(()), 'median_val' : np.array(())}
+            for odor_i in odor_list:
 
-            #     for i, (band, freq) in enumerate(freq_band.items()) :
+                data_allcond[cond][odor_i] = np.median(np.load(f'{sujet}_{tf_mode.lower()}_conv_{cond}_{odor_i}.npy'), axis=1)
 
-            #         if band == 'whole' or band == 'l_gamma':
-            #             continue
+        #### scale
+        vals = np.array([])
 
-            #         data = get_tf_itpc_stretch_allcond(sujet, tf_mode)[band_prep][cond][band][n_chan, :, :]
-            #         frex = np.linspace(freq[0], freq[1], np.size(data,0))
+        for cond in conditions:
 
-            #         scales['vmin_val'] = np.append(scales['vmin_val'], np.min(data))
-            #         scales['vmax_val'] = np.append(scales['vmax_val'], np.max(data))
-            #         scales['median_val'] = np.append(scales['median_val'], np.median(data))
+            for odor_i in odor_list:
 
-            #         del data
+                vals = np.append(vals, data_allcond[cond][odor_i].reshape(-1))
 
-            #     median_diff = np.max([np.abs(np.min(scales['vmin_val']) - np.median(scales['median_val'])), np.abs(np.max(scales['vmax_val']) - np.median(scales['median_val']))])
+        if debug:
 
-            #     vmin = np.median(scales['median_val']) - median_diff
-            #     vmax = np.median(scales['median_val']) + median_diff
+            vals_diff = np.abs(vals - np.median(vals))
 
-            #     vmaxs[cond] = vmax
-            #     vmins[cond] = vmin
+            count, _, _ = plt.hist(vals_diff, bins=500)
+            thresh = np.percentile(vals_diff, 100-tf_plot_percentile_scale)
+            val_max = vals_diff.max()
+            plt.vlines([thresh, val_max], ymin=0, ymax=count.max(), color='r')
+            plt.show()
 
-            #### plot
-            fig, axs = plt.subplots(nrows=len(freq_band), ncols=len(odor_list))
+        # median_diff = np.max([np.abs(np.median(vals) - vals.min()), np.abs(np.median(vals) + vals.max())])
+        median_diff = np.percentile(np.abs(vals - np.median(vals)), 100-tf_plot_percentile_scale)
 
-            plt.suptitle(f'{sujet}_{chan_name}')
+        vmin = np.median(vals) - median_diff
+        vmax = np.median(vals) + median_diff
 
-            fig.set_figheight(10)
-            fig.set_figwidth(10)
+        del vals
 
-            #### for plotting l_gamma down
-            if band_prep == 'hf':
-                keys_list_reversed = list(freq_band.keys())
-                keys_list_reversed.reverse()
-                freq_band_reversed = {}
-                for key_i in keys_list_reversed:
-                    freq_band_reversed[key_i] = freq_band[key_i]
-                freq_band = freq_band_reversed
+        #### inspect stats
+        if debug:
 
-            #c, odor_i = 1, odor_list[1]
-            for c, odor_i in enumerate(odor_list):
+            tf_stats_type = 'intra'
+            n_chan, chan_name = 0, chan_list_eeg[0]
+            r, odor_i = 0, odor_list[0]
+            c, cond = 1, conditions[1]
+
+            tf_plot = data_allcond[cond][odor_i][n_chan,:,:]
+
+            os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+            pixel_based_distrib = np.load(f'{sujet}_{tf_mode.lower()}_STATS_{cond}_{odor_i}_intra.npy')[n_chan]
+
+            plt.pcolormesh(time, frex, tf_plot, vmin=vmin, vmax=vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            plt.yscale('log')
+            plt.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
+
+            plt.show()
+
+            plt.pcolormesh(get_tf_stats(tf_plot, pixel_based_distrib))
+            plt.show()
+
+            #wavelet_i = 0
+            for wavelet_i in range(tf_plot.shape[0]):
+
+                plt.plot(tf_plot[wavelet_i,:], color='b')
+                plt.hlines([pixel_based_distrib[wavelet_i,0], pixel_based_distrib[wavelet_i,1]], xmin=0, xmax=tf_plot.shape[-1] ,color='r')
+
+                plt.title(f'{np.round(wavelet_i/tf_plot.shape[0],2)}')
+
+                plt.show()
+
+
+        #### plot
+        if tf_mode == 'TF':
+            os.chdir(os.path.join(path_results, sujet, 'TF', 'summary'))
+        elif tf_mode == 'ITPC':
+            os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary'))
+
+        #tf_stats_type = 'inter'
+        for tf_stats_type in ['inter', 'intra']:
+
+            #n_chan, chan_name = 0, chan_list_eeg[0]
+            for n_chan, chan_name in enumerate(chan_list_eeg):
+
+                print_advancement(n_chan, len(chan_list_eeg), steps=[25, 50, 75])
 
                 #### plot
-                #i, (band, freq) = 0, list(freq_band.items())[0] 
-                for i, (band, freq) in enumerate(freq_band.items()) :
+                fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
 
-                    data = get_tf_itpc_stretch_allcond(sujet, tf_mode)[band_prep][cond][odor_i][band][n_chan, :, :]
-                    frex = np.linspace(freq[0], freq[1], np.size(data,0))
-                
-                    ax = axs[i,c]
+                plt.suptitle(f'{sujet}_{chan_name}')
 
-                    if i == 0 :
-                        ax.set_title(odor_i, fontweight='bold', rotation=0)
+                fig.set_figheight(10)
+                fig.set_figwidth(15)
 
-                    time = range(stretch_point_TF)
+                time = range(stretch_point_TF)
 
-                    ax.pcolormesh(time, frex, rscore_mat(data), vmin=-rscore_mat(data).max(), vmax=rscore_mat(data).max(), shading='gouraud', cmap=plt.get_cmap('seismic'))
+                #r, odor_i = 0, odor_list[0]
+                for r, odor_i in enumerate(odor_list):
 
-                    if tf_mode == 'TF' and odor_i != 'o':
-                        os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+                    #c, cond = 1, conditions[1]
+                    for c, cond in enumerate(conditions):
 
-                        pixel_based_distrib = np.load(f'{sujet}_tf_STATS_{cond}_{odor_i}_inter_{str(freq[0])}_{str(freq[1])}.npy')
-                        
-                        _, nfrex = get_wavelets(band_prep, freq)
-                        if get_tf_stats(rscore_mat(data), n_chan, pixel_based_distrib, nfrex).sum() != 0:
-                            ax.contour(time, frex, get_tf_stats(rscore_mat(data), n_chan, pixel_based_distrib, nfrex), levels=0, colors='g')
+                        tf_plot = data_allcond[cond][odor_i][n_chan,:,:]
+                    
+                        ax = axs[r,c]
 
-                    if c == 0:
-                        ax.set_ylabel(band)
+                        if r == 0 :
+                            ax.set_title(cond, fontweight='bold', rotation=0)
 
-                    ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=freq[0], ymax=freq[1], colors='g')
+                        if c == 0:
+                            ax.set_ylabel(odor_i)
 
-                    del data
+                        ax.pcolormesh(time, frex, tf_plot, vmin=vmin, vmax=vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
+                        ax.set_yscale('log')
 
-            #plt.show()
+                        if tf_mode == 'TF' and cond != 'FR_CV_1' and tf_stats_type == 'intra':
+                            os.chdir(os.path.join(path_precompute, sujet, 'TF'))
 
-            if tf_mode == 'TF':
-                os.chdir(os.path.join(path_results, sujet, 'TF', 'summary', 'condition'))
-            elif tf_mode == 'ITPC':
-                os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary', 'condition'))
+                            pixel_based_distrib = np.load(f'{sujet}_{tf_mode.lower()}_STATS_{cond}_{odor_i}_intra.npy')[n_chan]
+                            
+                            if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
+                                ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
 
-            #### save
-            fig.savefig(f'{sujet}_{chan_name}_{cond}_{band_prep}.jpeg', dpi=150)
-                
-            fig.clf()
-            plt.close('all')
-            gc.collect()
+                        if tf_mode == 'TF' and odor_i != 'o' and tf_stats_type == 'inter':
+                            os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+
+                            pixel_based_distrib = np.load(f'{sujet}_{tf_mode.lower()}_STATS_{cond}_{odor_i}_inter.npy')[n_chan]
+                            
+                            if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
+                                ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
+
+                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[1], colors='g')
+                        ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+
+                #plt.show()
+
+                if tf_mode == 'TF':
+                    os.chdir(os.path.join(path_results, sujet, 'TF', 'summary'))
+                elif tf_mode == 'ITPC':
+                    os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary'))
+
+                #### save
+                if tf_stats_type == 'inter':
+                    fig.savefig(f'{sujet}_{chan_name}_inter_{band_prep}.jpeg', dpi=150)
+                if tf_stats_type == 'intra':
+                    fig.savefig(f'{sujet}_{chan_name}_intra_{band_prep}.jpeg', dpi=150)
+                    
+                fig.clf()
+                plt.close('all')
+                gc.collect()
+
+
 
 
 
@@ -1149,41 +1045,18 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep):
     
     #### compute joblib
     print('######## PLOT & SAVE PSD AND COH ########')
-    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(plot_save_PSD_Cxy_CF_MVL)(n_chan, chan_name, band_prep) for n_chan, chan_name in enumerate(chan_list_eeg))
+    if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'summary', f'{sujet}_Fp1_odor_o_{band_prep}.jpeg')):
+        print('NCHAN PLOT ALREADY COMPUTED')
+    else:    
+        joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(plot_save_PSD_Cxy_CF_MVL)(sujet, n_chan, chan_name, band_prep) for n_chan, chan_name in enumerate(chan_list_eeg))
 
     print('######## PLOT & SAVE TOPOPLOT ########')
-    plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep)
+    if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', f'{sujet}_Cxy_raw_{band_prep}_topo.jpeg')):
+        print('TOPOPLOT ALREADY COMPUTED')
+    else:    
+        plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep)
 
     print('done')
-
-    
-
-
-def compilation_compute_TF_ITPC(sujet):
-
-    compute_TF_ITPC(sujet)
-    
-    #tf_mode = 'TF'
-    for tf_mode in ['TF', 'ITPC']:
-        
-        if tf_mode == 'TF':
-            print('######## PLOT & SAVE TF ########')
-        if tf_mode == 'ITPC':
-            continue
-            print('######## PLOT & SAVE ITPC ########')
-        
-        #band_prep = 'wb'
-        for band_prep in band_prep_list: 
-
-            print(band_prep)
-
-            joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(save_TF_ITPC_n_chan)(n_chan, tf_mode, band_prep) for n_chan, tf_mode, band_prep in zip(range(len(chan_list_eeg)), [tf_mode]*len(chan_list_eeg), [band_prep]*len(chan_list_eeg)))
-
-    print('done')
-
-
-
-
 
 
 
@@ -1204,11 +1077,11 @@ if __name__ == '__main__':
         print(sujet)
 
         #### Pxx Cxy CycleFreq
-        compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
-        # execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet], 15)
+        # compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
+        execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
 
         #### TF & ITPC
-        compilation_compute_TF_ITPC(sujet)
-        # execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_TF_ITPC', [sujet], 15)
+        # compilation_compute_TF_ITPC(sujet, band_prep)
+        execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep], '15G')
 
 

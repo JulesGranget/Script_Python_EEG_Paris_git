@@ -7,7 +7,6 @@ import scipy.signal
 import mne
 import pandas as pd
 import respirationtools
-import physio
 
 from bycycle.cyclepoints import find_extrema, find_zerox
 from bycycle.plts import plot_cyclepoints_array
@@ -37,7 +36,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
     _diff = np.log(np.diff(cycles_init[:,:2], axis=1).reshape(-1))
 
     if debug:
-        plt.plot(respi)
+        plt.plot(np.arange(respi.shape[0])/srate, respi)
         plt.show()
 
         plt.plot(zscore(_diff))
@@ -148,7 +147,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
         plt.show()
 
         plt.plot(respi)
-        plt.scatter()
+        plt.show()
 
     #### final cleaning
     next_inspi_final = np.append(cycles[1:,0], next_inspi[-1])
@@ -252,7 +251,7 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
 
             cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',inspration_ajust_on_derivative=True)
 
-            if sujet in ['18SE', '26MN', '32CM']:
+            if sujet in ['18SE', '20TY', '26MN', '32CM']:
 
                 cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
                         exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 

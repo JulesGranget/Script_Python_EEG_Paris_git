@@ -37,7 +37,7 @@ def load_ecg(sujet, band_prep):
         #odor_i = odor_list[0]
         for odor_i in odor_list:
 
-            data = load_data_sujet(sujet, band_prep, cond, odor_i)
+            data = load_data_sujet(sujet, cond, odor_i)
             ecg_allcond[cond][odor_i] = data[chan_list.index('ECG'), :]
             ecg_cR_allcond[cond][odor_i] = data[chan_list.index('ECG_cR'), :]
 
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
 
     prms_hrv = {
-    'metric_list' : ['MeanNN', 'SDNN', 'RMSSD', 'pNN50', 'AUC_LF', 'AUC_HF', 'LF_HF_ratio', 'SD1', 'SD2'],
+    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_HF', 'HRV_LF', 'HRV_LFHF', 'HRV_COV'],
     'srate' : srate,
     'srate_resample_hrv' : 10,
     'nwind_hrv' : int( 128*srate_resample_hrv ),
@@ -97,6 +97,7 @@ if __name__ == '__main__':
     ### compute & save
     for band_prep in band_prep_list:
 
+        #sujet = sujet_list[0]
         for sujet in sujet_list:
 
             print(sujet)
@@ -127,7 +128,8 @@ if __name__ == '__main__':
                 #odor_i = odor_list[0]
                 for odor_i in odor_list:
         
-                    df, _ = ecg_analysis_homemade(ecg_allcond[cond][odor_i], ecg_cR_allcond[cond][odor_i], prms_hrv)
+                    cR_time = np.where(ecg_cR_allcond[cond][odor_i] == ecg_cR_allcond[cond][odor_i].max())[0]
+                    df = get_hrv_metrics_homemade(cR_time, prms_hrv)
 
                     dict_res = {}
                     dict_res['sujet'], dict_res['cond'], dict_res['odor'] = [sujet], [cond], [odor_i]

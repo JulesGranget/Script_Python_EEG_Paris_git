@@ -24,7 +24,7 @@ debug = False
 
 
 
-#dfc_data = allband_data[band][cond][odor_i].loc[cf_metric,:,phase,:].values
+#dfc_data =xr_i.values
 def dfc_pairs_to_mat(dfc_data, allpairs):
 
     mat_dfc = np.zeros(( len(chan_list_eeg_fc), len(chan_list_eeg_fc) ))
@@ -178,6 +178,25 @@ def dfc_pairs_to_mat(dfc_data, allpairs):
 #     plt.close('all')
 
      
+#cond, odor, band = 'FR_CV_1', 'o', 'alpha'
+def get_fc_data(cond, odor, band):
+
+    #sujet_i, sujet = 1, sujet_list[1]
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        os.chdir(os.path.join(path_precompute, sujet, 'FC'))
+
+        if sujet_i == 0:
+
+            fc_allsujet = xr.open_dataarray(f'{sujet}_FC_wpli_ispc_{cond}_{odor}_{band}_allpairs.nc')
+            fc_allsujet = fc_allsujet.expand_dims(dim={'sujet': [sujet]})
+
+        else:
+
+            fc_allsujet_i = xr.open_dataarray(f'{sujet}_FC_wpli_ispc_{cond}_{odor}_{band}_allpairs.nc').expand_dims(dim={'sujet': [sujet]})
+            fc_allsujet = xr.concat([fc_allsujet, fc_allsujet_i], dim='sujet')
+
+    fc_allsujet = fc_allsujet.median(axis=0) 
 
 
 
@@ -186,10 +205,52 @@ def dfc_pairs_to_mat(dfc_data, allpairs):
 
 
 
+########################################
+######## COMPUTE ALLSUJET ########
+########################################
 
 
+def compute_TF_allsujet():
 
+    params_compute = []
 
+    for cond in conditions:
+
+        for odor in odor_list:
+
+            for band in freq_band_dict_FC['wb']:
+
+                params_compute.append((cond, odor, band))
+        
+    def reduce_fc_data(cond, odor, band):
+
+        print(cond, odor, band)
+
+        if os.path.exists(os.path.join(path_precompute, 'allsujet', 'FC', f'allsujet_FC_wpli_ispc_{cond}_{odor}_{band}.nc')):
+            print('ALREADY COMPUTED')
+
+        #sujet_i, sujet = 1, sujet_list[1]
+        for sujet_i, sujet in enumerate(sujet_list):
+
+            os.chdir(os.path.join(path_precompute, sujet, 'FC'))
+
+            if sujet_i == 0:
+
+                fc_allsujet = xr.open_dataarray(f'{sujet}_FC_wpli_ispc_{cond}_{odor}_{band}_allpairs.nc')
+                fc_allsujet = fc_allsujet.expand_dims(dim={'sujet': [sujet]})
+
+            else:
+
+                fc_allsujet_i = xr.open_dataarray(f'{sujet}_FC_wpli_ispc_{cond}_{odor}_{band}_allpairs.nc').expand_dims(dim={'sujet': [sujet]})
+                fc_allsujet = xr.concat([fc_allsujet, fc_allsujet_i], dim='sujet')
+
+        fc_allsujet = fc_allsujet.median(axis=0)
+
+        os.chdir(os.path.join(path_precompute, 'allsujet', 'FC'))
+
+        fc_allsujet.to_netcdf(f'allsujet_FC_wpli_ispc_{cond}_{odor}_{band}.nc')
+
+    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(reduce_fc_data)(cond, odor, band) for cond, odor, band in params_compute) 
 
 
 
@@ -202,106 +263,48 @@ def dfc_pairs_to_mat(dfc_data, allpairs):
 ################################
 
 
-#FR_CV_normalized = False
-def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=False):
+#FR_CV_normalized = True
+def process_fc_res(FR_CV_normalized, plot_circle_dfc=False, plot_verif=False):
 
     print(f'######## DFC ########')
 
     phase_list = ['whole', 'inspi', 'expi']
     phase_plot = 'whole'
+    band_prep = 'wb'
+    cf_metrics_list = ['ispc', 'wpli']
 
     if FR_CV_normalized:
         cond_to_plot = conditions[1:]
     else:
-        cond_to_plot = conditions    
+        cond_to_plot = conditions   
 
-    cond_to_load = conditions
+    allband_dfc_phase = {} 
 
-    #### LOAD DATA ####
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'FC'))
 
-    #### get params
-    os.chdir(os.path.join(path_precompute, sujet, 'FC'))
+    for metric_i, metric in enumerate(cf_metrics_list):
 
-    file_to_load = [i for i in os.listdir() if ( i.find('allpairs') != -1 and i.find(band_name_fc_dfc[0]) != -1 and i.find('bi') == -1)]
-    
-    cf_metrics_list = xr.open_dataarray(file_to_load[0])['mat_type'].values
+        allband_dfc_phase[metric] = {} 
 
-    #band_prep = 'wb'
-    for band_prep in band_prep_list:
+        for cond_i, cond in enumerate(conditions):
 
-        #### load data 
-        allband_data = {}
+            allband_dfc_phase[metric][cond] = {}
 
-        #band = 'theta'
-        for band in freq_band_dict_FC[band_prep]:
+            for odor_i, odor in enumerate(odor_list):
 
-            allband_data[band] = {}
+                allband_dfc_phase[metric][cond][odor] = {}
 
-            #cond = 'AL'
-            for cond in cond_to_load:
+                for band_i, band in enumerate(freq_band_dict_FC[band_prep]):
 
-                allband_data[band][cond] = {}
+                    xr_i = xr.load_dataarray(f'allsujet_FC_wpli_ispc_{cond}_{odor}_{band}.nc').loc[metric,:,phase_plot,:]
+                    allpairs = xr.open_dataarray(f'allsujet_FC_wpli_ispc_{cond}_{odor}_{band}.nc')['pairs'].data
+                    allband_dfc_phase[metric][cond][odor][band] = dfc_pairs_to_mat(xr_i.values, allpairs)
 
-                for odor_i in odor_list:
 
-                    file_to_load = f'{sujet}_FC_wpli_ispc_{cond}_{odor_i}_{band}_allpairs.nc'
-                    
-                    allband_data[band][cond][odor_i] = xr.open_dataarray(file_to_load)
-                    allpairs = xr.open_dataarray(file_to_load)['pairs'].data
+    #### normalization
+    if FR_CV_normalized:
 
-        #### plot verif
-        if plot_verif:
-
-            plot_all_verif(allband_data, allpairs, cond_to_load, band_prep)
-                
-        #### mean
-        allband_dfc_phase = {}
-
-        #band = 'theta'
-        for band in freq_band_dict_FC[band_prep]:
-
-            print(band)
-
-            allband_dfc_phase[band] = {}
-
-            #cond = 'FR_CV_1'
-            for cond in cond_to_load:
-
-                allband_dfc_phase[band][cond] = {}
-
-                #phase = 'whole'
-                for phase_i, phase in enumerate(phase_list):
-
-                    allband_dfc_phase[band][cond][phase] = {}
-
-                    mat_fc_i = np.zeros((2, len(chan_list_eeg), len(chan_list_eeg)))
-
-                    #cf_metric_i, cf_metric = 0, 'ispc'
-                    for cf_metric_i, cf_metric in enumerate(['ispc', 'wpli']):
-
-                        for odor_i in odor_list:
-                            
-                            mat_fc_i[cf_metric_i, :, :] = dfc_pairs_to_mat(allband_data[band][cond][odor_i].loc[cf_metric,:,phase,:].values, allpairs)
-
-                            allband_dfc_phase[band][cond][phase][odor_i] = mat_fc_i
-
-        if debug:
-
-            for band in freq_band_dict_FC[band_prep]:
-
-                for cond in cond_to_load:
-
-                    for odor_i in odor_list:
-
-                        for cf_metric_i, cf_metric in enumerate(['ispc', 'wpli']):
-
-                            plt.matshow(allband_dfc_phase[band][cond][phase_plot][odor_i][cf_metric_i,:,:])
-                            plt.show()
-
-        del allband_data
-
-        #### normalization
-        if FR_CV_normalized:
+        for metric_i, metric in enumerate(cf_metrics_list):
                 
             #band = 'theta'
             for band in freq_band_dict_FC[band_prep]:
@@ -312,76 +315,74 @@ def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=Fa
                     for phase_i, phase in enumerate(phase_list):
                         #cf_metric_i, cf_metric = 0, 'ispc'
 
-                        for odor_i in odor_list:
+                        for odor in odor_list:
 
-                            allband_dfc_phase[band][cond][phase][odor_i] = allband_dfc_phase[band][cond][phase][odor_i] - allband_dfc_phase[band]['FR_CV_1'][phase][odor_i]
+                            allband_dfc_phase[metric][cond][odor][band] = allband_dfc_phase[metric][cond][odor][band] - allband_dfc_phase[metric]['FR_CV_1'][odor][band]
 
-        #### identify scales
-        scales_abs = {}
+    #### identify scales
+    scales_abs = {}
 
-        for mat_type_i, mat_type in enumerate(cf_metrics_list):
+    for mat_type in cf_metrics_list:
 
-            scales_abs[mat_type] = {}
+        scales_abs[mat_type] = {}
 
-            #band = 'theta'
-            for band in freq_band_dict_FC[band_prep]:
+        #band = 'theta'
+        for band in freq_band_dict_FC[band_prep]:
 
-                max_list = np.array(())
+            scales_abs[mat_type][band] = {}
 
-                scales_abs[mat_type][band] = {}
+            max_list = np.array(())
 
-                #cond = 'RD_SV'
-                for cond in cond_to_plot:
+            #cond = 'RD_SV'
+            for cond in cond_to_plot:
+
+                for odor in odor_list:
+
+                    max_list = np.append(max_list, np.abs(allband_dfc_phase[mat_type][cond][odor][band].min()))
+                    max_list = np.append(max_list, allband_dfc_phase[mat_type][cond][odor][band].max())
+
+            scales_abs[mat_type][band]['max'] = max_list.max()
+
+            if FR_CV_normalized:
+                scales_abs[mat_type][band]['min'] = -max_list.max()
+            else:
+                scales_abs[mat_type][band]['min'] = 0    
+
+    #### thresh on previous plot
+    percentile_thresh_up = 99
+    percentile_thresh_down = 1
+
+    mat_dfc_clean = copy.deepcopy(allband_dfc_phase)
+
+    for mat_type_i, mat_type in enumerate(cf_metrics_list):
+
+        #band = 'theta'
+        for band in freq_band_dict_FC[band_prep]:
+
+            for cond in cond_to_plot:
+
+                for phase_i, phase in enumerate(phase_list):
 
                     for odor_i in odor_list:
 
-                        for phase_i, phase in enumerate(phase_list):
+                        thresh_up = np.percentile(allband_dfc_phase[mat_type][cond][odor][band].reshape(-1), percentile_thresh_up)
+                        thresh_down = np.percentile(allband_dfc_phase[mat_type][cond][odor][band].reshape(-1), percentile_thresh_down)
 
-                            max_list = np.append(max_list, np.abs(allband_dfc_phase[band][cond][phase][odor_i][mat_type_i,:,:].min()))
-                            max_list = np.append(max_list, allband_dfc_phase[band][cond][phase][odor_i][mat_type_i,:,:].max())
-
-                scales_abs[mat_type][band]['max'] = max_list.max()
-
-                if FR_CV_normalized:
-                    scales_abs[mat_type][band]['min'] = -max_list.max()
-                else:
-                    scales_abs[mat_type][band]['min'] = 0    
-
-        #### thresh on previous plot
-        percentile_thresh_up = 99
-        percentile_thresh_down = 1
-
-        mat_dfc_clean = copy.deepcopy(allband_dfc_phase)
-
-        for mat_type_i, mat_type in enumerate(cf_metrics_list):
-
-            #band = 'theta'
-            for band in freq_band_dict_FC[band_prep]:
-
-                for cond in cond_to_plot:
-
-                    for phase_i, phase in enumerate(phase_list):
-
-                        for odor_i in odor_list:
-
-                            thresh_up = np.percentile(allband_dfc_phase[band][cond][phase][odor_i][mat_type_i,:,:].reshape(-1), percentile_thresh_up)
-                            thresh_down = np.percentile(allband_dfc_phase[band][cond][phase][odor_i][mat_type_i,:,:].reshape(-1), percentile_thresh_down)
-
-                            for x in range(mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,:,:].shape[1]):
-                                for y in range(mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,:,:].shape[1]):
-                                    if mat_type_i == 0:
-                                        if mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,x,y] < thresh_up:
-                                            mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,x,y] = 0
-                                    else:
-                                        if (mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,x,y] < thresh_up) & (mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,x,y] > thresh_down):
-                                            mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,x,y] = 0
+                        for x in range(mat_dfc_clean[mat_type][cond][odor][band].shape[1]):
+                            for y in range(mat_dfc_clean[mat_type][cond][odor][band].shape[1]):
+                                if mat_type_i == 0:
+                                    if mat_dfc_clean[mat_type][cond][odor][band][x,y] < thresh_up:
+                                        mat_dfc_clean[mat_type][cond][odor][band][x,y] = 0
+                                else:
+                                    if (mat_dfc_clean[mat_type][cond][odor][band][x,y] < thresh_up) & (mat_dfc_clean[mat_type][cond][odor][band][x,y] > thresh_down):
+                                        mat_dfc_clean[mat_type][cond][odor][band][x,y] = 0
 
 
         ######## PLOT ########
 
 
         #### go to results
-        os.chdir(os.path.join(path_results, sujet, 'FC'))
+        os.chdir(os.path.join(path_results, 'allplot', 'FC', 'summary'))
 
         if FR_CV_normalized:
             plot_color = cm.seismic
@@ -416,7 +417,7 @@ def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=Fa
                         if r == 0:
                             ax.set_title(f'{cond}')
                         
-                        cax = ax.matshow(allband_dfc_phase[band][cond][phase_plot][odor_i][mat_type_i,:,:], vmin=scales_abs[mat_type][band]['min'], vmax=scales_abs[mat_type][band]['max'], cmap=plot_color)
+                        cax = ax.matshow(allband_dfc_phase[mat_type][cond][odor_i][band], vmin=scales_abs[mat_type][band]['min'], vmax=scales_abs[mat_type][band]['max'], cmap=plot_color)
 
                         if c == len(cond_to_plot)-1:
                             fig.colorbar(cax, ax=ax)
@@ -444,7 +445,7 @@ def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=Fa
 
                         for c, phase in enumerate(phase_list):
 
-                            mne_connectivity.viz.plot_connectivity_circle(allband_dfc_phase[band][cond][phase][odor_i][mat_type_i,:,:], node_names=chan_list_eeg_fc, n_lines=None, 
+                            mne_connectivity.viz.plot_connectivity_circle(allband_dfc_phase[mat_type][cond][odor][band], node_names=chan_list_eeg_fc, n_lines=None, 
                                                         title=f'{band} {phase}', show=False, padding=7, ax=axs[r, c],
                                                         vmin=scales_abs[mat_type][band]['min'], vmax=scales_abs[mat_type][band]['max'], colormap=plot_color, facecolor='w', 
                                                         textcolor='k')
@@ -483,7 +484,7 @@ def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=Fa
                         if r == 0:
                             ax.set_title(f'{cond}')
                         
-                        cax = ax.matshow(mat_dfc_clean[band][cond][phase_plot][odor_i][mat_type_i,:,:], vmin=scales_abs[mat_type][band]['min'], vmax=scales_abs[mat_type][band]['max'], cmap=plot_color)
+                        cax = ax.matshow(mat_dfc_clean[mat_type][cond][odor_i][band], vmin=scales_abs[mat_type][band]['min'], vmax=scales_abs[mat_type][band]['max'], cmap=plot_color)
 
                         if c == len(cond_to_plot)-1:
                             fig.colorbar(cax, ax=ax)
@@ -511,7 +512,7 @@ def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=Fa
 
                         for c, phase in enumerate(phase_list):
 
-                            mne_connectivity.viz.plot_connectivity_circle(mat_dfc_clean[band][cond][phase][odor_i][mat_type_i,:,:], node_names=chan_list_eeg_fc, n_lines=None, 
+                            mne_connectivity.viz.plot_connectivity_circle(mat_dfc_clean[mat_type][cond][odor_i][band], node_names=chan_list_eeg_fc, n_lines=None, 
                                                         title=f'{band} {phase}', show=False, padding=7, ax=axs[r, c],
                                                         vmin=scales_abs[mat_type][band]['min'], vmax=scales_abs[mat_type][band]['max'], colormap=plot_color, facecolor='w', 
                                                         textcolor='k')
@@ -545,14 +546,12 @@ def process_fc_res(sujet, FR_CV_normalized, plot_circle_dfc=False, plot_verif=Fa
 
 if __name__ == '__main__':
 
-    #sujet = sujet_list[0]
-    for sujet in sujet_list:
+    compute_TF_allsujet()
 
-        for FR_CV_normalized in [True, False]:
+    for FR_CV_normalized in [True, False]:
 
-            print(f'#### DFC {sujet} ####')
+        print(f'#### DFC allsujet ####')
 
-            process_fc_res(sujet, FR_CV_normalized)
-            # execute_function_in_slurm_bash('n10_res_FC', 'process_fc_res', [sujet, FR_CV_normalized])
+        process_fc_res(FR_CV_normalized)
+        # execute_function_in_slurm_bash('n10_res_FC', 'process_fc_res', [sujet, FR_CV_normalized])
 
-    

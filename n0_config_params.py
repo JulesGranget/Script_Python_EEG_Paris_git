@@ -29,6 +29,8 @@ sujet_list = np.array(['01PD','02MJ','03VN','04GB','05LV','06EF','07PB','08DM','
 '14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
 '30AR','31HJ','32CM','33MA'])
 
+sujet_list_hyperventilation = ['20TY']
+
 band_prep_list = ['wb']
 
 freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120], 'whole' : [2,50]},
@@ -96,14 +98,15 @@ PC_ID = socket.gethostname()
 
 if PC_ID == 'LAPTOP-EI7OSP7K':
 
-    PC_working = 'Jules_Home'
+    PC_working = 'Jules_VPN'
     if perso_repo_computation:
-        path_main_workdir = 'D:\\LPPR_CMO_PROJECT\\Lyon\\EEG'
+        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
     else:    
-        path_main_workdir = 'D:\\LPPR_CMO_PROJECT\\Lyon\\EEG'
-    path_general = 'D:\\LPPR_CMO_PROJECT\\Lyon\\EEG'
-    path_memmap = 'D:\\LPPR_CMO_PROJECT\\Lyon\\EEG\\Mmap'
+        path_main_workdir = 'Z:\\multisite\\DATA_MANIP\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
+    path_general = 'Z:\\multisite\\DATA_MANIP\\EEG_Paris_J'
+    path_memmap = 'Z:\\multisite\\DATA_MANIP\\EEG_Paris_J\\Mmap'
     n_core = 4
+
 
 elif PC_ID == 'DESKTOP-3IJUK7R':
 
@@ -116,7 +119,7 @@ elif PC_ID == 'DESKTOP-3IJUK7R':
     path_memmap = 'D:\\LPPR_CMO_PROJECT\\Lyon\\Mmap'
     n_core = 2
 
-elif PC_ID == 'pc-jules':
+elif PC_ID == 'pc-jules' or PC_ID == 'LAPTOP-EI7OSP7K':
 
     PC_working = 'Jules_Labo_Linux'
     if perso_repo_computation:
@@ -296,12 +299,12 @@ remove_zero_pad = zero_pad_coeff - 5
 stretch_point_surrogates = 500
 
 #### coh
-n_surrogates_coh = 1000
+n_surrogates_coh = 500
 freq_surrogates = [0, 2]
 percentile_coh = .95
 
 #### cycle freq
-n_surrogates_cyclefreq = 1000
+n_surrogates_cyclefreq = 500
 percentile_cyclefreq_up = .99
 percentile_cyclefreq_dw = .01
 
@@ -314,23 +317,32 @@ percentile_cyclefreq_dw = .01
 ######## PRECOMPUTE TF ########
 ################################
 
+
 #### stretch
 stretch_point_TF = 500
 stretch_TF_auto = False
 ratio_stretch_TF = 0.5
 
 #### TF & ITPC
-nfrex_hf = 50
-nfrex_lf = 50
-nfrex_wb = 50
-ncycle_list_lf = [7, 15]
-ncycle_list_hf = [20, 30]
-ncycle_list_wb = [7, 30]
+nfrex = 150
+ncycle_list = [7, 41]
+freq_list = [2, 150]
 srate_dw = 10
+wavetime = np.arange(-3,3,1/srate)
+frex = np.logspace(np.log10(freq_list[0]), np.log10(freq_list[1]), nfrex) 
+cycles = np.logspace(np.log10(ncycle_list[0]), np.log10(ncycle_list[1]), nfrex).astype('int')
+Pxx_wavelet_norm = 1000
 
 
 #### STATS
-n_surrogates_tf = 1000
+n_surrogates_tf = 500
+tf_percentile_sel_stats = 2 # for both side
+norm_method = 'rscore'# 'zscore', 'dB'
+exclude_frex_range = [48, 52]
+
+#### plot
+tf_plot_percentile_scale = 1 #for one side
+
 
 
 
@@ -346,6 +358,7 @@ coh_computation_interval = .02 #Hz around respi
 ######## FC ANALYSIS ########
 ################################
 
+nfrex_fc = 50
 
 #### band to remove
 freq_band_fc_analysis = {'theta' : [4, 8], 'alpha' : [9,12], 'beta' : [15,40], 'l_gamma' : [50, 80], 'h_gamma' : [80, 120]}

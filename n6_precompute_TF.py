@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import scipy.signal
 import mne
 import pandas as pd
-import respirationtools
+import xarray as xr
 import joblib
 
 from n0_config_params import *
@@ -23,57 +23,34 @@ debug = False
 
 
 ################################
-######## STRETCH TF ########
+######## STRETCH ########
 ################################
 
 
-#tf = tf_allchan.copy()
-def compute_stretch_tf_dB(sujet, tf, cond, odor_i, respfeatures_allcond, stretch_point_TF, band, srate):
 
-    #### load baseline
-    os.chdir(os.path.join(path_precompute, sujet, 'baselines'))
+#tf = tf_conv
+def compute_stretch_tf(tf, cond, odor_i, respfeatures_allcond, stretch_point_TF, srate):
 
-    baselines = np.load(f'{sujet}_{odor_i}_{band[:-2]}_baselines.npy')
-
-    #### apply baseline
-    for n_chan in range(tf.shape[0]):
-        
-        for fi in range(tf.shape[1]):
-
-            activity = tf[n_chan,fi,:]
-            baseline_fi = baselines[n_chan, fi]
-
-            #### verify baseline
-            #plt.plot(activity)
-            #plt.hlines(baseline_fi, xmin=0 , xmax=activity.shape[0], color='r')
-            #plt.show()
-
-            tf[n_chan,fi,:] = 10*np.log10(activity/baseline_fi)
-
+    #n_chan = 0
     def stretch_tf_db_n_chan(n_chan):
 
-        tf_mean = np.mean(stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, tf[n_chan,:,:], srate)[0], axis=0)
+        tf_stretch_i = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, tf[n_chan,:,:], srate)[0]
 
-        if debug:
+        return tf_stretch_i
 
-            plt.pcolormesh(tf_mean)
-            plt.show()
+    stretch_tf_db_nchan_res = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(stretch_tf_db_n_chan)(n_chan) for n_chan in range(tf.shape[0]))    
 
-        return tf_mean
-
-    stretch_tf_db_nchan_res = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(stretch_tf_db_n_chan)(n_chan) for n_chan in range(tf.shape[0]))
+    #### verify cycle number
+    n_cycles_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, tf[0,:,:], srate)[0].shape[0]
 
     #### extract
-    tf_mean_allchan = np.zeros((tf.shape[0], tf.shape[1], stretch_point_TF))
+    tf_stretch_allchan = np.zeros((tf.shape[0], n_cycles_stretch, tf.shape[1], stretch_point_TF))
 
+    #n_chan = 0
     for n_chan in range(tf.shape[0]):
-        tf_mean_allchan[n_chan,:,:] = stretch_tf_db_nchan_res[n_chan]
+        tf_stretch_allchan[n_chan,:,:,:] = stretch_tf_db_nchan_res[n_chan]
 
-    return tf_mean_allchan
-
-
-
-
+    return tf_stretch_allchan
 
 
 
@@ -83,78 +60,114 @@ def compute_stretch_tf_dB(sujet, tf, cond, odor_i, respfeatures_allcond, stretch
 
 
 ################################
-######## PRECOMPUTE TF ########
+######## ALL CONV ########
 ################################
 
+def precompute_tf_all_conv(sujet):
 
-def precompute_tf(sujet, cond):
+    #### identify if already computed for all
+    compute_token = 0
 
-    print('TF PRECOMPUTE')
+    cond_to_compute = [cond for cond in conditions if cond != 'FR_CV_1']
 
+    os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+
+    for odor_i in odor_list:
+
+        #cond = cond_to_compute[0]
+        for cond in cond_to_compute:
+
+            if os.path.exists(f'{sujet}_tf_conv_{cond}_{odor_i}.npy') == False:
+                compute_token += 1
+
+    if compute_token == 0:
+        print('ALL COND ALREADY COMPUTED')
+        return
+
+    #### open params
     respfeatures_allcond = load_respfeatures(sujet)
 
-    #### select prep to load
-    #band_prep_i, band_prep = 0, 'wb'
-    for band_prep_i, band_prep in enumerate(band_prep_list):
+    #odor_i = odor_list[0]
+    for odor_i in odor_list:
 
-        #odor_i = odor_list[0]
-        for odor_i in odor_list:
+        #cond = conditions[2]
+        for cond in conditions:
 
-            #### select data without aux chan
-            data = load_data_sujet(sujet, band_prep, cond, odor_i)
+            print(f'#### CONV {cond} {odor_i} ####')
 
-            #### remove aux chan
-            data = data[:-3,:]
+            #### load
+            data = load_data_sujet(sujet, cond, odor_i)
+            data = data[:len(chan_list_eeg),:]
 
-            freq_band = freq_band_list_precompute[band_prep] 
-
-            #band, freq = list(freq_band.items())[0]
-            for band, freq in freq_band.items():
-
-                os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-
-                if os.path.exists(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy'):
-                    print('ALREADY COMPUTED')
-                    continue
+            if debug:
                 
-                print(f"{band} : {freq}")
-                print('COMPUTE')
+                time = np.arange(data.shape[-1])/srate
+                plt.plot(time, data[10,:])
+                plt.show()
 
-                #### select wavelet parameters
-                wavelets, nfrex = get_wavelets(band_prep, freq)
+            #### convolution
+            wavelets = get_wavelets()
 
-                #### compute
-                os.chdir(path_memmap)
-                tf_allchan = np.memmap(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}_precompute_convolutions.dat', dtype=np.float64, mode='w+', shape=(data.shape[0], nfrex, data.shape[1]))
+            os.chdir(path_memmap)
+            tf_conv = np.memmap(f'{sujet}_{cond}_{odor_i}_precompute_convolutions.dat', dtype=np.float64, mode='w+', shape=(data.shape[0], nfrex, data.shape[1]))
+        
+            def compute_tf_convolution_nchan(n_chan):
 
-                def compute_tf_convolution_nchan(n_chan):
+                print_advancement(n_chan, data.shape[0], steps=[25, 50, 75])
 
-                    print_advancement(n_chan, data.shape[0], steps=[25, 50, 75])
+                x = data[n_chan,:]
 
-                    x = data[n_chan,:]
+                tf_i = np.zeros((nfrex, x.shape[0]))
 
-                    tf = np.zeros((nfrex, x.shape[0]))
+                for fi in range(nfrex):
+                    
+                    tf_i[fi,:] = abs(scipy.signal.fftconvolve(x, wavelets[fi,:], 'same'))**2 
 
-                    for fi in range(nfrex):
-                        
-                        tf[fi,:] = abs(scipy.signal.fftconvolve(x, wavelets[fi,:], 'same'))**2 
+                tf_conv[n_chan,:,:] = tf_i
 
-                    tf_allchan[n_chan,:,:] = tf
+            joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_tf_convolution_nchan)(n_chan) for n_chan in range(data.shape[0]))
 
-                joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_tf_convolution_nchan)(n_chan) for n_chan in range(data.shape[0]))
+            if debug:
+                plt.pcolormesh(tf_conv[0,:,:int(tf_conv.shape[-1]/4)])
+                plt.show()
 
-                #### stretch or chunk
-                print('STRETCH')
-                tf_allband_stretched = compute_stretch_tf_dB(sujet, tf_allchan, cond, odor_i, respfeatures_allcond, stretch_point_TF, band, srate)
-                
-                #### save
-                print('SAVE')
-                os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+            #### normalize
+            print('NORMALIZE')
+            tf_conv = norm_tf(sujet, tf_conv, odor_i, norm_method)
 
-                np.save(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy', tf_allband_stretched)
-                
-                os.chdir(path_memmap)
-                os.remove(f'{sujet}_tf_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}_precompute_convolutions.dat')
+            if debug:
+                tf_plot = tf_conv[0,:,:int(tf_conv.shape[-1]/5)]
+                vmin = np.percentile(tf_plot.reshape(-1), 2.5)
+                vmax = np.percentile(tf_plot.reshape(-1), 97.5)
+                plt.pcolormesh(tf_conv[0,:,:int(tf_conv.shape[-1]/5)], vmin=vmin, vmax=vmax)
+                plt.show()
+
+            #### stretch
+            print('STRETCH')
+            tf_stretch = compute_stretch_tf(tf_conv, cond, odor_i, respfeatures_allcond, stretch_point_TF, srate)
+
+            if debug:
+
+                for nchan, nchan_name in enumerate(chan_list_eeg):
+                    plt.pcolormesh(np.arange(tf_stretch.shape[-1]), frex, np.median(tf_stretch[nchan,:,:,:], axis=0))
+                    plt.yscale('log')
+                    plt.yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+                    plt.title(nchan_name)
+                    plt.show()
+
+            os.chdir(path_memmap)
+            try:
+                os.remove(f'{sujet}_{cond}_{odor_i}_precompute_convolutions.dat')
+                del tf_conv
+            except:
+                pass
+
+            #### save & transert
+            print('SAVE')
+            os.chdir(os.path.join(path_precompute, sujet, 'TF'))
+            np.save(f'{sujet}_tf_conv_{cond}_{odor_i}.npy', tf_stretch)
+
+
 
 
 
@@ -177,80 +190,73 @@ def precompute_itpc(sujet, cond):
     respfeatures_allcond = load_respfeatures(sujet)
 
     #### select prep to load
-    #band_prep_i, band_prep = 0, 'wb'
-    for band_prep_i, band_prep in enumerate(band_prep_list):
+    #odor_i = odor_list[0]
+    for odor_i in odor_list:
 
-        #odor_i = odor_list[0]
-        for odor_i in odor_list:
+        #### select data without aux chan
+        data = load_data_sujet(sujet, cond, odor_i)
 
-            #### select data without aux chan
-            data = load_data_sujet(sujet, band_prep, cond, odor_i)
+        #### remove aux chan
+        data = data[:len(chan_list_eeg),:]
 
-            #### remove aux chan
-            data = data[:-3,:]
+        os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
 
-            freq_band = freq_band_list_precompute[band_prep] 
+        if os.path.exists(f'{sujet}_itpc_{cond}_{odor_i}.npy') :
+            print('ALREADY COMPUTED')
+            continue
 
-            #band, freq = list(freq_band.items())[0]
-            for band, freq in freq_band.items():
+        #### select wavelet parameters
+        wavelets = get_wavelets()
 
-                os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
+        #### compute
+        print('COMPUTE, STRETCH & ITPC')
+        #n_chan = 0
+        def compute_itpc_n_chan(n_chan):
 
-                if os.path.exists(f'{sujet}_itpc_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy') :
-                    print('ALREADY COMPUTED')
-                    continue
+            print_advancement(n_chan, data.shape[0], steps=[25, 50, 75])
+
+            x = data[n_chan,:]
+
+            tf = np.zeros((nfrex, x.shape[0]), dtype='complex')
+
+            for fi in range(nfrex):
                 
-                print(f"{band} : {freq}")
-                print('COMPUTE')
+                tf[fi,:] = scipy.signal.fftconvolve(x, wavelets[fi,:], 'same')
 
-                #### select wavelet parameters
-                wavelets, nfrex = get_wavelets(band_prep, freq)
+            #### stretch
+            tf_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, tf, srate)[0]
 
-                #### compute
-                print('COMPUTE, STRETCH & ITPC')
-                #n_chan = 0
-                def compute_itpc_n_chan(n_chan):
+            #### ITPC
+            tf_angle = np.angle(tf_stretch)
+            tf_cangle = np.exp(1j*tf_angle) 
+            itpc = np.abs(np.mean(tf_cangle,0))
 
-                    print_advancement(n_chan, data.shape[0], steps=[25, 50, 75])
+            if debug == True:
+                time = range(stretch_point_TF)
+                frex = range(nfrex)
+                plt.pcolormesh(time,frex,itpc,vmin=np.min(itpc),vmax=np.max(itpc))
+                plt.show()
 
-                    x = data[n_chan,:]
+            return itpc 
 
-                    tf = np.zeros((nfrex, x.shape[0]), dtype='complex')
+        compute_itpc_n_chan_res = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_itpc_n_chan)(n_chan) for n_chan in range(data.shape[0]))
+        
+        itpc_allchan = np.zeros((data.shape[0],nfrex,stretch_point_TF))
 
-                    for fi in range(nfrex):
-                        
-                        tf[fi,:] = scipy.signal.fftconvolve(x, wavelets[fi,:], 'same')
+        for n_chan in range(data.shape[0]):
 
-                    #### stretch
-                    tf_stretch = stretch_data_tf(respfeatures_allcond[cond][odor_i], stretch_point_TF, tf, srate)[0]
+            itpc_allchan[n_chan,:,:] = compute_itpc_n_chan_res[n_chan]
 
-                    #### ITPC
-                    tf_angle = np.angle(tf_stretch)
-                    tf_cangle = np.exp(1j*tf_angle) 
-                    itpc = np.abs(np.mean(tf_cangle,0))
+        if debug:
+            plt.pcolormesh(itpc_allchan[0,:,:])
+            plt.show()
 
-                    if debug == True:
-                        time = range(stretch_point_TF)
-                        frex = range(nfrex)
-                        plt.pcolormesh(time,frex,itpc,vmin=np.min(itpc),vmax=np.max(itpc))
-                        plt.show()
+        #### save
+        print('SAVE')
+        os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
+        np.save(f'{sujet}_itpc_{cond}_{odor_i}.npy', itpc_allchan)
 
-                    return itpc 
-
-                compute_itpc_n_chan_res = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_itpc_n_chan)(n_chan) for n_chan in range(data.shape[0]))
-                
-                itpc_allchan = np.zeros((data.shape[0],nfrex,stretch_point_TF))
-
-                for n_chan in range(data.shape[0]):
-
-                    itpc_allchan[n_chan,:,:] = compute_itpc_n_chan_res[n_chan]
-
-                #### save
-                print('SAVE')
-                os.chdir(os.path.join(path_precompute, sujet, 'ITPC'))
-                np.save(f'{sujet}_itpc_{str(freq[0])}_{str(freq[1])}_{cond}_{odor_i}.npy', itpc_allchan)
-
-                del itpc_allchan
+        del itpc_allchan
 
 
 
@@ -272,19 +278,14 @@ def precompute_itpc(sujet, cond):
 
 if __name__ == '__main__':
 
-    #sujet = sujet_list[0]
+
+    #sujet = sujet_list[19]
     for sujet in sujet_list:
-
-        #### compute and save tf
-        #cond = 'MECA'
-        for cond in conditions:
-
-            print(cond)
-        
-            #precompute_tf(sujet, cond)
-            execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_tf', [sujet, cond], '30G')
-            #precompute_itpc(sujet, cond)
-            execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_itpc', [sujet, cond], '30G')
+    
+        #precompute_tf_all_conv(sujet)
+        execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_tf_all_conv', [sujet], '30G')
+        #precompute_itpc(sujet, cond)
+        # execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_itpc', [sujet], '30G')
 
 
 

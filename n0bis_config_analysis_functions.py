@@ -10,7 +10,8 @@ import respirationtools
 import sys
 import stat
 import subprocess
-import physio
+import xarray as xr
+# import physio
 
 from bycycle.cyclepoints import find_extrema
 import neurokit2 as nk
@@ -199,6 +200,8 @@ def generate_folder_structure(sujet):
             #### allsujet
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute', 'allsujet'))
     construct_token = create_folder('HRV', construct_token)
+    construct_token = create_folder('TF', construct_token)
+    construct_token = create_folder('PSD_Coh', construct_token)
 
             #### sujet
     os.chdir(os.path.join(path_general, 'Analyses', 'precompute', sujet))
@@ -231,33 +234,13 @@ def generate_folder_structure(sujet):
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
-    construct_token = create_folder('topoplot', construct_token)
-
-                #### topoplot
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF', 'topoplot'))
-    construct_token = create_folder('condition', construct_token)
-    construct_token = create_folder('odor', construct_token)  
-
-                #### summary
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF', 'summary'))
-    construct_token = create_folder('condition', construct_token)
-    construct_token = create_folder('odor', construct_token)           
+    construct_token = create_folder('topoplot', construct_token)        
 
             #### PSD_Coh
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
-    construct_token = create_folder('topoplot', construct_token)
-
-                #### topoplot
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh', 'topoplot'))
-    construct_token = create_folder('condition', construct_token)
-    construct_token = create_folder('odor', construct_token)  
-
-                #### summary
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh', 'summary'))
-    construct_token = create_folder('condition', construct_token)
-    construct_token = create_folder('odor', construct_token)      
+    construct_token = create_folder('topoplot', construct_token) 
 
             #### ITPC
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC'))
@@ -265,24 +248,9 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('allcond', construct_token)
     construct_token = create_folder('topoplot', construct_token)
 
-                #### topoplot
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC', 'topoplot'))
-    construct_token = create_folder('condition', construct_token)
-    construct_token = create_folder('odor', construct_token)  
-
-                #### summary
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'ITPC', 'summary'))
-    construct_token = create_folder('condition', construct_token)
-    construct_token = create_folder('odor', construct_token) 
-
         #### allplot
     os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot'))
-    construct_token = create_folder('allcond', construct_token)
-    construct_token = create_folder('FR_CV', construct_token)
-    construct_token = create_folder('anatomy', construct_token)
     construct_token = create_folder('df', construct_token)
-    construct_token = create_folder('HRV', construct_token)
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond'))
     construct_token = create_folder('TF', construct_token)
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('FC', construct_token)
@@ -599,26 +567,49 @@ def execute_function_in_slurm_bash_mem_choice(name_script, name_function, params
 ################################
 
 
-def get_wavelets(band_prep, freq):
+def get_wavelets():
 
-    #### get params
-    prms = get_params()
+    #### compute wavelets
+    wavelets = np.zeros((nfrex, len(wavetime)), dtype=complex)
+
+    # create Morlet wavelet family
+    for fi in range(nfrex):
+        
+        s = cycles[fi] / (2*np.pi*frex[fi])
+        gw = np.exp(-wavetime**2/ (2*s**2)) 
+        sw = np.exp(1j*(2*np.pi*frex[fi]*wavetime))
+        mw =  gw * sw
+
+        wavelets[fi,:] = mw
+
+    if debug:
+
+        plt.plot(np.sum(np.abs(wavelets),axis=1))
+        plt.show()
+
+        plt.pcolormesh(np.real(wavelets))
+        plt.show()
+
+        plt.plot(np.real(wavelets)[0,:])
+        plt.show()
+
+    return wavelets
+
+
+
+
+def get_wavelets_fc(band_prep, freq):
 
     #### select wavelet parameters
-    if band_prep == 'wb':
-        wavetime = np.arange(-2,2,1/prms['srate'])
-        nfrex = nfrex_lf
-        ncycle_list = np.linspace(ncycle_list_wb[0], ncycle_list_wb[1], nfrex) 
+    if freq[0] < 45:
+        wavetime = np.arange(-2,2,1/srate)
+        nfrex = nfrex_fc
+        ncycle_list = np.linspace(7, 12, nfrex) 
 
-    if band_prep == 'lf':
-        wavetime = np.arange(-2,2,1/prms['srate'])
-        nfrex = nfrex_lf
-        ncycle_list = np.linspace(ncycle_list_lf[0], ncycle_list_lf[1], nfrex) 
-
-    if band_prep == 'hf':
-        wavetime = np.arange(-.5,.5,1/prms['srate'])
-        nfrex = nfrex_hf
-        ncycle_list = np.linspace(ncycle_list_hf[0], ncycle_list_hf[1], nfrex)
+    if freq[0] > 45:
+        wavetime = np.arange(-.5,.5,1/srate)
+        nfrex = nfrex_fc
+        ncycle_list = np.linspace(20, 41, nfrex)
 
     #### compute wavelets
     frex  = np.linspace(freq[0],freq[1],nfrex)
@@ -634,11 +625,7 @@ def get_wavelets(band_prep, freq):
 
         wavelets[fi,:] = mw
 
-    return wavelets, nfrex
-
-
-
-
+    return wavelets
 
 
 
@@ -747,8 +734,7 @@ def extract_chanlist_srate_conditions_for_sujet(sujet_tmp, conditions_allsubject
     return conditions, chan_list, chan_list_ieeg, srate
 
 
-#session_i = odor_i
-def load_data_sujet(sujet, band_prep, cond, session_i):
+def load_data_sujet(sujet, cond, odor_i):
 
     path_source = os.getcwd()
     
@@ -758,7 +744,7 @@ def load_data_sujet(sujet, band_prep, cond, session_i):
 
     for i, session_name in enumerate(os.listdir()):
 
-        if ( session_name.find(cond) != -1 ) & ( session_name.find(band_prep) != -1 ) & ( session_name.find(session_i) != -1 ):
+        if ( session_name.find(cond) != -1 ) & ( session_name.find('wb') != -1 ) & ( session_name.find(odor_i) != -1 ):
             load_i.append(i)
 
     raw = mne.io.read_raw_fif(os.listdir()[load_i[0]], preload=True, verbose='critical')
@@ -1290,7 +1276,7 @@ def print_advancement(i, i_final, steps=[25, 50, 75]):
 
 
 ################################
-######## MISCALLENOUS ########
+######## NORMALIZATION ########
 ################################
 
 
@@ -1305,11 +1291,7 @@ def zscore(x):
 
 def zscore_mat(x):
 
-    _zscore_mat = np.zeros(( x.shape[0], x.shape[1] ))
-    
-    for i in range(x.shape[0]):
-
-        _zscore_mat[i,:] = zscore(x[i,:])
+    _zscore_mat = (x - x.mean(axis=1).reshape(-1,1)) / x.std(axis=1).reshape(-1,1)
 
     return _zscore_mat
 
@@ -1317,9 +1299,9 @@ def zscore_mat(x):
 
 def rscore(x):
 
-    mad = np.median( np.abs(x-np.median(x)) ) * 1.4826 # median_absolute_deviation
+    mad = np.median( np.abs(x-np.median(x)) ) # median_absolute_deviation
 
-    rzscore_x = (x-np.median(x)) / mad
+    rzscore_x = (x-np.median(x)) * 0.6745 / mad
 
     return rzscore_x
     
@@ -1328,13 +1310,133 @@ def rscore(x):
 
 def rscore_mat(x):
 
-    _zscore_mat = np.zeros(( x.shape[0], x.shape[1] ))
-    
-    for i in range(x.shape[0]):
+    mad = np.median(np.abs(x-np.median(x, axis=1).reshape(-1,1)), axis=1) # median_absolute_deviation
 
-        _zscore_mat[i,:] = rscore(x[i,:])
+    _rscore_mat = (x-np.median(x, axis=1).reshape(-1,1)) * 0.6745 / mad.reshape(-1,1)
 
-    return _zscore_mat
+    return _rscore_mat
+
+
+
+
+
+
+#tf_conv = tf_median_cycle[nchan, :, :]
+def norm_tf(sujet, tf_conv, odor_i, norm_method):
+
+    path_source = os.getcwd()
+
+    if norm_method not in ['rscore', 'zscore']:
+
+        #### load baseline
+        os.chdir(os.path.join(path_precompute, sujet, 'baselines'))
+
+        baselines = xr.open_dataarray(f'{sujet}_{odor_i}_baselines.nc')
+
+    if norm_method == 'dB':
+
+        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+
+            tf_conv[n_chan_i,:,:] = 10*np.log10(tf_conv[n_chan_i,:,:] / baselines.loc[n_chan, :, 'median'].values.reshape(-1,1))
+
+    if norm_method == 'zscore_baseline':
+
+        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+
+            tf_conv[n_chan_i,:,:] = (tf_conv[n_chan_i,:,:] - baselines.loc[n_chan,:,'mean'].values.reshape(-1,1)) / baselines.loc[n_chan,:,'std'].values.reshape(-1,1)
+                
+    if norm_method == 'rscore_baseline':
+
+        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+
+            tf_conv[n_chan_i,:,:] = (tf_conv[n_chan_i,:,:] - baselines.loc[n_chan,:,'median'].values.reshape(-1,1)) * 0.6745 / baselines.loc[n_chan,:,'mad'].values.reshape(-1,1)
+
+    if norm_method == 'zscore':
+
+        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+
+            tf_conv[n_chan_i,:,:] = zscore_mat(tf_conv[n_chan_i,:,:])
+                
+    if norm_method == 'rscore':
+
+        for n_chan_i, n_chan in enumerate(chan_list_eeg):
+
+            tf_conv[n_chan_i,:,:] = rscore_mat(tf_conv[n_chan_i,:,:])
+
+
+    #### verify baseline
+    if debug:
+
+        nchan = 0
+        nchan_name = chan_list_eeg[nchan]
+
+        fig, axs = plt.subplots(ncols=2)
+        axs[0].set_title('mean std')
+        axs[0].plot(baselines.loc[nchan_name,:,'mean'], label='mean')
+        axs[0].plot(baselines.loc[nchan_name,:,'std'], label='std')
+        axs[0].legend()
+        axs[0].set_yscale('log')
+        axs[1].set_title('median mad')
+        axs[1].plot(baselines.loc[nchan_name,:,'median'], label='median')
+        axs[1].plot(baselines.loc[nchan_name,:,'mad'], label='mad')
+        axs[1].legend()
+        axs[1].set_yscale('log')
+        plt.show()
+
+        tf_test = tf_conv[nchan,:,:int(tf_conv.shape[-1]/10)].copy()
+
+        fig, axs = plt.subplots(nrows=6)
+        fig.set_figheight(10)
+        fig.set_figwidth(15)
+
+        percentile_sel = 0
+
+        vmin = np.percentile(tf_test.reshape(-1),percentile_sel)
+        vmax = np.percentile(tf_test.reshape(-1),100-percentile_sel)
+        im = axs[0].pcolormesh(tf_test, vmin=vmin, vmax=vmax)
+        axs[0].set_title('raw')
+        fig.colorbar(im, ax=axs[0])
+
+        tf_baseline = 10*np.log10(tf_test / baselines.loc[chan_list_eeg[nchan], :, 'median'].values.reshape(-1,1))
+        vmin = np.percentile(tf_baseline.reshape(-1),percentile_sel)
+        vmax = np.percentile(tf_baseline.reshape(-1),100-percentile_sel)
+        im = axs[1].pcolormesh(tf_baseline, vmin=vmin, vmax=vmax)
+        axs[1].set_title('db')
+        fig.colorbar(im, ax=axs[1])
+
+        tf_baseline = (tf_test - baselines.loc[chan_list_eeg[nchan],:,'mean'].values.reshape(-1,1)) / baselines.loc[chan_list_eeg[nchan],:,'std'].values.reshape(-1,1)
+        vmin = np.percentile(tf_baseline.reshape(-1),percentile_sel)
+        vmax = np.percentile(tf_baseline.reshape(-1),100-percentile_sel)
+        im = axs[2].pcolormesh(tf_baseline, vmin=vmin, vmax=vmax)
+        axs[2].set_title('zscore')
+        fig.colorbar(im, ax=axs[2])
+
+        tf_baseline = (tf_test - baselines.loc[chan_list_eeg[nchan],:,'median'].values.reshape(-1,1)) / baselines.loc[chan_list_eeg[nchan],:,'mad'].values.reshape(-1,1)
+        vmin = np.percentile(tf_baseline.reshape(-1),percentile_sel)
+        vmax = np.percentile(tf_baseline.reshape(-1),100-percentile_sel)
+        im = axs[3].pcolormesh(tf_baseline, vmin=vmin, vmax=vmax)
+        axs[3].set_title('rscore')
+        fig.colorbar(im, ax=axs[3])
+
+        tf_baseline = zscore_mat(tf_test)
+        vmin = np.percentile(tf_baseline.reshape(-1),percentile_sel)
+        vmax = np.percentile(tf_baseline.reshape(-1),100-percentile_sel)
+        im = axs[4].pcolormesh(tf_baseline, vmin=vmin, vmax=vmax)
+        axs[4].set_title('zscore_mat')
+        fig.colorbar(im, ax=axs[4])
+
+        tf_baseline = rscore_mat(tf_test)
+        vmin = np.percentile(tf_baseline.reshape(-1),percentile_sel)
+        vmax = np.percentile(tf_baseline.reshape(-1),100-percentile_sel)
+        im = axs[5].pcolormesh(tf_baseline, vmin=vmin, vmax=vmax)
+        axs[5].set_title('rscore_mat')
+        fig.colorbar(im, ax=axs[5])
+
+        plt.show()
+
+    os.chdir(path_source)
+
+    return tf_conv
 
 
 
@@ -1421,24 +1523,7 @@ def get_fig_RRI_IFR(ecg_i, ecg_cR, RRI, IFR, srate, srate_resample):
 
     return fig
 
-    
 
-#### LF / HF
-
-#RRI_resample, srate_resample, nwind, nfft, noverlap, win = RRI_resample, srate_resample, nwind_hrv, nfft_hrv, noverlap_hrv, win_hrv
-def get_PSD_LF_HF(RRI_resample, srate_resample, nwind, nfft, noverlap, win, VLF, LF, HF):
-
-    # DETREND
-    RRI_detrend = RRI_resample-np.median(RRI_resample)
-
-    # FFT WELCH
-    hzPxx, Pxx = scipy.signal.welch(RRI_detrend, fs=srate_resample, window=win, nperseg=nwind, noverlap=noverlap, nfft=nfft)
-
-    AUC_LF = np.trapz(Pxx[(hzPxx>VLF) & (hzPxx<LF)])
-    AUC_HF = np.trapz(Pxx[(hzPxx>LF) & (hzPxx<HF)])
-    LF_HF_ratio = AUC_LF/AUC_HF
-
-    return AUC_LF, AUC_HF, LF_HF_ratio, hzPxx, Pxx
 
 
 def get_fig_PSD_LF_HF(Pxx, hzPxx, VLF, LF, HF):
@@ -1452,54 +1537,6 @@ def get_fig_PSD_LF_HF(Pxx, hzPxx, VLF, LF, HF):
     #plt.show()
     
     return fig
-
-
-#### SDNN, RMSSD, NN50, pNN50
-# RR_val = RRI
-def get_stats_descriptors(RR_val) :
-    SDNN = np.std(RR_val)
-
-    RMSSD = np.sqrt(np.mean((np.diff(RR_val)*1e3)**2))
-
-    NN50 = []
-    for RR in range(len(RR_val)) :
-        if RR == len(RR_val)-1 :
-            continue
-        else :
-            NN = abs(RR_val[RR+1] - RR_val[RR])
-            NN50.append(NN)
-
-    NN50 = np.array(NN50)*1e3
-    pNN50 = np.sum(NN50>50)/len(NN50)
-
-    return SDNN, RMSSD, NN50, pNN50
-
-#SDNN_CV, RMSSD_CV, NN50_CV, pNN50_CV = get_stats_descriptors(RRI_CV)
-
-
-#### Poincarré
-
-def get_poincarre(RRI):
-    RRI_1 = RRI[1:]
-    RRI_1 = np.append(RRI_1, RRI[-1]) 
-
-    SD1_val = []
-    SD2_val = []
-    for RR in range(len(RRI)) :
-        if RR == len(RRI)-1 :
-            continue
-        else :
-            SD1_val_tmp = (RRI[RR+1] - RRI[RR])/np.sqrt(2)
-            SD2_val_tmp = (RRI[RR+1] + RRI[RR])/np.sqrt(2)
-            SD1_val.append(SD1_val_tmp)
-            SD2_val.append(SD2_val_tmp)
-
-    SD1 = np.std(SD1_val)
-    SD2 = np.std(SD2_val)
-    Tot_HRV = SD1*SD2*np.pi
-
-    return SD1, SD2, Tot_HRV
-
 
         
 def get_fig_poincarre(RRI):
@@ -1566,10 +1603,9 @@ def get_dHR(RRI_resample, srate_resample, f_RRI):
     plt.tight_layout()
     #plt.show()
 
-
     return fig_verif, fig_dHR
 
-
+#ecg_allcond[cond][odor_i], ecg_cR_allcond[cond][odor_i], prms_hrv
 def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
 
     #### load params
@@ -1660,6 +1696,123 @@ def get_hrv_metrics_win(RRI):
 
     return hrv_metrics_homemade
 
+
+
+########################################
+######## HRV METRICS HOMEMADE ######## 
+########################################
+
+
+
+def get_PSD_LF_HF(RRI_resample, prms_hrv, VLF, LF, HF):
+
+    srate_resample, nwind, nfft, noverlap, win = prms_hrv['srate_resample_hrv'], prms_hrv['nwind_hrv'], prms_hrv['nfft_hrv'], prms_hrv['noverlap_hrv'], prms_hrv['win_hrv']
+
+    # DETREND
+    RRI_detrend = RRI_resample-np.median(RRI_resample)
+
+    # FFT WELCH
+    hzPxx, Pxx = scipy.signal.welch(RRI_detrend, fs=srate_resample, window=win, nperseg=nwind, noverlap=noverlap, nfft=nfft)
+
+    AUC_LF = np.trapz(Pxx[(hzPxx>VLF) & (hzPxx<LF)])
+    AUC_HF = np.trapz(Pxx[(hzPxx>LF) & (hzPxx<HF)])
+    LF_HF_ratio = AUC_LF/AUC_HF
+
+    return AUC_LF, AUC_HF, LF_HF_ratio, hzPxx, Pxx
+
+
+
+def get_stats_descriptors(RRI) :
+
+    MeanNN = np.mean(RRI)
+
+    SDNN = np.std(RRI)
+
+    RMSSD = np.sqrt(np.mean((np.diff(RRI)*1e3)**2))
+
+    NN50 = []
+    for RR in range(len(RRI)) :
+        if RR == len(RRI)-1 :
+            continue
+        else :
+            NN = abs(RRI[RR+1] - RRI[RR])
+            NN50.append(NN)
+
+    NN50 = np.array(NN50)*1e3
+    pNN50 = np.sum(NN50>50)/len(NN50)
+
+    mad = np.median( np.abs(RRI-np.median(RRI)) )
+    COV = mad / np.median(RRI)
+
+    return MeanNN, SDNN, RMSSD, NN50, pNN50, COV
+
+
+def get_poincarre(RRI):
+    RRI_1 = RRI[1:]
+    RRI_1 = np.append(RRI_1, RRI[-1]) 
+
+    SD1_val = []
+    SD2_val = []
+    for RR in range(len(RRI)) :
+        if RR == len(RRI)-1 :
+            continue
+        else :
+            SD1_val_tmp = (RRI[RR+1] - RRI[RR])/np.sqrt(2)
+            SD2_val_tmp = (RRI[RR+1] + RRI[RR])/np.sqrt(2)
+            SD1_val.append(SD1_val_tmp)
+            SD2_val.append(SD2_val_tmp)
+
+    SD1 = np.std(SD1_val)
+    SD2 = np.std(SD2_val)
+    Tot_HRV = SD1*SD2*np.pi
+
+    return SD1, SD2, Tot_HRV
+
+
+
+def get_hrv_metrics_homemade(cR_time, prms_hrv):
+
+    #### get RRI
+    cR_sec = cR_time/prms_hrv['srate'] # cR in sec
+
+    RRI = np.diff(cR_sec)
+    RRI = np.insert(RRI, 0, np.median(RRI))
+
+    if debug:
+        plt.plot(cR_sec, RRI)
+        plt.show()
+    
+    #### descriptors
+    MeanNN, SDNN, RMSSD, NN50, pNN50, COV = get_stats_descriptors(RRI)
+
+    #### poincarré
+    SD1, SD2, Tot_HRV = get_poincarre(RRI)
+
+    #### PSD
+    f = scipy.interpolate.interp1d(cR_sec, RRI, kind='quadratic', fill_value="extrapolate")
+    cR_sec_resample = np.arange(cR_sec[0], cR_sec[-1], 1/prms_hrv['srate_resample_hrv'])
+    RRI_resample = f(cR_sec_resample)
+
+    if debug:
+        plt.plot(cR_sec, RRI, label='raw')
+        plt.plot(cR_sec_resample, RRI_resample, label='resampled')
+        plt.legend()
+        plt.show()
+
+    VLF, LF, HF = .04, .15, .4
+    AUC_LF, AUC_HF, LF_HF_ratio, hzPxx, Pxx = get_PSD_LF_HF(RRI_resample, prms_hrv, VLF, LF, HF)
+
+    #### df
+    res_tmp = {'HRV_MeanNN' : MeanNN*1e3, 'HRV_SDNN' : SDNN*1e3, 'HRV_RMSSD' : RMSSD, 'HRV_pNN50' : pNN50*100, 'HRV_LF' : AUC_LF/10, 'HRV_HF' : AUC_HF/10, 
+               'HRV_LFHF' : LF_HF_ratio, 'HRV_SD1' : SD1*1e3, 'HRV_SD2' : SD2*1e3, 'HRV_S' : Tot_HRV*1e6, 'HRV_COV' : COV}
+    
+    data_df = {}
+    for i, dv in enumerate(prms_hrv['metric_list']):
+        data_df[dv] = res_tmp[dv]
+
+    hrv_metrics_homemade = pd.DataFrame([data_df])
+
+    return hrv_metrics_homemade
 
 
 

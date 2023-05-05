@@ -34,13 +34,14 @@ def precompute_surrogates_coh(sujet, band_prep, cond):
 
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
 
+    #odor_i = odor_list[1]
     for odor_i in odor_list:
 
-        data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
+        data_tmp = load_data_sujet(sujet, cond, odor_i)
 
         if os.path.exists(f"{sujet}_{cond}_{odor_i}_Coh.npy"):
-            print('ALREADY COMPUTED')
-            return
+            print(f'ALREADY COMPUTED {cond} {odor_i}')
+            continue
         
         respi = data_tmp[chan_list.index('PRESS'),:]
 
@@ -96,13 +97,14 @@ def precompute_surrogates_cyclefreq(sujet, band_prep, cond):
     #### load data
     os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
 
+    #odor_i = odor_list[0]
     for odor_i in odor_list:
 
-        data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
+        data_tmp = load_data_sujet(sujet, cond, odor_i)
 
         if os.path.exists(f'{sujet}_{cond}_{odor_i}_cyclefreq_{band_prep}.npy') == True :
-            print('ALREADY COMPUTED')
-            return
+            print(f'ALREADY COMPUTED {cond} {odor_i}')
+            continue
 
         #### compute surrogates
         surrogates_n_chan = np.zeros((3, data_tmp.shape[0], stretch_point_surrogates))
@@ -118,7 +120,7 @@ def precompute_surrogates_cyclefreq(sujet, band_prep, cond):
 
             surrogates_val_tmp = np.zeros((n_surrogates_cyclefreq, stretch_point_surrogates))
 
-            # surr_i = 0
+            #surr_i = 0
             for surr_i in range(n_surrogates_cyclefreq):
 
                 # print_advancement(surr_i, n_surrogates_cyclefreq, steps=[25, 50, 75])
@@ -205,11 +207,11 @@ def precompute_MVL(sujet, band_prep, cond):
         #### load data
         os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
 
-        data_tmp = load_data_sujet(sujet, band_prep, cond, odor_i)
+        data_tmp = load_data_sujet(sujet, cond, odor_i)
 
         if os.path.exists(f'{sujet}_{cond}_{odor_i}_MVL_{band_prep}.npy') == True :
-            print('ALREADY COMPUTED')
-            return
+            print(f'ALREADY COMPUTED {cond} {odor_i}')
+            continue
 
         #### compute surrogates
         #n_chan = 0
@@ -282,28 +284,28 @@ def precompute_MVL(sujet, band_prep, cond):
 
 if __name__ == '__main__':
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[2]
     for sujet in sujet_list:    
 
         #### compute and save
-        print('######## COMPUTE SURROGATES ########')
+        print(f'######## COMPUTE SURROGATES {sujet} ########')
 
         #band_prep = band_prep_list[0]
         for band_prep in band_prep_list:
 
             print(f'COMPUTE FOR {band_prep}')
 
-            #cond = conditions[0]
+            #cond = conditions[1]
             for cond in conditions:
 
-                # precompute_surrogates_cyclefreq(sujet, band_prep, cond)
-                execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
+                precompute_surrogates_cyclefreq(sujet, band_prep, cond)
+                # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
 
-                # precompute_MVL(sujet, band_prep, cond)
-                execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
+                precompute_MVL(sujet, band_prep, cond)
+                # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
 
-                # precompute_surrogates_coh(sujet, band_prep, cond)
-                execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
+                precompute_surrogates_coh(sujet, band_prep, cond)
+                # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
 
             
 
