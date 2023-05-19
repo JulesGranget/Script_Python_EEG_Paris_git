@@ -603,3 +603,27 @@ def confidence_interval(x, confidence = 0.95, verbose = False):
     if verbose:
         print(f'm : {round(m, 3)} , std : {round(s,3)} , ci : [{round(ci[0],3)};{round(ci[1],3)}]')
     return ci
+
+
+
+
+
+def get_stats_df(df, predictor, outcome, subject=None, design='within'):
+
+    N = df[predictor].value_counts()[0]
+    groups = list(df[predictor].unique())
+    ngroups = len(groups)
+    
+    parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
+    parametricity = parametricity_pre_transfo
+    
+    tests = guidelines(df, predictor, outcome, design, parametricity)
+    
+    pre_test = tests['pre']
+    post_test = tests['post']
+    results = pg_compute_pre(df, predictor, outcome, pre_test, subject)
+    pval = round(results['p'], 4)
+
+    return pval
+
+

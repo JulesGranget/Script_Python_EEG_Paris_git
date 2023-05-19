@@ -268,11 +268,17 @@ def hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker):
 
 
 
-def get_data_tracking(ecg_cR, prms_tracker):
+def get_data_tracking(ecg, prms_tracker):
 
     #### params
     win_size_sec, jitter = prms_tracker['win_size_sec'], prms_tracker['jitter']
     win_size = int(win_size_sec*srate)
+
+    #### precompute ecg
+    ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
+
+    ecg_cR = np.zeros((ecg.shape[0]))
+    ecg_cR[ecg_peaks] = 10
 
     #### compute tracking data
     df_hrv, times = hrv_tracker(ecg_cR, win_size, srate)
@@ -338,7 +344,7 @@ def hrv_compute_compilation(sujet):
     'jitter' : 0,
     }
 
-    band_prep = band_prep_list[0]
+    band_prep = 'wb'
 
     odor_ref = 'o'
     odor_list_test = [odor_i for odor_i in odor_list if odor_i != odor_ref]
@@ -370,12 +376,7 @@ def hrv_compute_compilation(sujet):
     ecg = load_ecg_sig(sujet, odor_ref, band_prep)
     label_vec, trig = get_label_vec(sujet, odor_ref, ecg)
 
-    ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
-
-    ecg_cR = np.zeros((ecg.shape[0]))
-    ecg_cR[ecg_peaks] = 10
-
-    df_hrv, times = get_data_tracking(ecg_cR, prms_tracker)
+    df_hrv, times = get_data_tracking(ecg, prms_tracker)
     _times = times*srate
     label_vec = label_vec[_times.astype('int')].astype('int')
 
@@ -427,12 +428,7 @@ def hrv_compute_compilation(sujet):
         ecg = load_ecg_sig(sujet, odor_i, band_prep)
         label_vec, trig = get_label_vec(sujet, odor_i, ecg)
 
-        ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
-
-        ecg_cR = np.zeros((ecg.shape[0]))
-        ecg_cR[ecg_peaks] = 10
-
-        df_hrv, times = get_data_tracking(ecg_cR, prms_tracker)
+        df_hrv, times = get_data_tracking(ecg, prms_tracker)
         _times = times*srate
         label_vec = label_vec[_times.astype('int')].astype('int')
 
@@ -598,12 +594,9 @@ def hrv_compute_compilation_restrain_train():
             ecg = load_ecg_sig(sujet, odor_i, band_prep)
             ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
 
-            ecg_cR = np.zeros((ecg.shape[0]))
-            ecg_cR[ecg_peaks] = 10
-
             if sujet_i == 0:
 
-                df_hrv, times = get_data_tracking(ecg_cR, prms_tracker)
+                df_hrv, times = get_data_tracking(ecg, prms_tracker)
                 _times = times*srate
 
                 label_vec, trig = get_label_vec(sujet, odor_i, ecg)
@@ -611,7 +604,7 @@ def hrv_compute_compilation_restrain_train():
 
             else:
 
-                df_hrv_i, times = get_data_tracking(ecg_cR, prms_tracker)
+                df_hrv_i, times = get_data_tracking(ecg, prms_tracker)
                 _times = times*srate
 
                 label_vec_i, trig = get_label_vec(sujet, odor_i, ecg)
@@ -656,12 +649,7 @@ def hrv_compute_compilation_restrain_train():
             ecg = load_ecg_sig(sujet, odor_i, band_prep)
             label_vec, trig = get_label_vec(sujet, odor_i, ecg)
 
-            ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
-
-            ecg_cR = np.zeros((ecg.shape[0]))
-            ecg_cR[ecg_peaks] = 10
-
-            df_hrv, times = get_data_tracking(ecg_cR, prms_tracker)
+            df_hrv, times = get_data_tracking(ecg, prms_tracker)
             _times = times*srate
             label_vec = label_vec[_times.astype('int')].astype('int')
 

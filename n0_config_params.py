@@ -29,6 +29,10 @@ sujet_list = np.array(['01PD','02MJ','03VN','04GB','05LV','06EF','07PB','08DM','
 '14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
 '30AR','31HJ','32CM','33MA'])
 
+sujet_best_list = np.array(['BD12', 'CM32', 'DI22', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
+       'MJ02', 'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03',
+       'ZV21'])
+
 sujet_list_hyperventilation = ['20TY']
 
 band_prep_list = ['wb']

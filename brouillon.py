@@ -94,3 +94,16 @@ times = np.arange(srate*60)/srate
 for i in range(times.shape[0]):
     ax.scatter(times, 10*np.sin(2*np.pi*10*times), picker=True, marker='o', linestyle='None', pickradius=1)
 plt.show()
+
+
+
+
+notes = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+tonality = ['m', '']
+degre = [1, 2, 3, 4, 5, 6, 7]
+
+tonality_sel = f"{notes[np.random.randint(low=0, high=len(notes))]}{tonality[np.random.randint(low=0, high=len(tonality))]}"
+degre_sel = [np.random.randint(low=1, high=8) for degre_i in range(4)]
+
+print(tonality_sel)
+print(degre_sel)

@@ -1636,7 +1636,7 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
     AUC_LF, AUC_HF, LF_HF_ratio, hzPxx, Pxx = get_PSD_LF_HF(RRI_resample, srate_resample_hrv, nwind_hrv, nfft_hrv, noverlap_hrv, win_hrv, VLF, LF, HF)
 
     #### descriptors
-    SDNN, RMSSD, NN50, pNN50 = get_stats_descriptors(RRI)
+    MeanNN, SDNN, RMSSD, NN50, pNN50, COV = get_stats_descriptors(RRI)
 
     #### poincarré
     SD1, SD2, Tot_HRV = get_poincarre(RRI)
@@ -1681,7 +1681,7 @@ def get_hrv_metrics_win(RRI):
     HRV_MeanNN = np.mean(RRI)
     
     #### descriptors
-    SDNN, RMSSD, NN50, pNN50 = get_stats_descriptors(RRI)
+    MeanNN, SDNN, RMSSD, NN50, pNN50, COV = get_stats_descriptors(RRI)
 
     #### poincarré
     SD1, SD2, Tot_HRV = get_poincarre(RRI)

@@ -8,6 +8,8 @@ import pandas as pd
 
 import physio
 
+import seaborn as sns
+
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
 from n1bis_prep_trigger_info import *
@@ -694,6 +696,327 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
 
 
+########################################
+######## DETECT ARTIFACT ########
+########################################
+
+
+
+def detect_cross(sig, threshold):
+
+    """
+    Detect crossings
+    ------
+    inputs =
+    - sig : numpy 1D array
+    - show : plot figure showing rising zerox in red and decaying zerox in green (default = False)
+    output =
+    - pandas dataframe with index of rises and decays
+    """
+
+    rises, = np.where((sig[:-1] <=threshold) & (sig[1:] >threshold)) # detect where sign inversion from - to +
+    decays, = np.where((sig[:-1] >=threshold) & (sig[1:] <threshold)) # detect where sign inversion from + to -
+
+    if rises.size != 0:
+
+        if rises[0] > decays[0]: # first point detected has to be a rise
+            decays = decays[1:] # so remove the first decay if is before first rise
+        if rises[-1] > decays[-1]: # last point detected has to be a decay
+            rises = rises[:-1] # so remove the last rise if is after last decay
+
+        return pd.DataFrame.from_dict({'rises':rises, 'decays':decays}, orient = 'index').T
+    
+    else:
+
+        return None
+    
+
+
+
+def compute_rms(x):
+
+    """Fast root mean square."""
+    n = x.size
+    ms = 0
+    for i in range(n):
+        ms += x[i] ** 2
+    ms /= n
+
+    return np.sqrt(ms)
+
+
+
+
+def sliding_rms(x, sf, window=0.5, step=0.2, interp=True):
+
+    halfdur = window / 2
+    n = x.size
+    total_dur = n / sf
+    last = n - 1
+    idx = np.arange(0, total_dur, step)
+    out = np.zeros(idx.size)
+
+    # Define beginning, end and time (centered) vector
+    beg = ((idx - halfdur) * sf).astype(int)
+    end = ((idx + halfdur) * sf).astype(int)
+    beg[beg < 0] = 0
+    end[end > last] = last
+    # Alternatively, to cut off incomplete windows (comment the 2 lines above)
+    # mask = ~((beg < 0) | (end > last))
+    # beg, end = beg[mask], end[mask]
+    t = np.column_stack((beg, end)).mean(1) / sf
+
+    # Now loop over successive epochs
+    for i in range(idx.size):
+        out[i] = compute_rms(x[beg[i] : end[i]])
+
+    # Finally interpolate
+    if interp and step != 1 / sf:
+        f = scipy.interpolate.interp1d(t, out, kind="cubic", bounds_error=False, fill_value=0, assume_sorted=True)
+        t = np.arange(n) / sf
+        out = f(t)
+
+    return t, out
+
+
+def iirfilt(sig, srate, lowcut=None, highcut=None, order = 4, ftype = 'butter', verbose = False, show = False, axis = 0):
+
+    if lowcut is None and not highcut is None:
+        btype = 'lowpass'
+        cut = highcut
+
+    if not lowcut is None and highcut is None:
+        btype = 'highpass'
+        cut = lowcut
+
+    if not lowcut is None and not highcut is None:
+        btype = 'bandpass'
+
+    if btype in ('bandpass', 'bandstop'):
+        band = [lowcut, highcut]
+        assert len(band) == 2
+        Wn = [e / srate * 2 for e in band]
+    else:
+        Wn = float(cut) / srate * 2
+
+    filter_mode = 'sos'
+    sos = scipy.signal.iirfilter(order, Wn, analog=False, btype=btype, ftype=ftype, output=filter_mode)
+
+    filtered_sig = scipy.signal.sosfiltfilt(sos, sig, axis=axis)
+
+    return filtered_sig
+
+
+
+def med_mad(data, constant = 1.4826):
+
+    median = np.median(data)
+    mad = np.median(np.abs(data - median)) * constant
+
+    return median , mad
+
+
+
+def compute_artifact_features(inds, srate):
+
+    artifacts = pd.DataFrame()
+    artifacts['start_ind'] = inds['rises'].astype(int)
+    artifacts['stop_ind'] = inds['decays'].astype(int)
+    artifacts['start_t'] = artifacts['start_ind'] / srate
+    artifacts['stop_t'] = artifacts['stop_ind'] / srate
+    artifacts['duration'] = artifacts['stop_t'] - artifacts['start_t']
+
+    return artifacts
+
+
+
+
+def detect_movement_artifacts(data, srate, n_chan_artifacted = 5, n_deviations = 5, low_freq = 40 , high_freq = 150, wsize = 1, step = 0.2):
+    
+    eeg_filt = iirfilt(data, srate, low_freq, high_freq, ftype = 'bessel', order = 2, axis = 1)
+    masks = np.zeros((eeg_filt.shape), dtype='bool')
+
+    for i in range(eeg_filt.shape[0]):
+
+        print_advancement(i, eeg_filt.shape[0], steps=[25, 50, 75])
+
+        sig_chan_filtered = eeg_filt[i,:]
+        t, rms_chan = sliding_rms(sig_chan_filtered, sf=srate, window = wsize, step = step) 
+        pos, dev = med_mad(rms_chan)
+        detect_threshold = pos + n_deviations * dev
+        masks[i,:] = rms_chan > detect_threshold
+    
+    compress_chans = masks.sum(axis = 0)
+    inds = detect_cross(compress_chans, n_chan_artifacted+0.5)
+    artifacts = compute_artifact_features(inds, srate)
+
+    return artifacts
+
+
+# chan_artifacts = artifacts
+def insert_noise(sig, srate, chan_artifacts, freq_min=30., margin_s=0.2, seed=None):
+
+    sig_corrected = sig.copy()
+
+    margin = int(srate * margin_s)
+    up = np.linspace(0, 1, margin)
+    down = np.linspace(1, 0, margin)
+    
+    noise_size = np.sum(chan_artifacts['stop_ind'].values - chan_artifacts['start_ind'].values) + 2 * margin * chan_artifacts.shape[0]
+    
+    # estimate psd sig
+    freqs, spectrum = scipy.signal.welch(sig, nperseg=noise_size, nfft=noise_size, noverlap=0, scaling='spectrum', window='box', return_onesided=False, average='median')
+    
+    spectrum = np.sqrt(spectrum)
+    
+    # pregenerate long noise piece
+    rng = np.random.RandomState(seed=seed)
+    
+    long_noise = rng.randn(noise_size)
+    noise_F = np.fft.fft(long_noise)
+    #long_noise = np.fft.ifft(np.abs(noise_F) * spectrum * np.exp(1j * np.angle(noise_F)))
+    long_noise = np.fft.ifft(spectrum * np.exp(1j * np.angle(noise_F)))
+    long_noise = long_noise.astype(sig.dtype)
+    sos = scipy.signal.iirfilter(2, freq_min / (srate / 2), analog=False, btype='highpass', ftype='bessel', output='sos')
+    long_noise = scipy.signal.sosfiltfilt(sos, long_noise, axis=0)
+    
+    filtered_sig = scipy.signal.sosfiltfilt(sos, sig, axis=0)
+    rms_sig = np.median(filtered_sig**2)
+    rms_noise = np.median(long_noise**2)
+    factor = np.sqrt(rms_sig) / np.sqrt(rms_noise)
+    long_noise *= factor
+    
+    noise_ind = 0
+
+    for _, artifact in chan_artifacts.iterrows():
+
+        ind0, ind1 = int(artifact['start_ind']), int(artifact['stop_ind'])
+        
+        n_samples = ind1 - ind0 + 2 * margin
+        
+        sig_corrected[ind0:ind1] = 0
+        sig_corrected[ind0-margin:ind0] *= down
+        sig_corrected[ind1:ind1+margin] *= up
+        
+        noise = long_noise[noise_ind: noise_ind + n_samples]
+        noise_ind += n_samples
+        
+        noise += np.linspace(sig[ind0-1-margin], sig[ind1+1+margin], n_samples)
+        noise[:margin] *= up
+        noise[-margin:] *= down
+        
+        sig_corrected[ind0-margin:ind1+margin] += noise
+        
+    return sig_corrected
+
+
+
+
+#raw = raw_preproc_wb 
+def remove_artifacts(raw, srate, trig):
+
+    data = raw.get_data()
+
+    #### detect
+    print('#### ARTIFACT DETECTION ####')
+    artifacts_raw = detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2)
+    artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
+
+    #### exclude artifact in intertrial
+    #cond = 'FR_CV_1'
+    for cond in conditions:
+
+        start, stop = trig[cond][0], trig[cond][1]
+        mask_include = (artifacts_raw['start_ind'].values >= start) & (artifacts_raw['stop_ind'].values <= stop)
+        artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
+
+    artifacts = artifacts_raw[artifacts_mask]
+
+    if debug:
+
+        sig = data[0,:]
+        plt.plot(sig)
+        plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
+        plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
+        for cond in conditions:
+            plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
+            plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
+        plt.legend()
+        plt.show()
+
+        sig_artifact = np.array([])
+        sig_artifact_starts = np.array([])
+        sig_append_i = 0
+        min_max_artifacts = np.array([])
+        len_artifacts = np.array([])
+
+        for start, stop in zip(artifacts['start_ind'], artifacts['stop_ind']):
+
+            sig_append = sig[start:stop] - sig[start:stop].mean()
+            sig_artifact = np.append(sig_artifact, sig_append)
+            sig_append_i += sig_append.shape[0]
+            sig_artifact_starts = np.append(sig_artifact_starts, sig_append_i)
+            min_max_artifacts = np.append(min_max_artifacts, np.abs(sig_append.max() - sig_append.min()))
+            len_artifacts = np.append(len_artifacts, sig_artifact.shape[0])
+
+        plt.plot(sig_artifact)
+        plt.vlines(sig_artifact_starts, ymin=sig_artifact.min(), ymax=sig_artifact.max(), color='r')
+        plt.show()
+
+    #### correct
+    print('#### ARTIFACT CORRECTION ####')
+    data_corrected = data.copy()
+
+    for chan_i, chan_name in enumerate(chan_list_eeg):
+
+        data_corrected[chan_i,:] = insert_noise(data[chan_i,:], srate, artifacts, freq_min=30., margin_s=0.2, seed=None)
+
+    if debug:
+
+        chan_i = 0
+
+        plt.plot(data[chan_i,:], label='raw')
+        plt.plot(data_corrected[chan_i,:], label='corrected')
+        plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
+        plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
+        for cond in conditions:
+            plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
+            plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
+        plt.legend()
+        plt.show()
+
+        n_chan_plot = 5
+
+        fig, ax = plt.subplots()
+
+        for chan_i, chan_name in enumerate(chan_list_eeg[:n_chan_plot]):
+        
+            ax.plot(zscore(data[chan_i,:])+3*chan_i, label=f"raw : {chan_name}")
+            ax.plot(zscore(data_corrected[chan_i,:])+3*chan_i, label=f"correct raw : {chan_name}")
+
+        for cond in conditions:
+
+            plt.vlines(trig[cond][0], ymin=0, ymax=3*chan_i, color='k', label='start', linewidth=2)
+            plt.vlines(trig[cond][1], ymin=0, ymax=3*chan_i, color='k', linestyle='dashed', label='stop', linewidth=2)
+
+        plt.vlines(artifacts['start_ind'].values, ymin=0, ymax=3*chan_i, color='r', label='start')
+        plt.vlines(artifacts['stop_ind'].values, ymin=0, ymax=3*chan_i, color='r', label='stop')
+        
+        plt.legend()
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
+
+        plt.show()
+
+    #### inject corrected data
+    for chan_i, chan_name in enumerate(chan_list_eeg):
+        raw[chan_i,:] = data_corrected[chan_i,:]
+
+    del data_corrected, data
+
+    return raw
+
+
 
 
 
@@ -707,7 +1030,7 @@ def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[4]
+    #sujet = sujet_list[0]
     for sujet in sujet_list:
 
         ########################################
@@ -765,7 +1088,6 @@ if __name__== '__main__':
         session_i = 2
 
         for session_i in range(3):
-
 
             ################################
             ######## EXTRACT DATA ########
@@ -833,11 +1155,12 @@ if __name__== '__main__':
             ######## PREPROCESSING, CHOP AND SAVE ########
             ################################################
 
-            raw_preproc_wb  = preprocessing_ieeg(raw_eeg, prep_step_wb)
+            raw_preproc_wb = preprocessing_ieeg(raw_eeg, prep_step_wb)
             #compare_pre_post(raw_eeg, raw_preproc_wb, 5) # to verify
 
-            chop_save_trc(raw_preproc_wb, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
+            raw_preproc_wb = remove_artifacts(raw_preproc_wb, srate, trig)
 
+            chop_save_trc(raw_preproc_wb, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
 
             del raw_preproc_wb
 

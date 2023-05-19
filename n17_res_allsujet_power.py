@@ -13,6 +13,7 @@ import gc
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
+from n0ter_stats import *
 
 
 debug = False
@@ -27,6 +28,40 @@ debug = False
 ######## PLOT & SAVE PSD AND COH ########
 ################################################
 
+
+
+def get_stats_topoplots(baseline_values, cond_values, chan_list_eeg):
+
+    data = {'sujet' : [], 'cond' : [], 'chan' : [], 'value' : []}
+
+    for sujet_i in range(baseline_values.shape[-1]):
+
+        for chan_i, chan in enumerate(chan_list_eeg):
+
+            data['sujet'].append(sujet_i)
+            data['cond'].append('baseline')
+            data['chan'].append(chan)
+            data['value'].append(baseline_values[chan_i, sujet_i])
+
+            data['sujet'].append(sujet_i)
+            data['cond'].append('cond')
+            data['chan'].append(chan)
+            data['value'].append(cond_values[chan_i, sujet_i])
+    
+    df_stats = pd.DataFrame(data)
+
+    mask_signi = np.array((), dtype='bool')
+
+    for chan in chan_list_eeg:
+
+        pval = get_stats_df(df=df_stats.query(f"chan == '{chan}'"), predictor='cond', outcome='value', subject='sujet', design='within')
+
+        if pval < 0.05:
+            mask_signi = np.append(mask_signi, True)
+        else:
+            mask_signi = np.append(mask_signi, False)
+
+    return mask_signi
 
 
 
@@ -108,9 +143,63 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute):
                     Pxx_mean_i = Pxx_allcond[cond][odor_i][:,hzPxx_mask].mean(axis=1)
                     xr_allsujet.loc[sujet, f'Pxx_{band}', cond, odor_i, :] = Pxx_mean_i
 
+    
+    #### get stats
+    metric_to_load = ['Pxx_theta', 'Pxx_alpha', 'Pxx_beta', 'Pxx_l_gamma', 'Pxx_h_gamma']
+    allsujet_stats_data = np.zeros((2, len(metric_to_load), len(odor_list), len(conditions), len(chan_list_eeg)), dtype='bool')
+
+    #stats_type = 'intra'
+    for stats_type_i, stats_type in enumerate(['intra', 'inter']):
+        
+        #metric = 'Cxy'
+        for metric_i, metric in enumerate(metric_to_load):
+
+            #### intra
+            if stats_type == 'intra':
+
+                #odor = 'o'
+                for odor_i, odor in enumerate(odor_list):
+
+                    #cond = 'MECA'
+                    for cond_i, cond in enumerate(conditions):
+
+                        if cond == 'FR_CV_1':
+
+                            continue
+
+                        baseline_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,'FR_CV_1',odor,:,:].values
+                        cond_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,cond,odor,:,:].values
+
+                        # print(stats_type,metric,cond,odor)
+
+                        allsujet_stats_data[stats_type_i, metric_i, odor_i, cond_i, :] = get_stats_topoplots(baseline_values, cond_values, chan_list_eeg)
+
+            #### inter
+            if stats_type == 'inter':
+
+                #odor = 'o'
+                for odor_i, odor in enumerate(odor_list):
+
+                    if odor == 'o':
+                        
+                        continue
+
+                    #cond = 'MECA'
+                    for cond_i, cond in enumerate(conditions):
+
+                        baseline_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,cond,'o',:,:].values
+                        cond_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,cond,odor,:,:].values
+
+                        # print(stats_type,metric,cond,odor)
+
+                        allsujet_stats_data[stats_type_i, metric_i, odor_i, cond_i, :] = get_stats_topoplots(baseline_values, cond_values, chan_list_eeg)
+
+    xr_dict = {'stats_type' : ['intra', 'inter'], 'metric' : ['theta', 'alpha', 'beta', 'l_gamma', 'h_gamma'], 'odor' : odor_list, 'cond' : conditions, 'chan' : chan_list_eeg}
+    xr_allsujet_stats = xr.DataArray(allsujet_stats_data, dims=xr_dict.keys(), coords=xr_dict.values())  
+
     xr_allsujet = xr_allsujet.median(axis=0)
     
-    return xr_allsujet
+    return xr_allsujet, xr_allsujet_stats
 
 
 
@@ -123,7 +212,7 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute):
 
 
 
-def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet):
+def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats):
 
     #### create montage
     ch_types = ['eeg'] * len(chan_list_eeg)
@@ -232,41 +321,47 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet):
             plt.close('all')
             gc.collect()
 
+    #### plot Pxx
+    for stats_type in ['intra', 'inter']:
 
-    #band, freq = 'theta', [4, 8]
-    for band, freq in freq_band_fc_analysis.items():
+        #band, freq = 'theta', [4, 8]
+        for band, freq in freq_band_fc_analysis.items():
 
-        #### plot Pxx
-        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
-        plt.suptitle(f'allsujet_{band}_Pxx')
-        fig.set_figheight(10)
-        fig.set_figwidth(10)
+            #### plot Pxx
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+            plt.suptitle(f'allsujet_{band}_{stats_type}_Pxx')
+            fig.set_figheight(10)
+            fig.set_figwidth(10)
 
-        #c, cond = 0, 'FR_CV_1'
-        for c, cond in enumerate(conditions):
+            #c, cond = 0, 'FR_CV_1'
+            for c, cond in enumerate(conditions):
 
-            #r, odor_i = 0, odor_list[0]
-            for r, odor_i in enumerate(odor_list):
+                #r, odor = 0, odor_list[0]
+                for r, odor in enumerate(odor_list):
 
-                #### plot
-                ax = axs[r, c]
+                    #### plot
+                    ax = axs[r, c]
 
-                if r == 0:
-                    ax.set_title(cond, fontweight='bold', rotation=0)
-                if c == 0:
-                    ax.set_ylabel(f'{odor_i}')
-                
-                mne.viz.plot_topomap(xr_allsujet.loc[f'Pxx_{band}', cond, odor_i], info, axes=ax, vlim=(scales_allband[f'Pxx_{band}']['min'], 
-                                     scales_allband[f'Pxx_{band}']['max']), show=False)
+                    if r == 0:
+                        ax.set_title(cond, fontweight='bold', rotation=0)
+                    if c == 0:
+                        ax.set_ylabel(f'{odor}')
 
-        # plt.show() 
+                    mask = xr_allsujet_stats.loc[stats_type, band, odor, cond,:].values
+                    mask_params = dict(markersize=5, markerfacecolor='y')
+                    
+                    mne.viz.plot_topomap(xr_allsujet.loc[f'Pxx_{band}', cond, odor], info, axes=ax, 
+                                        vlim=(scales_allband[f'Pxx_{band}']['min'], scales_allband[f'Pxx_{band}']['max']), 
+                                        mask=mask, mask_params=mask_params, show=False)
 
-        #### save
-        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
-        fig.savefig(f'allsujet_Pxx_{band}_{band_prep}_topo.jpeg', dpi=150)
-        fig.clf()
-        plt.close('all')
-        gc.collect()
+            # plt.show() 
+
+            #### save
+            os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
+            fig.savefig(f'allsujet_Pxx_{band}_{band_prep}_{stats_type}_topo.jpeg', dpi=150)
+            fig.clf()
+            plt.close('all')
+            gc.collect()
 
 
 
@@ -552,10 +647,10 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 
 def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet_list_compute):
 
-    xr_allsujet = compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute)
+    xr_allsujet, xr_allsujet_stats = compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute)
 
     print('######## PLOT & SAVE TOPOPLOT ########')
-    plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet)
+    plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats)
 
     print('done')
 
