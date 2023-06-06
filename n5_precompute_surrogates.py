@@ -34,7 +34,7 @@ def precompute_surrogates_coh(sujet, band_prep, cond):
 
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
 
-    #odor_i = odor_list[1]
+    #odor_i = odor_list[0]
     for odor_i in odor_list:
 
         data_tmp = load_data_sujet(sujet, cond, odor_i)
@@ -290,22 +290,19 @@ if __name__ == '__main__':
         #### compute and save
         print(f'######## COMPUTE SURROGATES {sujet} ########')
 
-        #band_prep = band_prep_list[0]
-        for band_prep in band_prep_list:
+        band_prep = 'wb'
 
-            print(f'COMPUTE FOR {band_prep}')
+        #cond = conditions[1]
+        for cond in conditions:
 
-            #cond = conditions[1]
-            for cond in conditions:
+            # precompute_surrogates_cyclefreq(sujet, band_prep, cond)
+            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
 
-                precompute_surrogates_cyclefreq(sujet, band_prep, cond)
-                # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
+            # precompute_MVL(sujet, band_prep, cond)
+            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
 
-                precompute_MVL(sujet, band_prep, cond)
-                # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
-
-                precompute_surrogates_coh(sujet, band_prep, cond)
-                # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
+            # precompute_surrogates_coh(sujet, band_prep, cond)
+            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
 
             
 

@@ -229,12 +229,17 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('FC', construct_token)
     construct_token = create_folder('HRV', construct_token)
     construct_token = create_folder('df', construct_token)
+    construct_token = create_folder('ERP', construct_token)
+
+            #### ERP
+    os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
+    construct_token = create_folder('summary', construct_token)
+    construct_token = create_folder('topoplot', construct_token)
 
             #### TF
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'TF'))
     construct_token = create_folder('summary', construct_token)
     construct_token = create_folder('allcond', construct_token)
-    construct_token = create_folder('topoplot', construct_token)        
 
             #### PSD_Coh
     os.chdir(os.path.join(path_general, 'Analyses', 'results', sujet, 'PSD_Coh'))
@@ -255,47 +260,6 @@ def generate_folder_structure(sujet):
     construct_token = create_folder('ITPC', construct_token)
     construct_token = create_folder('FC', construct_token)
     construct_token = create_folder('PSD_Coh', construct_token)
-
-            #### FC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'FC'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('allcond', construct_token) 
-
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV'))
-    construct_token = create_folder('TF', construct_token)
-    construct_token = create_folder('ITPC', construct_token)
-    construct_token = create_folder('DFC', construct_token)
-    construct_token = create_folder('PSD_Coh', construct_token)
-    construct_token = create_folder('stats', construct_token)
-
-            #### TF
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'TF'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)            
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'TF'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)
-
-            #### PSD_Coh
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'PSD_Coh'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)            
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'PSD_Coh'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)
-
-            #### ITPC
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'FR_CV', 'ITPC'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)            
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'ITPC'))
-    construct_token = create_folder('ROI', construct_token)
-    construct_token = create_folder('Lobes', construct_token)
-
-            #### FC          
-    os.chdir(os.path.join(path_general, 'Analyses', 'results', 'allplot', 'allcond', 'FC'))
-    construct_token = create_folder('summary', construct_token)
-    construct_token = create_folder('allcond', construct_token) 
 
     return construct_token
 
@@ -740,14 +704,7 @@ def load_data_sujet(sujet, cond, odor_i):
     
     os.chdir(os.path.join(path_prep, sujet, 'sections'))
 
-    load_i = []
-
-    for i, session_name in enumerate(os.listdir()):
-
-        if ( session_name.find(cond) != -1 ) & ( session_name.find('wb') != -1 ) & ( session_name.find(odor_i) != -1 ):
-            load_i.append(i)
-
-    raw = mne.io.read_raw_fif(os.listdir()[load_i[0]], preload=True, verbose='critical')
+    raw = mne.io.read_raw_fif(f'{sujet}_{odor_i}_{cond}_wb.fif', preload=True, verbose='critical')
 
     data = raw.get_data()
 
@@ -1676,7 +1633,7 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
 def get_hrv_metrics_win(RRI):
 
     #### initiate metrics names
-    res_list = ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S']
+    res_list = ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_COV']
 
     HRV_MeanNN = np.mean(RRI)
     
@@ -1687,7 +1644,7 @@ def get_hrv_metrics_win(RRI):
     SD1, SD2, Tot_HRV = get_poincarre(RRI)
 
     #### df
-    res_tmp = [HRV_MeanNN*1e3, SDNN*1e3, RMSSD, pNN50*100, SD1*1e3, SD2*1e3, Tot_HRV*1e6]
+    res_tmp = [HRV_MeanNN*1e3, SDNN*1e3, RMSSD, pNN50*100, SD1*1e3, SD2*1e3, Tot_HRV*1e6, COV]
     data_df = {}
     for i, dv in enumerate(res_list):
         data_df[dv] = [res_tmp[i]]

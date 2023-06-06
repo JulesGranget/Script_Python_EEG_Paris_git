@@ -10,7 +10,7 @@ import xarray as xr
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
-from n1bis_prep_trigger_info import *
+from n1bis_prep_info import *
 
 debug = False
 

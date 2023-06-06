@@ -25,9 +25,13 @@ perso_repo_computation = False
 
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
-sujet_list = np.array(['01PD','02MJ','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
-'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
-'30AR','31HJ','32CM','33MA'])
+sujet_list = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
+'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','26MN','27BD','28NT','29SC',
+'30AR','32CM','33MA'])
+
+# 02MJ signal problems
+# DF25 has no session 2
+# HJ31 has no session 4
 
 sujet_best_list = np.array(['BD12', 'CM32', 'DI22', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
        'MJ02', 'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03',
@@ -276,6 +280,27 @@ prep_step_hf = {
 
 
 
+
+################################
+######## ERP PARAMS ########
+################################
+
+
+
+PPI_time_vec = [-3, 1] #seconds
+PPI_lm_time = [-1.5, -.5]
+
+# '13FP' signal bad
+
+sujet_list_erp = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD',
+'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','26MN','27BD','28NT','29SC',
+'30AR','32CM','33MA'])
+
+
+
+sujet_best_list_erp = np.array(['12BD', '32CM', '22DI', '11FA', '16GM', '17JR', '33MA',
+       '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '03VN',
+       '21ZV'])
 
 
 ########################################

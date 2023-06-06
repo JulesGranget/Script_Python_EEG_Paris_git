@@ -12,7 +12,7 @@ import seaborn as sns
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
-from n1bis_prep_trigger_info import *
+from n1bis_prep_info import *
 
 debug = False
 
@@ -913,7 +913,7 @@ def insert_noise(sig, srate, chan_artifacts, freq_min=30., margin_s=0.2, seed=No
 
 
 #raw = raw_preproc_wb 
-def remove_artifacts(raw, srate, trig):
+def remove_artifacts(raw, srate, trig, odor_code):
 
     data = raw.get_data()
 
@@ -931,6 +931,10 @@ def remove_artifacts(raw, srate, trig):
         artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
 
     artifacts = artifacts_raw[artifacts_mask]
+
+    if artifacts.shape[0] == 0:
+
+        return raw
 
     if debug:
 
@@ -1008,6 +1012,34 @@ def remove_artifacts(raw, srate, trig):
 
         plt.show()
 
+    #### correct bloc if needed
+    block_to_correct = []
+    #correction = block_to_interpolate[0]
+    for correction in block_to_interpolate: 
+        if correction[0] == sujet and correction[2] == odor_code:
+            block_to_correct.append([correction[1], correction[-1]])
+
+    artifacts_cond = {'start_ind' : [], 'stop_ind' : [], 'start_t' : [], 'stop_t' : [], 'duration' : []}
+    margin_s = 0.2
+    #bloc = block_to_correct[0]
+    for bloc in block_to_correct:
+        artifacts_cond['start_ind'].append(trig[bloc][0]+margin_s*srate)
+        artifacts_cond['stop_ind'].append(trig[bloc][1]-margin_s*srate)
+        artifacts_cond['start_t'].append(trig[bloc][0]/srate+margin_s)
+        artifacts_cond['stop_t'].append(trig[bloc][1]/srate-margin_s)
+        artifacts_cond['duration'].append((trig[bloc][1]/srate-margin_s) - (trig[bloc][0]/srate+margin_s))
+
+    for bloc in block_to_correct:
+        #chan_to_correct = bloc[-1][0]
+        for chan_to_correct in bloc[-1]:
+            chan_i = chan_list.index(chan_to_correct)
+            
+
+
+    artifacts_cond = pd.DataFrame(artifacts_cond)
+
+
+
     #### inject corrected data
     for chan_i, chan_name in enumerate(chan_list_eeg):
         raw[chan_i,:] = data_corrected[chan_i,:]
@@ -1030,13 +1062,12 @@ def remove_artifacts(raw, srate, trig):
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[3]
     for sujet in sujet_list:
 
         ########################################
         ######## CONSTRUCT ARBORESCENCE ########
         ########################################
-
 
         construct_token = generate_folder_structure(sujet)
 
@@ -1049,45 +1080,57 @@ if __name__== '__main__':
         ######## PARAMS ########
         ########################
 
-        sujet = '01PD'
-        sujet = '02MJ'
-        sujet = '03VN'
-        sujet = '04GB'
-        sujet = '05LV'
-        sujet = '06EF'
-        sujet = '07PB'
-        sujet = '08DM'
-        sujet = '09TA'
-        sujet = '10BH'
-        sujet = '11FA'
-        sujet = '12BD'
-        sujet = '13FP'
-        sujet = '14MD'
-        sujet = '15LG'
-        sujet = '16GM'
-        sujet = '17JR'
-        sujet = '18SE'
-        sujet = '19TM'
-        sujet = '20TY'
-        sujet = '21ZV'
-        sujet = '22DI'
-        sujet = '23LF'
-        sujet = '24TJ'
-        sujet = '25DF'
-        sujet = '26MN'
-        sujet = '27BD'
-        sujet = '28NT'
-        sujet = '29SC'
-        sujet = '30AR'
-        sujet = '31HJ'
-        sujet = '32CM'
-        sujet = '33MA'
+        # sujet = '01PD'
+        # sujet = '02MJ'
+        # sujet = '03VN'
+        # sujet = '04GB'
+        # sujet = '05LV'
+        # sujet = '06EF'
+        # sujet = '07PB'
+        # sujet = '08DM'
+        # sujet = '09TA'
+        # sujet = '10BH'
+        # sujet = '11FA'
+        # sujet = '12BD'
+        # sujet = '13FP'
+        # sujet = '14MD'
+        # sujet = '15LG'
+        # sujet = '16GM'
+        # sujet = '17JR'
+        # sujet = '18SE'
+        # sujet = '19TM'
+        # sujet = '20TY'
+        # sujet = '21ZV'
+        # sujet = '22DI'
+        # sujet = '23LF'
+        # sujet = '24TJ'
+        # sujet = '25DF'
+        # sujet = '26MN'
+        # sujet = '27BD'
+        # sujet = '28NT'
+        # sujet = '29SC'
+        # sujet = '30AR'
+        # sujet = '31HJ'
+        # sujet = '32CM'
+        # sujet = '33MA'
 
-        session_i = 0
-        session_i = 1
-        session_i = 2
+        # session_i = 0
+        # session_i = 1
+        # session_i = 2
 
         for session_i in range(3):
+
+            #### pass if already computed
+            odor_code = odor_order[sujet][f'ses0{session_i+2}']
+
+            if os.path.exists(os.path.join(path_prep, sujet, 'sections', f'{sujet}_{odor_code}_allcond_wb.fif')):
+
+                print(f"{sujet} {odor_code} ALREADY COMPTUED")
+                continue
+
+            else:
+
+                print(f'#### COMPUTE {sujet} {odor_code} ####')
 
             ################################
             ######## EXTRACT DATA ########
@@ -1151,14 +1194,19 @@ if __name__== '__main__':
                 plt.legend()
                 plt.show()
 
-            ################################################
-            ######## PREPROCESSING, CHOP AND SAVE ########
-            ################################################
+            ########################################################
+            ######## PREPROCESSING & ARTIFACT CORRECTION ########
+            ########################################################
 
             raw_preproc_wb = preprocessing_ieeg(raw_eeg, prep_step_wb)
             #compare_pre_post(raw_eeg, raw_preproc_wb, 5) # to verify
 
-            raw_preproc_wb = remove_artifacts(raw_preproc_wb, srate, trig)
+            raw_preproc_wb = remove_artifacts(raw_preproc_wb, srate, trig, odor_code)
+
+
+            ################################
+            ######## CHOP AND SAVE ########
+            ################################
 
             chop_save_trc(raw_preproc_wb, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
 

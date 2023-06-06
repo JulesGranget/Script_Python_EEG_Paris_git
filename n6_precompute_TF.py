@@ -283,7 +283,7 @@ if __name__ == '__main__':
     for sujet in sujet_list:
     
         #precompute_tf_all_conv(sujet)
-        execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_tf_all_conv', [sujet], '30G')
+        execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_tf_all_conv', [sujet], '35G')
         #precompute_itpc(sujet, cond)
         # execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_itpc', [sujet], '30G')
 

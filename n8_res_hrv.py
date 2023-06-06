@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
+import seaborn as sns
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
@@ -30,13 +31,13 @@ def get_figure_allsujet():
 
         if sujet == sujet_list[0]:
 
-            xr_hrv_tracker_allsujet = xr.open_dataarray(f'{sujet}_hrv_tracker.nc')
-            xr_hrv_tracker_score_allsujet = xr.open_dataarray(f'{sujet}_hrv_tracker_score.nc')
+            xr_hrv_tracker_allsujet = xr.open_dataarray(f'no_ref_{sujet}_hrv_tracker_alltestsize.nc')
+            xr_hrv_tracker_score_allsujet = xr.open_dataarray(f'no_ref_{sujet}_hrv_tracker_score_alltestsize.nc')
 
         else:
 
-            xr_hrv_tracker_allsujet_i = xr.open_dataarray(f'{sujet}_hrv_tracker.nc')
-            xr_hrv_tracker_score_allsujet_i = xr.open_dataarray(f'{sujet}_hrv_tracker_score.nc')
+            xr_hrv_tracker_allsujet_i = xr.open_dataarray(f'no_ref_{sujet}_hrv_tracker_alltestsize.nc')
+            xr_hrv_tracker_score_allsujet_i = xr.open_dataarray(f'no_ref_{sujet}_hrv_tracker_score_alltestsize.nc')
 
             xr_hrv_tracker_allsujet = xr.concat([xr_hrv_tracker_allsujet, xr_hrv_tracker_allsujet_i], dim='sujet')
             xr_hrv_tracker_score_allsujet = xr.concat([xr_hrv_tracker_score_allsujet, xr_hrv_tracker_score_allsujet_i], dim='sujet')
@@ -44,54 +45,132 @@ def get_figure_allsujet():
     #### figure
     os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
 
-    #odor_i = odor_list[0]
-    for odor_i in odor_list:
+    #train_size = xr_hrv_tracker_allsujet['train_percentage'].values[0]
+    for train_size in xr_hrv_tracker_allsujet['train_percentage'].values:
 
-        fig, ax = plt.subplots(figsize=(15,10))
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'prediction', :].mean(axis=0).data, color='y', label='prediction', linestyle='--')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'label', :].mean(axis=0).data, color='k', label='real')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'trig_odor', :].mean(axis=0).data, color='r', label='odor_trig')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'trig_odor', :].mean(axis=0).data + xr_hrv_tracker_allsujet.loc[:, 'o', 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'trig_odor', :].mean(axis=0).data - xr_hrv_tracker_allsujet.loc[:, 'o', 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
-        ax.set_ylim(0, 4)
-        ax.set_title(f'odor : {odor_i}')
-        ax.legend()
+        fig, axs = plt.subplots(ncols=len(odor_list), figsize=(15,10))
+
+        #odor_i = odor_list[0]
+        for odor_i, odor in enumerate(odor_list):
+
+            ax = axs[odor_i]
+
+            ax.plot(xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'prediction', :].mean(axis=0).data, color='y', label='prediction', linestyle='--')
+            ax.plot(xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'label', :].mean(axis=0).data, color='k', label='real', linestyle='--')
+            ax.plot(xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'trig_odor', :].mean(axis=0).data, color='r', label='odor_trig')
+            ax.plot(xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'trig_odor', :].mean(axis=0).data + xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
+            ax.plot(xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'trig_odor', :].mean(axis=0).data - xr_hrv_tracker_allsujet.loc[:, train_size, odor, 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
+            ax.set_ylim(0, 4)
+            ax.set_title(f'{odor}')
+            ax.legend()
+
+        plt.suptitle(f'train size : {train_size}')
+
         # fig.show()
-        plt.close()
 
-        fig.savefig(f'hrv_tracker_{odor_i}.png')
+        fig.savefig(f'allsujet_no_ref_hrv_tracker_trainsize_{train_size}.png')
+
+    #### plot score
+    xr_hrv_tracker_score_allsujet.rename('value')
+    df_score = xr_hrv_tracker_score_allsujet.to_dataframe(name='value').reset_index()
+
+    sns.pointplot(data=df_score, x='train_percentage', y='value', hue='odor')
+    plt.savefig('allsujet_no_ref_detection_perf_allsize.png')
 
 
 
 
-def get_figure_splitsujet():
 
-    #### load data
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'HRV'))
+    #### load data with ref
+    #sujet = sujet_list[1]
+    for sujet in sujet_list:
 
-    n_train = os.listdir()[0].split('_')[-1][:-3]
-    xr_hrv_tracker_allsujet = xr.open_dataarray([file for file in os.listdir() if file.find('hrv_tracker_allsujet') != -1][0])
-    xr_hrv_tracker_score_allsujet = xr.open_dataarray([file for file in os.listdir() if file.find('hrv_tracker_score_allsujet') != -1][0])
+        if sujet == '31HJ':
+            continue
+
+        os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
+
+        if sujet == sujet_list[0]:
+
+            xr_hrv_tracker_allsujet = xr.open_dataarray(f'o_ref_{sujet}_hrv_tracker.nc')
+            xr_hrv_tracker_score_allsujet = xr.open_dataarray(f'o_ref_{sujet}_hrv_tracker_score.nc')
+
+        else:
+
+            xr_hrv_tracker_allsujet_i = xr.open_dataarray(f'o_ref_{sujet}_hrv_tracker.nc')
+            xr_hrv_tracker_score_allsujet_i = xr.open_dataarray(f'o_ref_{sujet}_hrv_tracker_score.nc')
+
+            xr_hrv_tracker_allsujet = xr.concat([xr_hrv_tracker_allsujet, xr_hrv_tracker_allsujet_i], dim='sujet')
+            xr_hrv_tracker_score_allsujet = xr.concat([xr_hrv_tracker_score_allsujet, xr_hrv_tracker_score_allsujet_i], dim='sujet')
 
     #### figure
     os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
 
+    train_size = 0.8
+
+    odor_list_test = [odor for odor in odor_list if odor != 'o']
+
+    fig, axs = plt.subplots(ncols=len(odor_list_test), figsize=(15,10))
+
     #odor_i = odor_list[0]
-    for odor_i in odor_list:
+    for odor_i, odor in enumerate(odor_list_test):
 
-        fig, ax = plt.subplots(figsize=(15,10))
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'prediction', :].mean(axis=0).data, color='y', label='prediction', linestyle='--')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'label', :].mean(axis=0).data, color='k', label='real')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'trig_odor', :].mean(axis=0).data, color='r', label='odor_trig')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'trig_odor', :].mean(axis=0).data + xr_hrv_tracker_allsujet.loc[:, 'o', 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
-        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor_i, 'trig_odor', :].mean(axis=0).data - xr_hrv_tracker_allsujet.loc[:, 'o', 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
+        ax = axs[odor_i]
+
+        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor, 'prediction', :].mean(axis=0).data, color='y', label='prediction', linestyle='--')
+        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor, 'label', :].mean(axis=0).data, color='k', label='real', linestyle='--')
+        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor, 'trig_odor', :].mean(axis=0).data, color='r', label='odor_trig')
+        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor, 'trig_odor', :].mean(axis=0).data + xr_hrv_tracker_allsujet.loc[:, odor, 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
+        ax.plot(xr_hrv_tracker_allsujet.loc[:, odor, 'trig_odor', :].mean(axis=0).data - xr_hrv_tracker_allsujet.loc[:, odor, 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
         ax.set_ylim(0, 4)
-        ax.set_title(f'odor : {odor_i}')
+        ax.set_title(f'{odor}')
         ax.legend()
-        # fig.show()
-        plt.close()
 
-        fig.savefig(f'{n_train}_hrv_tracker_{odor_i}.png')
+    plt.suptitle(f'train size : {train_size}')
+
+    # fig.show()
+
+    fig.savefig(f'allsujet_o_ref_hrv_tracker_trainsize_{train_size}.png')
+
+    #### figure short list subjects
+    allsujet_xr = xr_hrv_tracker_allsujet.sujet.values
+    sujet_best_list_included = [f"{sujet[-2:]}{sujet[:2]}" for sujet in sujet_best_list]
+    sujet_best_list_included = [sujet for sujet in sujet_best_list_included if sujet in allsujet_xr]
+
+    sujet_best_list_not_included = [sujet for sujet in allsujet_xr if sujet not in sujet_best_list_included]
+
+    #### plot
+    fig, axs = plt.subplots(ncols=len(odor_list_test), nrows=2, figsize=(15,10))
+
+    for target_i, target in enumerate(['o_respond', 'o_no_respond']):
+
+        if target == 'o_respond':
+            xr_hrv_tracker_allsujet_filter = xr_hrv_tracker_allsujet.loc[sujet_best_list_included, :, :, :]
+        if target == 'o_no_respond':
+            xr_hrv_tracker_allsujet_filter = xr_hrv_tracker_allsujet.loc[sujet_best_list_not_included, :, :, :]
+
+        #odor_i = odor_list[0]
+        for odor_i, odor in enumerate(odor_list_test):
+
+            ax = axs[target_i, odor_i]
+
+            ax.plot(xr_hrv_tracker_allsujet_filter.loc[:, odor, 'prediction', :].mean(axis=0).data, color='y', label='prediction', linestyle='--')
+            ax.plot(xr_hrv_tracker_allsujet_filter.loc[:, odor, 'label', :].mean(axis=0).data, color='k', label='real', linestyle='--')
+            ax.plot(xr_hrv_tracker_allsujet_filter.loc[:, odor, 'trig_odor', :].mean(axis=0).data, color='r', label='odor_trig')
+            ax.plot(xr_hrv_tracker_allsujet_filter.loc[:, odor, 'trig_odor', :].mean(axis=0).data + xr_hrv_tracker_allsujet_filter.loc[:, odor, 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
+            ax.plot(xr_hrv_tracker_allsujet_filter.loc[:, odor, 'trig_odor', :].mean(axis=0).data - xr_hrv_tracker_allsujet_filter.loc[:, odor, 'trig_odor', :].std(axis=0).data, color='r', linestyle='--')
+            ax.set_ylim(0, 4)
+            ax.set_title(f'{target}, {odor}')
+            ax.legend()
+
+    plt.suptitle(f'train size : {train_size}')
+
+    # fig.show()
+
+    fig.savefig(f'allsujet_o_ref_odor_repond_hrv_tracker_trainsize_{train_size}.png')
+
+
+
 
 
 

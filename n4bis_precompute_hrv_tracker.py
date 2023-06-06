@@ -34,7 +34,7 @@ import gc
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
-from n1bis_prep_trigger_info import *
+from n1bis_prep_info import *
 from n4_precompute_hrv import *
 
 debug = False
@@ -150,7 +150,18 @@ def zscore(data):
 
 
 
-def hrv_tracker(ecg_cR, win_size, srate):
+def get_data_hrv_tracker(ecg, prms_tracker):
+
+    #### extract params
+    srate = prms_tracker['srate']
+    win_size_sec, jitter = prms_tracker['win_size_sec'], prms_tracker['jitter']
+    win_size = int(win_size_sec*srate)
+
+    #### precompute ecg
+    ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
+
+    ecg_cR = np.zeros((ecg.shape[0]))
+    ecg_cR[ecg_peaks] = 10
 
     #### load cR
     ecg_cR_val = np.where(ecg_cR != 0)[0]/srate
@@ -172,7 +183,7 @@ def hrv_tracker(ecg_cR, win_size, srate):
 
     #### first point sliding win
     RRI_win = np.diff(ecg_cR_sliding_win)
-    df_res = get_hrv_metrics_win(RRI_win)
+    df_res = get_hrv_metrics_win(RRI_win)[prms_tracker['metric_list']]
     times = [ecg_cR_val[cR_initial]]
 
     #### sliding on other cR
@@ -181,7 +192,7 @@ def hrv_tracker(ecg_cR, win_size, srate):
 
         ecg_cR_sliding_win = np.append(ecg_cR_sliding_win[1:], ecg_cR_val[cR_i])
         RRI_win = np.diff(ecg_cR_sliding_win)
-        df_slide = get_hrv_metrics_win(RRI_win)
+        df_slide = get_hrv_metrics_win(RRI_win)[prms_tracker['metric_list']]
         
         df_res = pd.concat([df_res, df_slide], axis=0)
 
@@ -196,12 +207,19 @@ def hrv_tracker(ecg_cR, win_size, srate):
 
 #sujet_i = 1
 #ecg, win_size, srate, srate_resample_hrv, classifier, metric_used, odor_trig_n_bpm, labels_dict = ecg_test, win_size, srate, srate_resample_hrv, model, labels_used, odor_trig_n_bpm, labels_dict
-def hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker):
+def hrv_tracker_svm(ecg, classifier, prms_tracker):
+
+    srate = prms_tracker['srate']
 
     win_size_sec, metric_used, odor_trig_n_bpm = prms_tracker['win_size_sec'], prms_tracker['metric_list'], prms_tracker['odor_trig_n_bpm']
     win_size = int(win_size_sec*srate)
 
     #### load cR
+    ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
+
+    ecg_cR = np.zeros((ecg.shape[0]))
+    ecg_cR[ecg_peaks] = 10
+
     ecg_cR_val = np.where(ecg_cR != 0)[0]/srate
     RRI = np.diff(ecg_cR_val)
 
@@ -221,7 +239,7 @@ def hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker):
 
     #### first point sliding win
     RRI_win = np.diff(ecg_cR_sliding_win)
-    df_res = get_hrv_metrics_win(RRI_win)
+    df_res = get_hrv_metrics_win(RRI_win)[prms_tracker['metric_list']]
     predictions = classifier.predict(df_res.values)
     trig_odor = [0]
     times = [ecg_cR_val[cR_initial]]
@@ -238,7 +256,7 @@ def hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker):
 
         ecg_cR_sliding_win = np.append(ecg_cR_sliding_win[1:], ecg_cR_val[cR_i])
         RRI_win = np.diff(ecg_cR_sliding_win)
-        df_slide = get_hrv_metrics_win(RRI_win)
+        df_slide = get_hrv_metrics_win(RRI_win)[prms_tracker['metric_list']]
         predictions = np.append(predictions, classifier.predict(df_slide.values))
         df_res = pd.concat([df_res, df_slide], axis=0)
 
@@ -268,22 +286,6 @@ def hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker):
 
 
 
-def get_data_tracking(ecg, prms_tracker):
-
-    #### params
-    win_size_sec, jitter = prms_tracker['win_size_sec'], prms_tracker['jitter']
-    win_size = int(win_size_sec*srate)
-
-    #### precompute ecg
-    ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
-
-    ecg_cR = np.zeros((ecg.shape[0]))
-    ecg_cR[ecg_peaks] = 10
-
-    #### compute tracking data
-    df_hrv, times = hrv_tracker(ecg_cR, win_size, srate)
-
-    return df_hrv, times
 
 
 
@@ -304,58 +306,35 @@ def get_data_tracking(ecg, prms_tracker):
 ################################
 
 
-def hrv_compute_compilation(sujet):
-
-    ########################
-    ######## VERIF ########
-    ########################
-
-    if debug:
-
-        ecg_cR_n = {}
-
-        for sujet in sujet_list:
-
-            print(sujet)
-
-            for odor_i in odor_list:
-
-                #### load
-                ecg, ecg_cR = load_ecg_sig(sujet, odor_i, band_prep)
-
-                ecg_cR_n[f'{sujet}_{odor_i}'] = (ecg_cR == 10).sum()
-
-        plt.hist(ecg_cR_n.values(), bins=100)
-        plt.show()
-
-        mask = np.array(list(ecg_cR_n.values())) < 3000
-        np.array(list(ecg_cR_n.keys()))[mask]
 
 
+def hrv_tracker_with_ref(sujet):
 
-    ########################
-    ######## PARAMS ########
-    ########################
+    print('################', flush=True)
+    print(f'#### {sujet} ####', flush=True)
+    print('################', flush=True)
 
+    if os.path.exists(os.path.join(path_precompute, sujet, 'HRV', f'o_ref_{sujet}_hrv_tracker')):
+        print('ALREADY COMPUTED', flush=True)
+        return
+
+    #### params
     prms_tracker = {
-    'metric_list' : ['MeanNN', 'SDNN', 'RMSSD', 'pNN50', 'AUC_LF', 'AUC_HF', 'LF_HF_ratio', 'SD1', 'SD2'],
+    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_COV'],
     'win_size_sec' : 30,
     'odor_trig_n_bpm' : 75,
     'jitter' : 0,
+    'srate' : srate
     }
-
-    band_prep = 'wb'
-
-    odor_ref = 'o'
-    odor_list_test = [odor_i for odor_i in odor_list if odor_i != odor_ref]
 
     trim_edge = 30 #sec  
     trim_between = 180 #sec
     n_pnts_trim_resample = 10000
 
-    if os.path.exists(os.path.join(path_precompute, sujet, 'HRV', f'{sujet}_hrv_tracker.nc')):
-        print('ALREADY COMPUTED')
-        return
+    band_prep = 'wb'
+
+    odor_ref = 'o'
+    odor_list_test = [odor_i for odor_i in odor_list if odor_i != odor_ref]
 
     xr_dict = {'sujet' : [sujet], 'odor' : np.array(odor_list_test), 'type' : ['prediction', 'label', 'trig_odor'], 'times' : np.arange(n_pnts_trim_resample)}
     xr_hrv_tracker = xr.DataArray(data=np.zeros((1, len(odor_list_test), 3, n_pnts_trim_resample)), dims=xr_dict.keys(), coords=xr_dict.values())
@@ -363,34 +342,35 @@ def hrv_compute_compilation(sujet):
     xr_dict = {'sujet' : [sujet], 'odor' : np.array(odor_list_test)}
     xr_hrv_tracker_score = xr.DataArray(data=np.zeros((1, len(odor_list_test))), dims=xr_dict.keys(), coords=xr_dict.values())
 
+    predictions_dict = {}
+    for odor_i in odor_list_test:
 
-    print('################')
-    print(f'#### {sujet} {odor_ref} ####')
-    print('################')
+        predictions_dict[odor_i] = {}
+        for trim_type in ['trim', 'no_trim']:
 
-    ########################
-    ######## MODEL ########
-    ########################
+            predictions_dict[odor_i][trim_type] = {}
+            for data_type in ['real', 'predict', 'odor_trig', 'score']:
 
-    #### load
+                predictions_dict[odor_i][trim_type][data_type] = []
+
+    print(f'compute tracker {sujet} {odor_ref}', flush=True)
+
+    ######### LOAD #########
     ecg = load_ecg_sig(sujet, odor_ref, band_prep)
-    label_vec, trig = get_label_vec(sujet, odor_ref, ecg)
 
-    df_hrv, times = get_data_tracking(ecg, prms_tracker)
-    _times = times*srate
-    label_vec = label_vec[_times.astype('int')].astype('int')
+    df_hrv, times = get_data_hrv_tracker(ecg, prms_tracker)
+    label_vec, trig = get_label_vec(sujet, odor_ref, ecg)
+    label_vec = label_vec[(times*srate).astype('int')]
 
     if debug:
 
         plt.plot(ecg)
         plt.show()
-        
-        plt.plot(ecg_cR)
-        plt.show()
 
         plt.plot(label_vec)
         plt.show()
 
+    ######### COMPUTE MODEL #########
     #### split values
     X, y = df_hrv.values, label_vec.copy()
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
@@ -408,44 +388,29 @@ def hrv_compute_compilation(sujet):
     'SVM__gamma' : [0.1, 0.01]
     }
 
-    print('train')
+    print('train', flush=True)
     grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
     grid.fit(X_train, y_train)
     classifier_score = grid.best_score_
     classifier = grid.best_estimator_
-    print('done')
-
-
-
-    ########################
-    ######## TEST ########
-    ########################
-
-    #odor_i = odor_list[2]
+    print('train done', flush=True)
+    
+    ######### TEST MODEL #########
     for odor_i in odor_list_test:
-        
-        #### load
+
+        #### load data
         ecg = load_ecg_sig(sujet, odor_i, band_prep)
+
+        df_hrv, times = get_data_hrv_tracker(ecg, prms_tracker)
         label_vec, trig = get_label_vec(sujet, odor_i, ecg)
-
-        df_hrv, times = get_data_tracking(ecg, prms_tracker)
-        _times = times*srate
-        label_vec = label_vec[_times.astype('int')].astype('int')
-
-        if debug:
-
-            plt.plot(ecg)
-            plt.show()
-            
-            plt.plot(ecg_cR)
-            plt.show()
-
-            plt.plot(label_vec)
-            plt.show()
-
-
+        label_vec = label_vec[(times*srate).astype('int')]
+        
         #### get values
-        df_res, times, predictions, trig_odor = hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker)
+        df_res, predictions_time, predictions, trig_odor = hrv_tracker_svm(ecg, classifier, prms_tracker)
+
+        #### resample label_vec_time
+        # f = scipy.interpolate.interp1d(label_vec_time, label_vec, kind='linear')
+        # label_vec_time_resampled = f(predictions_time)
 
         #### trim vectors
         #cond_i, cond = 1, conditions[1]
@@ -456,7 +421,7 @@ def hrv_compute_compilation(sujet):
                 start = trig[cond][0]/srate - trim_edge
                 stop = trig[cond][1]/srate + trim_between
 
-                mask_start = (start <= times) & (times <= stop)
+                mask_start = (start <= predictions_time) & (predictions_time <= stop)
 
                 predictions_trim = predictions[mask_start] 
                 label_vec_trim = label_vec[mask_start]
@@ -467,7 +432,7 @@ def hrv_compute_compilation(sujet):
                 start = trig[cond][0]/srate - trim_between
                 stop = trig[cond][1]/srate + trim_edge
 
-                mask_start = (start <= times) & (times <= stop) 
+                mask_start = (start <= predictions_time) & (predictions_time <= stop) 
 
                 predictions_trim = np.concatenate((predictions_trim, predictions[mask_start]), axis=0)
                 label_vec_trim = np.concatenate((label_vec_trim, label_vec[mask_start]), axis=0)
@@ -478,7 +443,7 @@ def hrv_compute_compilation(sujet):
                 start = trig[cond][0]/srate - trim_between
                 stop = trig[cond][1]/srate + trim_between
 
-                mask_start = (start <= times) & (times <= stop)
+                mask_start = (start <= predictions_time) & (predictions_time <= stop)
 
                 predictions_trim = np.concatenate((predictions_trim, predictions[mask_start]), axis=0)
                 label_vec_trim = np.concatenate((label_vec_trim, label_vec[mask_start]), axis=0)
@@ -502,41 +467,59 @@ def hrv_compute_compilation(sujet):
         f = scipy.interpolate.interp1d(np.linspace(0, 1, trig_odor_trim.shape[-1]), trig_odor_trim, kind='linear')
         trig_odor_trim_resampled = f(np.linspace(0, 1, n_pnts_trim_resample))
 
-        #### plot predictions
-        fig_whole, ax = plt.subplots(figsize=(15,10))
-        ax.plot(predictions, color='y', label='prediction', linestyle='--')
-        ax.plot(label_vec, color='k', label='real')
-        ax.plot(trig_odor, color='r', label='odor_trig')
-        ax.set_title(f'{sujet}{odor_i}, ref : {odor_ref}, perf : {np.round(classifier_score, 3)}')
-        plt.legend()
-        # fig_whole.show()
-        plt.close()
+        #### load res
+        for trim_type in ['trim', 'no_trim']:
 
-        fig_trim, ax = plt.subplots(figsize=(15,10))
-        ax.plot(predictions_trim_resampled, color='y', label='prediction', linestyle='--')
-        ax.plot(label_vec_trim_resampled, color='k', label='real')
-        ax.plot(trig_odor_trim_resampled, color='r', label='odor_trig')
-        ax.set_title(f'{sujet}{odor_i}, ref : {odor_ref}, perf : {np.round(classifier_score, 3)}')
-        ax.legend()
-        # fig_trim.show()
-        plt.close()
+            if trim_type == 'trim':
+                data_load = [label_vec_trim_resampled, predictions_trim_resampled, trig_odor_trim_resampled, classifier_score]
+            if trim_type == 'no_trim':
+                data_load = [label_vec, predictions, trig_odor, classifier_score]
 
-        #### save
-        os.chdir(os.path.join(path_results, sujet, 'HRV'))
-        fig_whole.savefig(f'{sujet}_{odor_i}_hrv_tracker_whole.png')
-        fig_trim.savefig(f'{sujet}_{odor_i}_hrv_tracker_trim.png')
+            for data_type_i, data_type in enumerate(['real', 'predict', 'odor_trig', 'score']):
 
-        #### load results
-        xr_hrv_tracker.loc[sujet, odor_i, 'prediction', :] = predictions_trim_resampled
-        xr_hrv_tracker.loc[sujet, odor_i, 'label', :] = label_vec_trim_resampled
-        xr_hrv_tracker.loc[sujet, odor_i, 'trig_odor', :] = trig_odor_trim_resampled
+                predictions_dict[odor_i][trim_type][data_type] = data_load[data_type_i]
 
-        xr_hrv_tracker_score.loc[sujet, odor_i] = np.round(classifier_score, 5)
+    ######## PLOT ########
+    fig_whole, axs = plt.subplots(ncols=len(odor_list_test), figsize=(18,9))
+    for odor_i, odor in enumerate(odor_list_test):
+        ax = axs[odor_i]
+        ax.plot(predictions_dict[odor]['no_trim']['real'], color='k', label='real', linestyle=':', linewidth=3)
+        ax.plot(predictions_dict[odor]['no_trim']['predict'], color='y', label='prediction')
+        ax.plot(predictions_dict[odor]['no_trim']['odor_trig'], color='r', label='odor_trig', linestyle='--')
+        ax.set_title(f"{odor_i}, ref : {odor_ref}, predict : {odor}, perf : {np.round(predictions_dict[odor]['no_trim']['score'], 3)}")
+    plt.suptitle(f'{sujet} RAW')
+    plt.legend()
+    # fig_whole.show()
+    plt.close()
 
-    #### save hrv tracker values
+    fig_trim, axs = plt.subplots(ncols=len(odor_list_test), figsize=(18, 9))
+    for odor_i, odor in enumerate(odor_list_test):
+        ax = axs[odor_i]
+        ax.plot(predictions_dict[odor]['trim']['real'], color='k', label='real', linestyle=':', linewidth=3)
+        ax.plot(predictions_dict[odor]['trim']['predict'], color='y', label='prediction')
+        ax.plot(predictions_dict[odor]['trim']['odor_trig'], color='r', label='odor_trig', linestyle='--')
+        ax.set_title(f"ref : {odor_ref}, predict : {odor}, perf : {np.round(predictions_dict[odor]['trim']['score'], 3)}")
+    plt.suptitle(f'{sujet} TRIMMED')
+    plt.legend()
+    # fig_trim.show()
+    plt.close()
+
+    ######## SAVE ########
+    os.chdir(os.path.join(path_results, sujet, 'HRV'))
+    fig_whole.savefig(f'o_ref_{sujet}_hrv_tracker_whole.png')
+    fig_trim.savefig(f'o_ref_{sujet}_hrv_tracker_trim.png')
+
+    #### load results
     os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
-    xr_hrv_tracker.to_netcdf(f'{sujet}_hrv_tracker.nc')
-    xr_hrv_tracker_score.to_netcdf(f'{sujet}_hrv_tracker_score.nc')
+    for odor_i, odor in enumerate(odor_list_test):
+        xr_hrv_tracker.loc[sujet, odor, 'prediction', :] = predictions_dict[odor]['trim']['predict']
+        xr_hrv_tracker.loc[sujet, odor, 'label', :] = predictions_dict[odor]['trim']['real']
+        xr_hrv_tracker.loc[sujet, odor, 'trig_odor', :] = predictions_dict[odor]['trim']['odor_trig']
+
+    xr_hrv_tracker_score.loc[sujet, odor] = np.round(classifier_score, 5)
+
+    xr_hrv_tracker.to_netcdf(f'o_ref_{sujet}_hrv_tracker.nc')
+    xr_hrv_tracker_score.to_netcdf(f'o_ref_{sujet}_hrv_tracker_score.nc')
 
 
 
@@ -544,122 +527,116 @@ def hrv_compute_compilation(sujet):
 
 
 
-def hrv_compute_compilation_restrain_train():
 
-    
+def hrv_tracker_no_ref_modify_train(sujet):
+
+    print('################', flush=True)
+    print(f'#### {sujet} ####', flush=True)
+    print('################', flush=True)
+
+    if os.path.exists(os.path.join(path_precompute, sujet, 'HRV', f'no_ref_{sujet}_hrv_tracker_alltestsize.nc')):
+        print('ALREADY COMPUTED', flush=True)
+        return
+
     ########################
     ######## PARAMS ########
     ########################
 
-    n_sujet_train = 5
-
     prms_tracker = {
-    'metric_list' : ['MeanNN', 'SDNN', 'RMSSD', 'pNN50', 'AUC_LF', 'AUC_HF', 'LF_HF_ratio', 'SD1', 'SD2'],
+    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_COV'],
     'win_size_sec' : 30,
     'odor_trig_n_bpm' : 75,
     'jitter' : 0,
+    'srate' : srate
     }
-
-    band_prep = band_prep_list[0]
 
     trim_edge = 30 #sec  
     trim_between = 180 #sec
     n_pnts_trim_resample = 10000
 
-    if os.path.exists(os.path.join(path_precompute, 'allsujet', 'HRV', f'hrv_tracker_allsujet_train{n_sujet_train}.nc')):
-        print('ALREADY COMPUTED')
-        return
-    
-    sujet_list_clean = np.array([sujet for sujet in sujet_list if sujet != '31HJ'])
-    sujet_list_shuffle = sujet_list_clean.copy()
-    np.random.shuffle(sujet_list_shuffle)
-    sujet_list_train, sujet_list_test = sujet_list_shuffle[:n_sujet_train], sujet_list_shuffle[n_sujet_train:]
+    band_prep = 'wb'
 
-    xr_dict = {'sujet' : sujet_list_test, 'odor' : np.array(odor_list), 'type' : ['prediction', 'label', 'trig_odor'], 'times' : np.arange(n_pnts_trim_resample)}
-    xr_hrv_tracker = xr.DataArray(data=np.zeros((sujet_list_test.shape[0], len(odor_list), 3, n_pnts_trim_resample)), dims=xr_dict.keys(), coords=xr_dict.values())
+    train_percentage_values = [0.5, 0.6, 0.7, 0.8]
 
-    xr_dict = {'sujet' : sujet_list_test, 'odor' : np.array(odor_list)}
-    xr_hrv_tracker_score = xr.DataArray(data=np.zeros((sujet_list_test.shape[0], len(odor_list))), dims=xr_dict.keys(), coords=xr_dict.values())
-    
-    #odor_i = odor_list[0]
+    xr_dict = {'sujet' : [sujet], 'train_percentage' : train_percentage_values, 'odor' : np.array(odor_list), 'type' : ['prediction', 'label', 'trig_odor'], 'times' : np.arange(n_pnts_trim_resample)}
+    xr_hrv_tracker = xr.DataArray(data=np.zeros((1, len(train_percentage_values), len(odor_list), 3, n_pnts_trim_resample)), dims=xr_dict.keys(), coords=xr_dict.values())
+
+    xr_dict = {'sujet' : [sujet], 'train_percentage' : train_percentage_values, 'odor' : np.array(odor_list)}
+    xr_hrv_tracker_score = xr.DataArray(data=np.zeros((1, len(train_percentage_values), len(odor_list))), dims=xr_dict.keys(), coords=xr_dict.values())
+
+    ################################################
+    ######## COMPUTE MODEL ONE SESSION ########
+    ################################################
+
+    predictions_dict = {}
+    for train_value in train_percentage_values:
+
+        predictions_dict[train_value] = {}
+        for odor_i in odor_list:
+
+            predictions_dict[train_value][odor_i] = {}
+            for trim_type in ['trim', 'no_trim']:
+
+                predictions_dict[train_value][odor_i][trim_type] = {}
+                for data_type in ['real', 'predict', 'odor_trig', 'score']:
+
+                    predictions_dict[train_value][odor_i][trim_type][data_type] = []
+
     for odor_i in odor_list:
 
-        ########################
-        ######## TRAIN ########
-        ########################
+        for train_value in train_percentage_values:
 
-        #sujet_i, sujet = 1, sujet_list_train[1]
-        for sujet_i, sujet in enumerate(sujet_list_train):
+            test_size_i = 1 - train_value
 
+            print(f'compute tracker {sujet} {odor_i} {train_value}', flush=True)
+
+            ######### LOAD #########
             ecg = load_ecg_sig(sujet, odor_i, band_prep)
-            ecg, ecg_peaks = physio.compute_ecg(ecg, srate)
 
-            if sujet_i == 0:
-
-                df_hrv, times = get_data_tracking(ecg, prms_tracker)
-                _times = times*srate
-
-                label_vec, trig = get_label_vec(sujet, odor_i, ecg)
-                label_vec = label_vec[_times.astype('int')].astype('int')
-
-            else:
-
-                df_hrv_i, times = get_data_tracking(ecg, prms_tracker)
-                _times = times*srate
-
-                label_vec_i, trig = get_label_vec(sujet, odor_i, ecg)
-                label_vec_i = label_vec_i[_times.astype('int')].astype('int')
-
-                df_hrv = pd.concat([df_hrv, df_hrv_i], axis=0)
-                label_vec = np.concatenate((label_vec, label_vec_i), axis=0)
-
-        X, y = df_hrv.values, label_vec.copy()
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
-        
-        #### make pipeline
-        #SVC().get_params()
-        steps = [('scaler', StandardScaler()), ('SVM', SVC())]
-        pipeline = Pipeline(steps)
-
-        #### find best model
-        params = {
-        # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
-        # 'SVM__kernel' : ['linear', 'poly', 'rbf'],    
-        'SVM__C' : [0.001, 0.1, 1, 10, 100, 10e5], 
-        'SVM__gamma' : [0.1, 0.01]
-        }
-
-        print('train')
-        grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
-        grid.fit(X_train, y_train)
-        classifier_score = grid.best_score_
-        classifier = grid.best_estimator_
-        print('done')
-
-        ########################
-        ######## TEST ########
-        ########################
-
-        #sujet = sujet_list_test[0]
-        for sujet in sujet_list_test:
-
-            print(f'#### {sujet} {odor_i} ####')
-
-            #### load
-            ecg = load_ecg_sig(sujet, odor_i, band_prep)
+            df_hrv, times = get_data_hrv_tracker(ecg, prms_tracker)
             label_vec, trig = get_label_vec(sujet, odor_i, ecg)
+            label_vec = label_vec[(times*srate).astype('int')]
 
-            df_hrv, times = get_data_tracking(ecg, prms_tracker)
-            _times = times*srate
-            label_vec = label_vec[_times.astype('int')].astype('int')
+            if debug:
 
+                plt.plot(ecg)
+                plt.show()
 
-            ################################
-            ######## SVM PREDICTION ########
-            ################################
+                plt.plot(label_vec)
+                plt.show()
 
+            ######### COMPUTE MODEL #########
+            #### split values
+            X, y = df_hrv.values, label_vec.copy()
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size_i, random_state=5)
+            
+            #### make pipeline
+            #SVC().get_params()
+            steps = [('scaler', StandardScaler()), ('SVM', SVC())]
+            pipeline = Pipeline(steps)
+
+            #### find best model
+            params = {
+            # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
+            # 'SVM__kernel' : ['linear', 'poly', 'rbf'],    
+            'SVM__C' : [0.001, 0.1, 1, 10, 100, 10e5], 
+            'SVM__gamma' : [0.1, 0.01]
+            }
+
+            print('train', flush=True)
+            grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
+            grid.fit(X_train, y_train)
+            classifier_score = grid.best_score_
+            classifier = grid.best_estimator_
+            print('train done', flush=True)
+
+            ######### TEST MODEL #########
             #### get values
-            df_res, times, predictions, trig_odor = hrv_tracker_svm(ecg_cR, srate, classifier, prms_tracker)
+            df_res, predictions_time, predictions, trig_odor = hrv_tracker_svm(ecg, classifier, prms_tracker)
+
+            #### resample label_vec_time
+            # f = scipy.interpolate.interp1d(label_vec_time, label_vec, kind='linear')
+            # label_vec_time_resampled = f(predictions_time)
 
             #### trim vectors
             #cond_i, cond = 1, conditions[1]
@@ -670,7 +647,7 @@ def hrv_compute_compilation_restrain_train():
                     start = trig[cond][0]/srate - trim_edge
                     stop = trig[cond][1]/srate + trim_between
 
-                    mask_start = (start <= times) & (times <= stop)
+                    mask_start = (start <= predictions_time) & (predictions_time <= stop)
 
                     predictions_trim = predictions[mask_start] 
                     label_vec_trim = label_vec[mask_start]
@@ -681,7 +658,7 @@ def hrv_compute_compilation_restrain_train():
                     start = trig[cond][0]/srate - trim_between
                     stop = trig[cond][1]/srate + trim_edge
 
-                    mask_start = (start <= times) & (times <= stop) 
+                    mask_start = (start <= predictions_time) & (predictions_time <= stop) 
 
                     predictions_trim = np.concatenate((predictions_trim, predictions[mask_start]), axis=0)
                     label_vec_trim = np.concatenate((label_vec_trim, label_vec[mask_start]), axis=0)
@@ -692,7 +669,7 @@ def hrv_compute_compilation_restrain_train():
                     start = trig[cond][0]/srate - trim_between
                     stop = trig[cond][1]/srate + trim_between
 
-                    mask_start = (start <= times) & (times <= stop)
+                    mask_start = (start <= predictions_time) & (predictions_time <= stop)
 
                     predictions_trim = np.concatenate((predictions_trim, predictions[mask_start]), axis=0)
                     label_vec_trim = np.concatenate((label_vec_trim, label_vec[mask_start]), axis=0)
@@ -716,42 +693,61 @@ def hrv_compute_compilation_restrain_train():
             f = scipy.interpolate.interp1d(np.linspace(0, 1, trig_odor_trim.shape[-1]), trig_odor_trim, kind='linear')
             trig_odor_trim_resampled = f(np.linspace(0, 1, n_pnts_trim_resample))
 
-            if debug:
+            #### load res
+            for trim_type in ['trim', 'no_trim']:
 
-                #### plot predictions
-                fig_whole, ax = plt.subplots(figsize=(15,10))
-                ax.plot(predictions, color='y', label='prediction', linestyle='--')
-                ax.plot(label_vec, color='k', label='real')
-                ax.plot(trig_odor, color='r', label='odor_trig')
-                ax.set_title(f'perf : {np.round(classifier_score, 3)}')
-                plt.legend()
-                # fig_whole.show()
-                plt.close()
+                if trim_type == 'trim':
+                    data_load = [label_vec_trim_resampled, predictions_trim_resampled, trig_odor_trim_resampled, classifier_score]
+                if trim_type == 'no_trim':
+                    data_load = [label_vec, predictions, trig_odor, classifier_score]
 
-                fig_trim, ax = plt.subplots(figsize=(15,10))
-                ax.plot(predictions_trim_resampled, color='y', label='prediction', linestyle='--')
-                ax.plot(label_vec_trim_resampled, color='k', label='real')
-                ax.plot(trig_odor_trim_resampled, color='r', label='odor_trig')
-                ax.legend()
-                # fig_trim.show()
-                plt.close()
+                for data_type_i, data_type in enumerate(['real', 'predict', 'odor_trig', 'score']):
 
-                #### save
-                os.chdir(os.path.join(path_results, sujet, 'HRV'))
-                fig_whole.savefig(f'{sujet}_{odor_i}_hrv_tracker_whole.png')
-                fig_trim.savefig(f'{sujet}_{odor_i}_hrv_tracker_trim.png')
+                    predictions_dict[train_value][odor_i][trim_type][data_type] = data_load[data_type_i]
 
-            #### load results
-            xr_hrv_tracker.loc[sujet, odor_i, 'prediction', :] = predictions_trim_resampled
-            xr_hrv_tracker.loc[sujet, odor_i, 'label', :] = label_vec_trim_resampled
-            xr_hrv_tracker.loc[sujet, odor_i, 'trig_odor', :] = trig_odor_trim_resampled
+    ######## PLOT ########
+    for train_value in train_percentage_values:
+        fig_whole, axs = plt.subplots(ncols=len(odor_list), figsize=(18,9))
+        for odor_i, odor in enumerate(odor_list):
+            ax = axs[odor_i]
+            ax.plot(predictions_dict[train_value][odor]['no_trim']['real'], color='k', label='real', linestyle=':', linewidth=3)
+            ax.plot(predictions_dict[train_value][odor]['no_trim']['predict'], color='y', label='prediction')
+            ax.plot(predictions_dict[train_value][odor]['no_trim']['odor_trig'], color='r', label='odor_trig', linestyle='--')
+            ax.set_title(f"ref : {odor}, predict : {odor}, perf : {np.round(predictions_dict[train_value][odor]['no_trim']['score'], 3)}")
+        plt.suptitle(f'{sujet} RAW, train value : {train_value}')
+        plt.legend()
+        # fig_whole.show()
+        plt.close()
 
-            xr_hrv_tracker_score.loc[sujet, odor_i] = np.round(classifier_score, 5)
+        fig_trim, axs = plt.subplots(ncols=len(odor_list), figsize=(18, 9))
+        for odor_i, odor in enumerate(odor_list):
+            ax = axs[odor_i]
+            ax.plot(predictions_dict[train_value][odor]['trim']['real'], color='k', label='real', linestyle=':', linewidth=3)
+            ax.plot(predictions_dict[train_value][odor]['trim']['predict'], color='y', label='prediction')
+            ax.plot(predictions_dict[train_value][odor]['trim']['odor_trig'], color='r', label='odor_trig', linestyle='--')
+            ax.set_title(f"ref : {odor}, predict : {odor}, perf : {np.round(predictions_dict[train_value][odor]['trim']['score'], 3)}")
+        plt.suptitle(f'{sujet} TRIMMED, train value : {train_value}')
+        plt.legend()
+        # fig_trim.show()
+        plt.close()
 
-    #### save hrv tracker values
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'HRV'))
-    xr_hrv_tracker.to_netcdf(f'hrv_tracker_allsujet_train{n_sujet_train}.nc')
-    xr_hrv_tracker_score.to_netcdf(f'hrv_tracker_score_allsujet_train{n_sujet_train}.nc')
+        ######## SAVE ########
+        os.chdir(os.path.join(path_results, sujet, 'HRV'))
+        fig_whole.savefig(f'no_ref_{sujet}_train_{str(train_value*100)}_hrv_tracker_whole.png')
+        fig_trim.savefig(f'no_ref_{sujet}_train_{str(train_value*100)}_hrv_tracker_trim.png')
+
+    #### load results
+    for train_value in train_percentage_values:
+        os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
+        for odor_i, odor in enumerate(odor_list):
+            xr_hrv_tracker.loc[sujet, train_value, odor, 'prediction', :] = predictions_dict[train_value][odor]['trim']['predict']
+            xr_hrv_tracker.loc[sujet, train_value, odor, 'label', :] = predictions_dict[train_value][odor]['trim']['real']
+            xr_hrv_tracker.loc[sujet, train_value, odor, 'trig_odor', :] = predictions_dict[train_value][odor]['trim']['odor_trig']
+
+            xr_hrv_tracker_score.loc[sujet, train_value, odor] = np.round(predictions_dict[train_value][odor]['trim']['score'], 5)
+
+    xr_hrv_tracker.to_netcdf(f'no_ref_{sujet}_hrv_tracker_alltestsize.nc')
+    xr_hrv_tracker_score.to_netcdf(f'no_ref_{sujet}_hrv_tracker_score_alltestsize.nc')
 
 
 
@@ -779,10 +775,9 @@ if __name__ == '__main__':
     for sujet in sujet_list:
 
         #hrv_compute_compilation(sujet)
-        execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_compute_compilation', [sujet])
+        # execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_tracker_with_ref', [sujet])
+        execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_tracker_no_ref_modify_train', [sujet])
 
-    #hrv_compute_compilation_restrain_train(sujet)
-    execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_compute_compilation_restrain_train', [])
 
 
 
