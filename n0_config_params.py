@@ -26,8 +26,8 @@ perso_repo_computation = False
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
 sujet_list = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
-'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','26MN','27BD','28NT','29SC',
-'30AR','32CM','33MA'])
+'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','DF25','26MN','27BD','28NT','29SC',
+'30AR','HJ31', '32CM','33MA'])
 
 # 02MJ signal problems
 # DF25 has no session 2
@@ -280,6 +280,14 @@ prep_step_hf = {
 
 
 
+segment_to_clean = {
+
+'04GB' : {'-' : ['O1', 'O2', 'Oz']}
+
+}
+
+
+sujet_extra_ICA = ['05LV']
 
 ################################
 ######## ERP PARAMS ########

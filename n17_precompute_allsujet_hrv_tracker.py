@@ -50,10 +50,10 @@ debug = False
 ################################
 
 
-def get_classifier_allsujet_hrv_tracker_no_ref():
+def get_classifier_allsujet_hrv_tracker_o_ref():
 
     print('################')
-    print(f'#### NO REF ####')
+    print(f'#### O REF ####')
     print('################')
 
     ########################
@@ -70,69 +70,72 @@ def get_classifier_allsujet_hrv_tracker_no_ref():
 
     band_prep = 'wb'
 
+    odor = 'o'
+
     ################################################
     ######## COMPUTE MODEL ONE SESSION ########
     ################################################
 
-    #odor = 'o'
-    for odor in odor_list:
+    print(f'compute tracker {odor}')
 
-        print(f'compute tracker {odor}')
+    ######### LOAD #########
+    ecg_allsujet = np.array([])
+    label_vec_allsujet = np.array([])
 
-        ######### LOAD #########
-        ecg_allsujet = np.array([])
-        label_vec_allsujet = np.array([])
+    for sujet_i, sujet in enumerate(sujet_list):
 
-        for sujet_i, sujet in enumerate(sujet_list):
-            print_advancement(sujet_i, len(sujet_list), [25, 50, 75])
-            ecg = load_ecg_sig(sujet, odor, band_prep)
-            ecg_allsujet = np.append(ecg_allsujet, ecg)
-            label_vec, trig = get_label_vec(sujet, odor, ecg)
-            label_vec_allsujet = np.append(label_vec_allsujet, label_vec)
+        if sujet in ['DF25', 'HJ31']:
+            continue
 
-        df_hrv_allsujet, times = get_data_hrv_tracker(ecg_allsujet, prms_tracker)
-            
-        label_vec_allsujet = label_vec_allsujet[(times*srate).astype('int')]
+        print_advancement(sujet_i, len(sujet_list), [25, 50, 75])
+        ecg = load_ecg_sig(sujet, odor, band_prep)
+        ecg_allsujet = np.append(ecg_allsujet, ecg)
+        label_vec, trig = get_label_vec(sujet, odor, ecg)
+        label_vec_allsujet = np.append(label_vec_allsujet, label_vec)
 
-        if debug:
-
-            plt.plot(ecg_allsujet)
-            plt.show()
-
-            plt.plot(label_vec_allsujet)
-            plt.show()
-
-        ######### COMPUTE MODEL #########
-        #### split values
-        X, y = df_hrv_allsujet.values, label_vec_allsujet.copy()
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
+    df_hrv_allsujet, times = get_data_hrv_tracker(ecg_allsujet, prms_tracker)
         
-        #### make pipeline
-        #SVC().get_params()
-        steps = [('scaler', StandardScaler()), ('SVM', SVC())]
-        pipeline = Pipeline(steps)
+    label_vec_allsujet = label_vec_allsujet[(times*srate).astype('int')]
 
-        #### find best model
-        params = {
-        # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
-        # 'SVM__kernel' : ['linear', 'poly', 'rbf'],    
-        'SVM__C' : [0.1, 1, 10], 
-        'SVM__gamma' : [0.1, 0.01]
-        }
+    if debug:
 
-        print('train')
-        grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
-        grid.fit(X_train, y_train)
-        classifier_score = grid.best_score_
-        classifier = grid.best_estimator_
-        print('train done')
+        plt.plot(ecg_allsujet)
+        plt.show()
 
-        return classifier
+        plt.plot(label_vec_allsujet)
+        plt.show()
+
+    ######### COMPUTE MODEL #########
+    #### split values
+    X, y = df_hrv_allsujet.values, label_vec_allsujet.copy()
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
+    
+    #### make pipeline
+    #SVC().get_params()
+    steps = [('scaler', StandardScaler()), ('SVM', SVC())]
+    pipeline = Pipeline(steps)
+
+    #### find best model
+    params = {
+    # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
+    # 'SVM__kernel' : ['linear', 'poly', 'rbf'],    
+    'SVM__C' : [10e5], 
+    'SVM__gamma' : [0.1, 0.01]
+    }
+
+    print('train')
+    grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
+    grid.fit(X_train, y_train)
+    classifier_score = grid.best_score_
+    classifier = grid.best_estimator_
+    print('train done')
+
+    return classifier
 
 
 
 
-def allsujet_hrv_tracker_no_ref(classifier):
+def allsujet_hrv_tracker_ref_o(classifier):
 
     ########################
     ######## PARAMS ########
@@ -277,118 +280,10 @@ def allsujet_hrv_tracker_no_ref(classifier):
     #### save results
     os.chdir(os.path.join(path_precompute, 'allsujet', 'HRV'))
 
-    xr_hrv_tracker.to_netcdf(f'no_ref_allsujettrain_hrv_tracker.nc')
+    xr_hrv_tracker.to_netcdf(f'o_ref_allsujettrain_hrv_tracker.nc')
 
 
 
-
-
-def allsujet_hrv_tracker_with_ref(sujet):
-
-    print('####################')
-    print(f'#### ALLSUJET WITH REF ####')
-    print('####################')
-
-    #### params
-    prms_tracker = {
-    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_COV'],
-    'win_size_sec' : 30,
-    'odor_trig_n_bpm' : 75,
-    'jitter' : 0,
-    'srate' : srate
-    }
-
-    band_prep = 'wb'
-
-    odor_ref = 'o'
-    odor_list_test = [odor_i for odor_i in odor_list if odor_i != odor_ref]
-
-
-    ######### LOAD #########
-    ecg_allsujet = np.array([])
-    label_vec_allsujet = np.array([])
-
-    for sujet_i, sujet in enumerate(sujet_list):
-        print_advancement(sujet_i, len(sujet_list), [25, 50, 75])
-        ecg = load_ecg_sig(sujet, odor_ref, band_prep)
-        ecg_allsujet = np.append(ecg_allsujet, ecg)
-        label_vec, trig = get_label_vec(sujet, odor_ref, ecg)
-        label_vec_allsujet = np.append(label_vec_allsujet, label_vec)
-
-    df_hrv_allsujet, times = get_data_hrv_tracker(ecg_allsujet, prms_tracker)
-        
-    label_vec_allsujet = label_vec_allsujet[(times*srate).astype('int')]
-
-    if debug:
-
-        plt.plot(ecg_allsujet)
-        plt.show()
-
-        plt.plot(label_vec_allsujet)
-        plt.show()
-
-    ######### COMPUTE MODEL #########
-    #### split values
-    X, y = df_hrv_allsujet.values, label_vec_allsujet.copy()
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=5)
-    
-    #### make pipeline
-    #SVC().get_params()
-    steps = [('scaler', StandardScaler()), ('SVM', SVC())]
-    pipeline = Pipeline(steps)
-
-    #### find best model
-    params = {
-    # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
-    # 'SVM__kernel' : ['linear', 'poly', 'rbf'],    
-    'SVM__C' : [0.1, 1, 10, 100], 
-    'SVM__gamma' : [0.1, 0.01]
-    }
-
-    print('train')
-    grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
-    grid.fit(X_train, y_train)
-    classifier_score = grid.best_score_
-    classifier = grid.best_estimator_
-    print('train done')
-    
-    ######### TEST MODEL #########
-    #odor_i = odor_list_test[1]
-    for odor_i in odor_list_test:
-
-        #### load data
-        ecg_allsujet = np.array([])
-        label_vec_allsujet = np.array([])
-
-        for sujet_i, sujet in enumerate(sujet_list):
-            print_advancement(sujet_i, len(sujet_list), [25, 50, 75])
-            ecg = load_ecg_sig(sujet, odor_i, band_prep)
-            ecg_allsujet = np.append(ecg_allsujet, ecg)
-            label_vec, trig = get_label_vec(sujet, odor_i, ecg)
-            label_vec_allsujet = np.append(label_vec_allsujet, label_vec)
-
-        df_hrv_allsujet, times = get_data_hrv_tracker(ecg_allsujet, prms_tracker)
-        
-        label_vec_allsujet = label_vec_allsujet[(times*srate).astype('int')]
-        
-        #### get values
-        df_res, predictions_time, predictions, trig_odor = hrv_tracker_svm(ecg_allsujet, classifier, prms_tracker)
-
-        ######## PLOT ########
-        fig_whole, ax = plt.subplots(figsize=(18,9))
-        ax.plot(label_vec_allsujet, color='k', label='real', linewidth=3)
-        ax.plot(predictions, color='y', label='prediction')
-        ax.plot(trig_odor, color='r', label='odor_trig', linestyle='--')
-        ax.set_title(f"RAW, ref : {odor_ref}, predict : {odor_i}, perf : {np.round(classifier_score, 3)}")
-        plt.legend()
-        # fig_whole.show()
-        plt.close()
-
-        ######## SAVE ########
-        os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
-        fig_whole.savefig(f'o_ref_{odor_i}_test_allsujet_hrv_tracker_whole.png')
-
-    
 
 
 
@@ -399,8 +294,8 @@ def allsujet_hrv_tracker_with_ref(sujet):
 
 def hrv_tracker_compilation_allsujet():
 
-    classifier = get_classifier_allsujet_hrv_tracker_no_ref()
-    allsujet_hrv_tracker_no_ref(classifier)
+    classifier = get_classifier_allsujet_hrv_tracker_o_ref()
+    allsujet_hrv_tracker_ref_o(classifier)
 
 
 

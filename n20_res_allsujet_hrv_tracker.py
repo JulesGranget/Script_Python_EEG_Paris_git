@@ -239,21 +239,49 @@ def analysis_pref():
 
         xr_hrv_tracker_score.loc[sujet,:] = np.squeeze(xr.load_dataarray(f'no_ref_{sujet}_hrv_tracker_score_alltestsize.nc').values, 0)
 
-    #### plot
+    #### plot & save
+    os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
+
     xr_hrv_tracker_score.rename('value')
     df_score = xr_hrv_tracker_score.to_dataframe(name='value').reset_index()
+    df_score = df_score.query(f"value != 0")
 
     sns.pointplot(data=df_score, x='train_percentage', y='value', hue='odor')
     plt.ylim(0.8, 1)
     # plt.show()
 
-    ######## SAVE ########
-    os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
     plt.savefig('perf_no_ref_detection_allsize.png')
 
+    sns.pointplot(data=df_score.query(f"odor == 'o'"), x='train_percentage', y='value')
+    plt.ylim(0.8, 1)
+
+    plt.savefig('perf_no_ref_detection_allsize_only_o.png')
+    
 
 
 
+
+
+################################
+######## SVM PARAMS ########
+################################
+
+
+def df_allsujet_SVM_params():
+
+    for sujet in sujet_list:
+
+        os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
+
+        if sujet == sujet_list[0]:
+            df_allsujet_params = pd.read_excel(f'{sujet}_hrv_tracker_SVM_test.xlsx')
+        else:
+            df_sujet = pd.read_excel(f'{sujet}_hrv_tracker_SVM_test.xlsx')
+            df_allsujet_params = pd.concat((df_allsujet_params, df_sujet))
+
+    df_allsujet_params = df_allsujet_params.drop(columns=['Unnamed: 0'])
+    os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
+    df_allsujet_params.to_excel('allsujet_hrv_tracker_SVM_params.xlsx')
 
 
 
@@ -273,5 +301,7 @@ if __name__ == '__main__':
 
     allsujet_hrv_tracker_mean()
     allsujet_hrv_tracker_one_classifier()
+    df_allsujet_SVM_params()
+    analysis_pref()
 
 

@@ -582,8 +582,10 @@ def hrv_tracker_no_ref_modify_train(sujet):
 
                     predictions_dict[train_value][odor_i][trim_type][data_type] = []
 
+    #odor_i = odor_list[0]
     for odor_i in odor_list:
 
+        #train_value = train_percentage_values[0]
         for train_value in train_percentage_values:
 
             test_size_i = 1 - train_value
@@ -628,6 +630,7 @@ def hrv_tracker_no_ref_modify_train(sujet):
             grid.fit(X_train, y_train)
             classifier_score = grid.best_score_
             classifier = grid.best_estimator_
+            SVM_params = [classifier.get_params()['SVM'].get_params()['kernel'], classifier.get_params()['SVM'].get_params()['C'], classifier.get_params()['SVM'].get_params()['gamma']]
             print('train done', flush=True)
 
             ######### TEST MODEL #########
@@ -755,6 +758,103 @@ def hrv_tracker_no_ref_modify_train(sujet):
 
 
 
+def hrv_tracker_test_SVM(sujet):
+
+    print('################', flush=True)
+    print(f'#### {sujet} ####', flush=True)
+    print('################', flush=True)
+
+    if os.path.exists(os.path.join(path_precompute, sujet, 'HRV', f'{sujet}_hrv_tracker_SVM_test.xlsx')):
+        print('ALREADY COMPUTED', flush=True)
+        return
+
+    ########################
+    ######## PARAMS ########
+    ########################
+
+    prms_tracker = {
+    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_COV'],
+    'win_size_sec' : 30,
+    'odor_trig_n_bpm' : 75,
+    'jitter' : 0,
+    'srate' : srate
+    }
+
+    band_prep = 'wb'
+
+    train_percentage_values = [0.5, 0.6, 0.7, 0.8]
+
+    data_df = {'sujet' : [], 'train_percentage' : [], 'odor' : [], 'kernel' : [], 'C' : [], 'gamma' : [], 'score' : []}
+
+    ################################################
+    ######## COMPUTE MODEL ONE SESSION ########
+    ################################################
+
+    #odor = odor_list[0]
+    for odor in odor_list:
+
+        #train_value = train_percentage_values[0]
+        for train_value in train_percentage_values:
+
+            test_size_i = 1 - train_value
+
+            print(f'compute tracker {sujet} {odor} {train_value}', flush=True)
+
+            ######### LOAD #########
+            ecg = load_ecg_sig(sujet, odor, band_prep)
+
+            df_hrv, times = get_data_hrv_tracker(ecg, prms_tracker)
+            label_vec, trig = get_label_vec(sujet, odor, ecg)
+            label_vec = label_vec[(times*srate).astype('int')]
+
+            if debug:
+
+                plt.plot(ecg)
+                plt.show()
+
+                plt.plot(label_vec)
+                plt.show()
+
+            ######### COMPUTE MODEL #########
+            #### split values
+            X, y = df_hrv.values, label_vec.copy()
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size_i, random_state=5)
+            
+            #### make pipeline
+            #SVC().get_params()
+            steps = [('scaler', StandardScaler()), ('SVM', SVC())]
+            pipeline = Pipeline(steps)
+
+            #### find best model
+            params = {
+            # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
+            # 'SVM__kernel' : ['linear', 'rbf'],    
+            'SVM__C' : [1e6], 
+            'SVM__gamma' : [0.1, 0.01]
+            }
+
+            print('train', flush=True)
+            grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
+            grid.fit(X_train, y_train)
+            classifier = grid.best_estimator_
+            print('train done', flush=True)
+
+            ######### LOAD #########
+
+            data_df['sujet'].append(sujet)
+            data_df['train_percentage'].append(train_value)
+            data_df['odor'].append(odor)
+            data_df['kernel'].append(classifier.get_params()['SVM'].get_params()['kernel'])
+            data_df['C'].append(classifier.get_params()['SVM'].get_params()['C'])
+            data_df['gamma'].append(classifier.get_params()['SVM'].get_params()['gamma'])
+            data_df['score'].append(grid.best_score_)
+
+    df_sujet = pd.DataFrame(data_df)
+    os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
+    df_sujet.to_excel(f'{sujet}_hrv_tracker_SVM_test.xlsx')
+
+
+
 
 
 
@@ -774,9 +874,11 @@ if __name__ == '__main__':
     #sujet = sujet_list[0]
     for sujet in sujet_list:
 
-        #hrv_compute_compilation(sujet)
+        # hrv_compute_compilation(sujet)
         # execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_tracker_with_ref', [sujet])
-        execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_tracker_no_ref_modify_train', [sujet])
+        # execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_tracker_no_ref_modify_train', [sujet])
+        hrv_tracker_test_SVM(sujet)
+        # execute_function_in_slurm_bash('n4bis_precompute_hrv_tracker', 'hrv_tracker_test_SVM', [sujet])
 
 
 

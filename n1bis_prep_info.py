@@ -138,14 +138,112 @@ dict_trig_sujet = {
 
 }
 
-#### sujet, cond, odor to interpolate
-block_to_interpolate = [['04GB', 'MECA', '-', ['Oz', 'O2']],
-                        ]
 
 
 
+#### artifact added
+dict_artifacts_sujet = {
 
+'01PD' :    {'start' :  [],
+            'stop' :  []},
 
+'02MJ' :    {'start' :  [],
+            'stop' :  []},
+
+'03VN' :    {'start' :  [],
+            'stop' :  []},
+
+'04GB' :    {'start' :  [],
+            'stop' :  []},
+
+'05LV' :    {'start' :  [],
+            'stop' :  []},
+
+'06EF' :    {'start' :  [8.7941e5, 8.9787e5, 9.1884e5, 9.2870e5, 9.8034e5],
+            'stop' :  [8.8252e5, 9.0013e5, 9.2142e5, 9.3219e5, 9.8360e5]},
+
+'07PB' :    {'start' :  [],
+            'stop' :  []},
+
+'08DM' :    {'start' :  [],
+            'stop' :  []},
+
+'09TA' :    {'start' :  [],
+            'stop' :  []},
+
+'10BH' :    {'start' :  [],
+            'stop' :  []},
+            
+'11FA' :    {'start' :  [],
+            'stop' :  []},
+
+'12BD' :    {'start' :  [],
+            'stop' :  []},
+
+'13FP' :    {'start' :  [],
+            'stop' :  []},
+
+'14MD' :    {'start' :  [],
+            'stop' :  []},
+
+'15LG' :    {'start' :  [],
+            'stop' :  []},
+
+'16GM' :    {'start' :  [],
+            'stop' :  []},
+
+'17JR' :    {'start' :  [],
+            'stop' :  []},
+
+'18SE' :    {'start' :  [],
+            'stop' :  []},
+
+'19TM' :    {'start' :  [],
+            'stop' :  []},
+
+'20TY' :    {'start' :  [],
+            'stop' :  []},
+
+'21ZV' :    {'start' :  [],
+            'stop' :  []},
+
+'22DI' :    {'start' :  [],
+            'stop' :  []},
+
+'23LF' :    {'start' :  [],
+            'stop' :  []},
+
+'24TJ' :    {'start' :  [],
+            'stop' :  []},
+
+'25DF' :    {'start' :  [],
+            'stop' :  []},
+
+'26MN' :    {'start' :  [],
+            'stop' :  []},
+
+'27BD' :    {'start' :  [],
+            'stop' :  []},
+
+'28NT' :    {'start' :  [],
+            'stop' :  []},
+
+'29SC' :    {'start' :  [],
+            'stop' :  []},
+
+'30AR' :    {'start' :  [],
+            'stop' :  []},
+
+'31HJ' :    {'start' :  [],
+            'stop' :  []},
+
+'32CM' :    {'start' :  [],
+            'stop' :  []},
+
+'33MA' :    {'start' :  [],
+            'stop' :  []},
+
+}
 
 
 

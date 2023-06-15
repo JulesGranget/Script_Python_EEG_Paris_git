@@ -138,9 +138,9 @@ if __name__== '__main__':
 
 
     #### params
-    sujet = '01PD'
+    sujet = '04GB'
     band_prep = 'wb'
-    odor_i = 'o'
+    odor_i = '-'
 
     #### compute
     #compute_and_save_baseline(sujet, odor_i, band_prep)

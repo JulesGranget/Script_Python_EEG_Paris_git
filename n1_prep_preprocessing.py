@@ -144,7 +144,7 @@ def open_raw_data_session(sujet, session_i):
 
 def ecg_detection(raw_aux):
 
-    print('#### ECG DETECTION ####')
+    print('#### ECG DETECTION ####', flush=True)
 
     #### params
     data_aux = raw_aux.get_data()
@@ -276,8 +276,9 @@ def compare_pre_post(raw, raw_post, nchan):
 
     # compare before after
     srate = raw.info['sfreq']
-    x_pre = raw.get_data()[nchan,:]
-    x_post = raw_post.get_data()[nchan,:]
+    nchan_i = chan_list_eeg.index(nchan)
+    x_pre = raw.get_data()[nchan_i,:]
+    x_post = raw_post.get_data()[nchan_i,:]
     time = np.arange(x_pre.shape[0]) / srate
 
     nwind = int(10*srate)
@@ -290,13 +291,15 @@ def compare_pre_post(raw, raw_post, nchan):
 
     plt.plot(time, x_pre, label='x_pre')
     plt.plot(time, x_post, label='x_post')
+    plt.title(nchan)
     plt.legend()
     plt.show()
 
     plt.semilogy(hzPxx, Pxx_pre, label='Pxx_pre')
     plt.semilogy(hzPxx, Pxx_post, label='Pxx_post')
+    plt.title(nchan)
     plt.legend()
-    plt.xlim(60,360)
+    # plt.xlim(60,360)
     plt.show()
 
 
@@ -312,253 +315,245 @@ def compare_pre_post(raw, raw_post, nchan):
 ######## PREPROCESSING ########
 ################################
 
+
+def reref_eeg(raw, new_ref):
+
+    raw_eeg_reref = raw.copy()
+    raw_eeg_reref, refdata = mne.set_eeg_reference(raw, ref_channels=new_ref)
+
+    if debug == True :
+        duration = 3.
+        n_chan = 20
+        raw_eeg_reref.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+    raw = raw_eeg_reref.copy() # if reref ok
+
+    return raw
+
+
+
+
+def mean_centered(raw):
+    
+    data = raw.get_data()
+    
+    # mean centered
+    data_mc = np.zeros((np.size(data,0),np.size(data,1)))
+    for chan in range(np.size(data,0)):
+        data_mc[chan,:] = data[chan,:] - np.mean(data[chan,:])
+        #### no detrend to keep low derivation
+        #data_mc[chan,:] = scipy.signal.detrend(data_mc[chan,:]) 
+
+    # fill raw
+    for chan in range(np.size(data,0)):
+        raw[chan,:] = data_mc[chan,:]
+
+    del data_mc    
+
+    # verif
+    if debug == True :
+        # all data
+        duration = .5
+        n_chan = 10
+        raw.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+        # compare before after
+        compare_pre_post(raw, raw, 4)
+
+
+    return raw
+
+
+
+
+def line_noise_removing(raw):
+
+    linenoise_freq = [50, 100, 150]
+
+    if debug:
+        raw_post = raw.copy()
+    else:
+        raw_post = raw
+
+    raw_post.notch_filter(linenoise_freq, verbose='critical')
+
+    
+    if debug == True :
+
+        # compare before after
+        compare_pre_post(raw, raw_post, 4)
+
+    return raw_post
+
+
+
+
+
+def high_pass(raw, h_freq, l_freq):
+
+    if debug:
+        raw_post = raw.copy()
+    else:
+        raw_post = raw
+
+    #filter_length = int(srate*10) # give sec
+    filter_length = 'auto'
+
+    if debug == True :
+        h = mne.filter.create_filter(raw_post.get_data(), srate, l_freq=l_freq, h_freq=h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2')
+        flim = (0.1, srate / 2.)
+        mne.viz.plot_filter(h, srate, freq=None, gain=None, title=None, flim=flim, fscale='log')
+
+    raw_eeg_mc_hp = raw_post.filter(l_freq, h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2', verbose='critical')
+
+    if debug == True :
+        duration = 60.
+        n_chan = 20
+        raw_eeg_mc_hp.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+    return raw_post
+
+
+
+
+
+
+def low_pass(raw, h_freq, l_freq):
+
+    if debug:
+        raw_post = raw.copy()
+    else:
+        raw_post = raw
+
+    filter_length = int(srate*10) # in samples
+
+    if debug == True :
+        h = mne.filter.create_filter(raw_post.get_data(), srate, l_freq=l_freq, h_freq=h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2')
+        flim = (0.1, srate / 2.)
+        mne.viz.plot_filter(h, srate, freq=None, gain=None, title=None, flim=flim, fscale='log')
+
+    raw_post = raw_post.filter(l_freq, h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hann', fir_design='firwin2', verbose='critical')
+
+    if debug == True :
+        duration = .5
+        n_chan = 10
+        raw_post.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+
+    return raw_post
+
+
+
+
+def ICA_computation(raw):
+
+    if debug == True :
+        duration = .5
+        n_chan = 10
+        raw.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+
+    # n_components = np.size(raw.get_data(),0) # if int, use only the first n_components PCA components to compute the ICA decomposition
+    n_components = 15
+    random_state = 27
+    method = 'fastica'
+    ica = mne.preprocessing.ICA(n_components=n_components, random_state=random_state, method=method)
+
+    reject = None
+    decim = None
+    # picks = mne.pick_types(raw.info, eeg=True, eog=True)
+    picks = mne.pick_types(raw.info)
+    ica.fit(raw)
+
+    # for eeg signal
+    ica.plot_sources(raw)
+    ica.plot_components()
+        
+    # apply ICA
+    raw_ICA = raw.copy()
+    ica.apply(raw_ICA) # exclude component
+
+    # verify
+    if debug == True :
+
+        # compare before after
+        compare_pre_post(raw, raw_ICA, 0)
+
+        duration = .5
+        n_chan = 10
+        raw_ICA.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+    return raw_ICA
+
+
+
+
+
+def average_reref(raw):
+
+    if debug:
+        raw_post = raw.copy()
+    else:
+        raw_post = raw
+
+    raw_post.set_eeg_reference('average')
+
+    if debug == True :
+        duration = .5
+        n_chan = 10
+        raw_post.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
+
+
+    return raw_post
+
+
+
+
+def csd_computation(raw):
+
+    raw_csd = surface_laplacian(raw=raw, m=4, leg_order=50, smoothing=1e-5) # MXC way
+
+    # compare before after
+    # compare_pre_post(raw, raw_post, 4)
+
+    return raw_csd
+
+
+
 #raw, prep_step = raw_eeg, prep_step_wb
 def preprocessing_ieeg(raw, prep_step):
 
-    print('#### PREPROCESSING ####')
+    print('#### PREPROCESSING ####', flush=True)
 
-    #### 1. Initiate preprocessing step
-
-    srate = raw.info['sfreq']
-
-    def reref_eeg(raw, new_ref):
-
-        raw_eeg_reref = raw.copy()
-        raw_eeg_reref, refdata = mne.set_eeg_reference(raw, ref_channels=new_ref)
-
-        if debug == True :
-            duration = 3.
-            n_chan = 20
-            raw_eeg_reref.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-        raw = raw_eeg_reref.copy() # if reref ok
-
-        return raw
-
-
-
-
-    def mean_centered(raw):
-        
-        data = raw.get_data()
-        
-        # mean centered
-        data_mc = np.zeros((np.size(data,0),np.size(data,1)))
-        for chan in range(np.size(data,0)):
-            data_mc[chan,:] = data[chan,:] - np.mean(data[chan,:])
-            #### no detrend to keep low derivation
-            #data_mc[chan,:] = scipy.signal.detrend(data_mc[chan,:]) 
-
-        # fill raw
-        for chan in range(np.size(data,0)):
-            raw[chan,:] = data_mc[chan,:]
-
-        del data_mc    
-
-        # verif
-        if debug == True :
-            # all data
-            duration = .5
-            n_chan = 10
-            raw.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-            # compare before after
-            compare_pre_post(raw, raw, 4)
-
-
-        return raw
-
-
-
-
-    def line_noise_removing(raw):
-
-        linenoise_freq = [50, 100, 150]
-
-        if debug:
-            raw_post = raw.copy()
-        else:
-            raw_post = raw
-
-        raw_post.notch_filter(linenoise_freq, verbose='critical')
-
-        
-        if debug == True :
-
-            # compare before after
-            compare_pre_post(raw, raw_post, 4)
-    
-        return raw_post
-
-
-
-
-
-    def high_pass(raw, h_freq, l_freq):
-
-        if debug:
-            raw_post = raw.copy()
-        else:
-            raw_post = raw
-
-        #filter_length = int(srate*10) # give sec
-        filter_length = 'auto'
-
-        if debug == True :
-            h = mne.filter.create_filter(raw_post.get_data(), srate, l_freq=l_freq, h_freq=h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2')
-            flim = (0.1, srate / 2.)
-            mne.viz.plot_filter(h, srate, freq=None, gain=None, title=None, flim=flim, fscale='log')
-
-        raw_eeg_mc_hp = raw_post.filter(l_freq, h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2', verbose='critical')
-
-        if debug == True :
-            duration = 60.
-            n_chan = 20
-            raw_eeg_mc_hp.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-        return raw_post
-
-
-    
-
-
-
-    def low_pass(raw, h_freq, l_freq):
-
-        if debug:
-            raw_post = raw.copy()
-        else:
-            raw_post = raw
-
-        filter_length = int(srate*10) # in samples
-
-        if debug == True :
-            h = mne.filter.create_filter(raw_post.get_data(), srate, l_freq=l_freq, h_freq=h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hamming', fir_design='firwin2')
-            flim = (0.1, srate / 2.)
-            mne.viz.plot_filter(h, srate, freq=None, gain=None, title=None, flim=flim, fscale='log')
-
-        raw_post = raw_post.filter(l_freq, h_freq, filter_length=filter_length, method='fir', phase='zero-double', fir_window='hann', fir_design='firwin2', verbose='critical')
-
-        if debug == True :
-            duration = .5
-            n_chan = 10
-            raw_post.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-
-        return raw_post
-
-
-
-
-    def ICA_computation(raw):
-
-        if debug == True :
-            duration = .5
-            n_chan = 10
-            raw.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-
-        # n_components = np.size(raw.get_data(),0) # if int, use only the first n_components PCA components to compute the ICA decomposition
-        n_components = 15
-        random_state = 27
-        method = 'fastica'
-        ica = mne.preprocessing.ICA(n_components=n_components, random_state=random_state, method=method)
-
-        reject = None
-        decim = None
-        # picks = mne.pick_types(raw.info, eeg=True, eog=True)
-        picks = mne.pick_types(raw.info)
-        ica.fit(raw)
-
-        # for eeg signal
-        ica.plot_sources(raw)
-        ica.plot_components()
-            
-        # apply ICA
-        raw_ICA = raw.copy()
-        ica.apply(raw_ICA) # exclude component
-
-        # verify
-        if debug == True :
-
-            # compare before after
-            compare_pre_post(raw, raw_ICA, 0)
-
-            duration = .5
-            n_chan = 10
-            raw_ICA.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-
-        return raw_ICA
-
-
-
-
-
-    def average_reref(raw):
-
-        if debug:
-            raw_post = raw.copy()
-        else:
-            raw_post = raw
-
-        raw_post.set_eeg_reference('average')
-
-        if debug == True :
-            duration = .5
-            n_chan = 10
-            raw_post.plot(scalings='auto',duration=duration,n_channels=n_chan) # verify
-
-
-        return raw_post
-
-
-
-
-    def csd_computation(raw):
-
-        raw_csd = surface_laplacian(raw=raw, m=4, leg_order=50, smoothing=1e-5) # MXC way
-
-        # verify
-        if debug == True :
-
-            # compare before after
-            compare_pre_post(raw, raw_post, 4)
-
-        return raw_csd
-
-
-
-
-    # 2. Execute preprocessing 
+    #### Execute preprocessing
 
     if debug:
         raw_init = raw.copy() # first data
 
 
     if prep_step['reref']['execute']:
-        print('reref')
+        print('reref', flush=True)
         raw_post = reref_eeg(raw, prep_step['reref']['params'])
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
 
     if prep_step['mean_centered']['execute']:
-        print('mean_centered')
+        print('mean_centered', flush=True)
         raw_post = mean_centered(raw)
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
 
     if prep_step['line_noise_removing']['execute']:
-        print('line_noise_removing')
+        print('line_noise_removing', flush=True)
         raw_post = line_noise_removing(raw)
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
 
     if prep_step['high_pass']['execute']:
-        print('high_pass')
+        print('high_pass', flush=True)
         h_freq = prep_step['high_pass']['params']['h_freq']
         l_freq = prep_step['high_pass']['params']['l_freq']
         raw_post = high_pass(raw, h_freq, l_freq)
@@ -567,7 +562,7 @@ def preprocessing_ieeg(raw, prep_step):
 
 
     if prep_step['low_pass']['execute']:
-        print('low_pass')
+        print('low_pass', flush=True)
         h_freq = prep_step['high_pass']['params']['h_freq']
         l_freq = prep_step['high_pass']['params']['l_freq']
         raw_post = low_pass(raw, h_freq, l_freq)
@@ -575,20 +570,20 @@ def preprocessing_ieeg(raw, prep_step):
         raw = raw_post
 
     if prep_step['csd_computation']['execute']:
-        print('csd_computation')
+        print('csd_computation', flush=True)
         raw_post = csd_computation(raw)
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
     if prep_step['ICA_computation']['execute']:
-        print('ICA_computation')
+        print('ICA_computation', flush=True)
         raw_post = ICA_computation(raw)
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
 
 
     if prep_step['average_reref']['execute']:
-        print('average_reref')
+        print('average_reref', flush=True)
         raw_post = average_reref(raw)
         #compare_pre_post(raw.get_data(), raw_post.get_data(), 5)
         raw = raw_post
@@ -602,6 +597,71 @@ def preprocessing_ieeg(raw, prep_step):
 
 
 
+################################
+######## VIEWER ########
+################################
+
+
+def view_data(data):
+
+    chan_selection_list = [['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1'],
+                           ['Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']]
+    
+    for select_chanlist_i in range(2):
+
+        chan_i_selected = [chan_list_eeg.index(chan) for chan in chan_selection_list[select_chanlist_i]]
+
+        data_sel = data[chan_i_selected,:]
+
+        trig = pd.read_excel(os.path.join(path_prep, sujet, 'info', f"{sujet}_{session_i}_trig.xlsx")).drop(columns=['Unnamed: 0'])
+
+        #### downsample
+        print('resample')
+        srate_downsample = 50
+
+        time_vec = np.linspace(0,data_sel.shape[-1],data_sel.shape[-1])/srate
+        time_vec_resample = np.linspace(0,data_sel.shape[-1],int(data_sel.shape[-1] * (srate_downsample / srate)))/srate
+
+        data_resampled = np.zeros((data_sel.shape[0], time_vec_resample.shape[0]))
+
+        for chan_i in range(data_sel.shape[0]):
+            f = scipy.interpolate.interp1d(time_vec, data_sel[chan_i,:], kind='quadratic', fill_value="extrapolate")
+            data_resampled[chan_i,:] = f(time_vec_resample)
+
+        trig_data = {'start' : [], 'stop' : []}
+
+        for cond_i in conditions:
+            _start = [i for i in trig.query(f"name == '{cond_i}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
+            _start = int(_start[0])/srate
+            _stop = [i for i in trig.query(f"name == '{cond_i}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
+            _stop = int(_stop[1])/srate
+            trig_data['start'].append(_start)
+            trig_data['stop'].append(_stop)
+
+        trig = pd.DataFrame(trig_data)
+
+        print('plot')
+
+        fig, ax = plt.subplots()
+
+        for chan_i, chan in enumerate(chan_selection_list[select_chanlist_i]):
+        
+            x = data_resampled[chan_i,:]
+            ax.plot(time_vec_resample, zscore(x)+(chan_i), label=chan)
+
+        ax.vlines(trig['start'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='g', label='start')
+        ax.vlines(trig['stop'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='r', label='stop')
+        
+        plt.legend()
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
+
+        plt.show()
+
+
+  
+
+
 
 
 
@@ -612,7 +672,7 @@ def preprocessing_ieeg(raw, prep_step):
 #band_preproc, export_info = 'wb', True
 def chop_save_trc(raw_eeg, raw_aux, trig, ecg_events_time, band_preproc, session_i, export_info):
 
-    print('#### SAVE ####')
+    print('#### SAVE ####', flush=True)
     
     #### save alldata + stim chan
     chan_list_eeg = raw_eeg.info['ch_names']
@@ -778,8 +838,12 @@ def sliding_rms(x, sf, window=0.5, step=0.2, interp=True):
 
     return t, out
 
+#sig = data
+def iirfilt(sig, srate, lowcut=None, highcut=None, order=4, ftype='butter', verbose=False, show=False, axis=0):
 
-def iirfilt(sig, srate, lowcut=None, highcut=None, order = 4, ftype = 'butter', verbose = False, show = False, axis = 0):
+    if len(sig.shape) == 1:
+
+        axis = 0
 
     if lowcut is None and not highcut is None:
         btype = 'lowpass'
@@ -830,25 +894,40 @@ def compute_artifact_features(inds, srate):
 
 
 
-
-def detect_movement_artifacts(data, srate, n_chan_artifacted = 5, n_deviations = 5, low_freq = 40 , high_freq = 150, wsize = 1, step = 0.2):
+#data = data[16,:]
+def detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2):
     
-    eeg_filt = iirfilt(data, srate, low_freq, high_freq, ftype = 'bessel', order = 2, axis = 1)
-    masks = np.zeros((eeg_filt.shape), dtype='bool')
+    eeg_filt = iirfilt(data, srate, low_freq, high_freq, ftype='bessel', order=2, axis=1)
 
-    for i in range(eeg_filt.shape[0]):
+    if len(eeg_filt.shape) != 1:
 
-        print_advancement(i, eeg_filt.shape[0], steps=[25, 50, 75])
+        masks = np.zeros((eeg_filt.shape), dtype='bool')
 
-        sig_chan_filtered = eeg_filt[i,:]
+        for i in range(eeg_filt.shape[0]):
+
+            print_advancement(i, eeg_filt.shape[0], steps=[25, 50, 75])
+
+            sig_chan_filtered = eeg_filt[i,:]
+            t, rms_chan = sliding_rms(sig_chan_filtered, sf=srate, window = wsize, step = step) 
+            pos, dev = med_mad(rms_chan)
+            detect_threshold = pos + n_deviations * dev
+            masks[i,:] = rms_chan > detect_threshold
+
+        compress_chans = masks.sum(axis = 0)
+        inds = detect_cross(compress_chans, n_chan_artifacted+0.5)
+        artifacts = compute_artifact_features(inds, srate)
+
+    else:
+
+        sig_chan_filtered = eeg_filt
         t, rms_chan = sliding_rms(sig_chan_filtered, sf=srate, window = wsize, step = step) 
         pos, dev = med_mad(rms_chan)
         detect_threshold = pos + n_deviations * dev
-        masks[i,:] = rms_chan > detect_threshold
-    
-    compress_chans = masks.sum(axis = 0)
-    inds = detect_cross(compress_chans, n_chan_artifacted+0.5)
-    artifacts = compute_artifact_features(inds, srate)
+        masks = rms_chan > detect_threshold
+
+        compress_chans = masks*1
+        inds = detect_cross(masks, 0.5)
+        artifacts = compute_artifact_features(inds, srate)
 
     return artifacts
 
@@ -917,12 +996,12 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
     data = raw.get_data()
 
-    #### detect
-    print('#### ARTIFACT DETECTION ####')
+    #### detect on all chan
+    print('#### ARTIFACT DETECTION ALLCHAN ####', flush=True)
     artifacts_raw = detect_movement_artifacts(data, srate, n_chan_artifacted=5, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2)
     artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
 
-    #### exclude artifact in intertrial
+    #### exclude artifact in intertrial on all chan
     #cond = 'FR_CV_1'
     for cond in conditions:
 
@@ -932,13 +1011,32 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
     artifacts = artifacts_raw[artifacts_mask]
 
+    #### add artifacts manualy if needed
+    if len(dict_artifacts_sujet[sujet]['start']) != 0:
+
+        artifact_add_manual_dict = {}
+        for col in artifacts.columns:
+            artifact_add_manual_dict[col] = []
+
+        for artifact_i, artifact_val in enumerate(dict_artifacts_sujet[sujet]['start']):
+
+            artifact_add_manual_dict['start_ind'].append(int(artifact_val))
+            artifact_add_manual_dict['stop_ind'].append(int(dict_artifacts_sujet[sujet]['stop'][artifact_i]))
+            artifact_add_manual_dict['start_t'].append(artifact_val/srate)
+            artifact_add_manual_dict['stop_t'].append(dict_artifacts_sujet[sujet]['stop'][artifact_i]/srate)
+            artifact_add_manual_dict['duration'].append(dict_artifacts_sujet[sujet]['stop'][artifact_i]/srate - artifact_val/srate)
+
+        artifact_all_manual = pd.DataFrame(artifact_add_manual_dict)
+
+        artifacts = pd.concat([artifacts, artifact_all_manual]).sort_values('start_ind')
+
     if artifacts.shape[0] == 0:
 
         return raw
 
     if debug:
 
-        sig = data[0,:]
+        sig = data[1,:]
         plt.plot(sig)
         plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
         plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
@@ -967,8 +1065,8 @@ def remove_artifacts(raw, srate, trig, odor_code):
         plt.vlines(sig_artifact_starts, ymin=sig_artifact.min(), ymax=sig_artifact.max(), color='r')
         plt.show()
 
-    #### correct
-    print('#### ARTIFACT CORRECTION ####')
+    #### correct on all chan
+    print('#### ARTIFACT CORRECTION ALLCHAN ####', flush=True)
     data_corrected = data.copy()
 
     for chan_i, chan_name in enumerate(chan_list_eeg):
@@ -1012,41 +1110,76 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
         plt.show()
 
-    #### correct bloc if needed
-    block_to_correct = []
-    #correction = block_to_interpolate[0]
-    for correction in block_to_interpolate: 
-        if correction[0] == sujet and correction[2] == odor_code:
-            block_to_correct.append([correction[1], correction[-1]])
+    #### clean idividual chan
+    if sujet in segment_to_clean.keys() and odor_code in segment_to_clean[sujet].keys():
 
-    artifacts_cond = {'start_ind' : [], 'stop_ind' : [], 'start_t' : [], 'stop_t' : [], 'duration' : []}
-    margin_s = 0.2
-    #bloc = block_to_correct[0]
-    for bloc in block_to_correct:
-        artifacts_cond['start_ind'].append(trig[bloc][0]+margin_s*srate)
-        artifacts_cond['stop_ind'].append(trig[bloc][1]-margin_s*srate)
-        artifacts_cond['start_t'].append(trig[bloc][0]/srate+margin_s)
-        artifacts_cond['stop_t'].append(trig[bloc][1]/srate-margin_s)
-        artifacts_cond['duration'].append((trig[bloc][1]/srate-margin_s) - (trig[bloc][0]/srate+margin_s))
+        print('#### ARTIFACT DETECTION SPECFIC CHAN ####', flush=True)
 
-    for bloc in block_to_correct:
-        #chan_to_correct = bloc[-1][0]
-        for chan_to_correct in bloc[-1]:
-            chan_i = chan_list.index(chan_to_correct)
-            
+        #chan_to_correct = segment_to_clean[sujet][odor_code][0]
+        for chan_to_correct in segment_to_clean[sujet][odor_code]:
 
+            print(chan_to_correct, flush=True)
 
-    artifacts_cond = pd.DataFrame(artifacts_cond)
+            chan_to_correct_i = chan_list_eeg.index(chan_to_correct)
 
+            sig_to_correct = data_corrected[chan_to_correct_i,:]
 
+            artifacts_raw = detect_movement_artifacts(sig_to_correct, srate, n_chan_artifacted=1, n_deviations=10, low_freq=40 , high_freq=150, wsize=1, step=0.2)
+            artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
+
+            #### exclude artifact in intertrial in idividual chan
+            #cond = 'FR_CV_1'
+            for cond in conditions:
+
+                start, stop = trig[cond][0], trig[cond][1]
+                mask_include = (artifacts_raw['start_ind'].values >= start) & (artifacts_raw['stop_ind'].values <= stop)
+                artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
+
+            artifacts = artifacts_raw[artifacts_mask]
+
+            if artifacts.shape[0] == 0:
+
+                continue
+
+            if debug:
+
+                sig = sig_to_correct
+                plt.plot(sig)
+                plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
+                plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
+                for cond in conditions:
+                    plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
+                    plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
+                plt.legend()
+                plt.show()
+
+            #### correct in idividual chan
+            print('#### ARTIFACT CORRECTION SPECFIC CHAN ####', flush=True)
+            sig_corrected = insert_noise(sig_to_correct, srate, artifacts, freq_min=30., margin_s=0.2, seed=None)
+
+            if debug:
+
+                sig = sig_to_correct
+                plt.plot(sig)
+                plt.plot(sig_corrected)
+                plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
+                plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
+                for cond in conditions:
+                    plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
+                    plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
+                plt.legend()
+                plt.show()
+
+            data_corrected[chan_to_correct_i,:] = sig_corrected
 
     #### inject corrected data
+    raw_clean = raw.copy()
     for chan_i, chan_name in enumerate(chan_list_eeg):
-        raw[chan_i,:] = data_corrected[chan_i,:]
+        raw_clean[chan_i,:] = data_corrected[chan_i,:]
 
-    del data_corrected, data
+    del data_corrected, data, raw
 
-    return raw
+    return raw_clean
 
 
 
@@ -1125,12 +1258,12 @@ if __name__== '__main__':
 
             if os.path.exists(os.path.join(path_prep, sujet, 'sections', f'{sujet}_{odor_code}_allcond_wb.fif')):
 
-                print(f"{sujet} {odor_code} ALREADY COMPTUED")
+                print(f"{sujet} {odor_code} ALREADY COMPTUED", flush=True)
                 continue
 
             else:
 
-                print(f'#### COMPUTE {sujet} {odor_code} ####')
+                print(f'#### COMPUTE {sujet} {odor_code} ####', flush=True)
 
             ################################
             ######## EXTRACT DATA ########
@@ -1142,6 +1275,8 @@ if __name__== '__main__':
             #### verif power
             if debug == True:
                 mne.viz.plot_raw_psd(raw_eeg)
+
+                view_data(raw_eeg.get_data())
 
             ################################
             ######## AUX PROCESSING ########
@@ -1199,16 +1334,24 @@ if __name__== '__main__':
             ########################################################
 
             raw_preproc_wb = preprocessing_ieeg(raw_eeg, prep_step_wb)
-            #compare_pre_post(raw_eeg, raw_preproc_wb, 5) # to verify
+            #compare_pre_post(raw_eeg, raw_preproc_wb, 'F4') # to verify
 
-            raw_preproc_wb = remove_artifacts(raw_preproc_wb, srate, trig, odor_code)
+            if sujet in sujet_extra_ICA:
 
+                raw_preproc_wb = ICA_computation(raw_preproc_wb)
+
+            #view_data(raw_preproc_wb.get_data())
+
+            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, srate, trig, odor_code)
+            #compare_pre_post(raw_preproc_wb, raw_preproc_wb_clean, 'F4') # to verify
+
+            #view_data(raw_preproc_wb.get_data())
 
             ################################
             ######## CHOP AND SAVE ########
             ################################
 
-            chop_save_trc(raw_preproc_wb, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
+            chop_save_trc(raw_preproc_wb_clean, raw_aux, trig, ecg_events_time, band_preproc='wb', session_i=session_i, export_info=True)
 
             del raw_preproc_wb
 
