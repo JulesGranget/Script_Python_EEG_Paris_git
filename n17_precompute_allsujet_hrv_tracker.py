@@ -52,9 +52,9 @@ debug = False
 
 def get_classifier_allsujet_hrv_tracker_o_ref():
 
-    print('################')
-    print(f'#### O REF ####')
-    print('################')
+    print('################', flush=True)
+    print(f'#### O REF ####', flush=True)
+    print('################', flush=True)
 
     ########################
     ######## PARAMS ########
@@ -76,7 +76,7 @@ def get_classifier_allsujet_hrv_tracker_o_ref():
     ######## COMPUTE MODEL ONE SESSION ########
     ################################################
 
-    print(f'compute tracker {odor}')
+    print(f'compute tracker {odor}', flush=True)
 
     ######### LOAD #########
     ecg_allsujet = np.array([])
@@ -123,12 +123,12 @@ def get_classifier_allsujet_hrv_tracker_o_ref():
     'SVM__gamma' : [0.1, 0.01]
     }
 
-    print('train')
+    print('train', flush=True)
     grid = GridSearchCV(pipeline, param_grid=params, cv=5, n_jobs=n_core)
     grid.fit(X_train, y_train)
     classifier_score = grid.best_score_
     classifier = grid.best_estimator_
-    print('train done')
+    print('train done', flush=True)
 
     return classifier
 

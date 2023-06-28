@@ -122,17 +122,20 @@ def compute_lm_on_ERP(xr_data, cond_dys):
     PPI_lm_start = PPI_lm_time[0]
     PPI_lm_stop = PPI_lm_time[1] 
 
+    sujet_no_respond = np.array([sujet for sujet in sujet_list_erp if sujet not in sujet_best_list_erp])
+
+    sujet_group = ['allsujet', 'rep', 'non_rep']
     data_type = ['coeff', 'pval', 'slope']
 
     xr_dict = {'sujet' : sujet_list_erp, 'cond' : cond_dys, 'odor' : odor_list, 'nchan' : chan_list_eeg, 'type' : data_type}
     xr_lm_data = xr.DataArray(data=np.zeros((len(sujet_list_erp), len(cond_dys), len(odor_list), len(chan_list_eeg), len(data_type))), dims=xr_dict.keys(), coords=xr_dict.values())
 
     time_vec_lm = np.arange(PPI_lm_start, PPI_lm_stop, 1/srate)
-    xr_dict = {'cond' : cond_dys, 'odor' : odor_list, 'nchan' : chan_list_eeg, 'time' : time_vec_lm}
-    xr_lm_pred = xr.DataArray(data=np.zeros((len(cond_dys), len(odor_list), len(chan_list_eeg), len(time_vec_lm))), dims=xr_dict.keys(), coords=xr_dict.values())
+    xr_dict = {'group' : sujet_group, 'cond' : cond_dys, 'odor' : odor_list, 'nchan' : chan_list_eeg, 'time' : time_vec_lm}
+    xr_lm_pred = xr.DataArray(data=np.zeros((len(sujet_group), len(cond_dys), len(odor_list), len(chan_list_eeg), len(time_vec_lm))), dims=xr_dict.keys(), coords=xr_dict.values())
 
-    xr_dict = {'cond' : cond_dys, 'odor' : odor_list, 'nchan' : chan_list_eeg, 'type' : data_type}
-    xr_lm_pred_coeff = xr.DataArray(data=np.zeros((len(cond_dys), len(odor_list), len(chan_list_eeg), len(data_type))), dims=xr_dict.keys(), coords=xr_dict.values())
+    xr_dict = {'group' : sujet_group, 'cond' : cond_dys, 'odor' : odor_list, 'nchan' : chan_list_eeg, 'type' : data_type}
+    xr_lm_pred_coeff = xr.DataArray(data=np.zeros((len(sujet_group), len(cond_dys), len(odor_list), len(chan_list_eeg), len(data_type))), dims=xr_dict.keys(), coords=xr_dict.values())
 
     #sujet_i, sujet = 0, sujet_list_erp[0]
     for sujet_i, sujet in enumerate(sujet_list_erp):
@@ -174,41 +177,50 @@ def compute_lm_on_ERP(xr_data, cond_dys):
                         plt.show()
 
     #### lm pred for mean
-    #cond = 'MECA'
-    for cond in cond_dys:
+    #group = sujet_group[0]
+    for group in sujet_group:
 
-        #odor = odor_list[0]
-        for odor in odor_list:
+        #cond = 'MECA'
+        for cond in cond_dys:
 
-            for nchan_i, nchan in enumerate(chan_list_eeg):
+            #odor = odor_list[0]
+            for odor in odor_list:
+
+                for nchan_i, nchan in enumerate(chan_list_eeg):
+
+                    if group == 'allsujet':
+                        data = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'rep':
+                        data = xr_data.loc[sujet_best_list_erp, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'non_rep':
+                        data = xr_data.loc[sujet_no_respond, cond, odor, nchan, :].mean('sujet').values
+                    
+                    time_vec = np.linspace(t_start_PPI, t_stop_PPI, data.shape[0])
+                    time_vec_mask = (time_vec > PPI_lm_start) & (time_vec < PPI_lm_stop)
+                    Y = data[time_vec_mask].reshape(-1,1)
+                    X = time_vec[time_vec_mask].reshape(-1,1)
+
+                    lm = linear_model.LinearRegression()
+
+                    lm.fit(X, Y)
+
+                    Y_pred = lm.predict(X)
+
+                    xr_lm_pred.loc[group, cond, odor, nchan, :] = Y_pred.reshape(-1)
+
+                    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(X.reshape(-1), Y.reshape(-1))
+
+                    xr_lm_pred_coeff.loc[group, cond, odor, nchan, 'coeff'] = np.round(r_value**2, 5)
+                    xr_lm_pred_coeff.loc[group, cond, odor, nchan, 'pval'] = np.round(p_value, 5)
+                    xr_lm_pred_coeff.loc[group, cond, odor, nchan, 'slope'] = np.round(slope, 5)
+
+                    #### verif
+                    if debug:
             
-                data = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
-                time_vec = np.linspace(t_start_PPI, t_stop_PPI, data.shape[0])
-                time_vec_mask = (time_vec > PPI_lm_start) & (time_vec < PPI_lm_stop)
-                Y = data[time_vec_mask].reshape(-1,1)
-                X = time_vec[time_vec_mask].reshape(-1,1)
+                        plt.plot(X, Y)
+                        plt.plot(X, Y_pred, color="b", linewidth=3)
 
-                lm = linear_model.LinearRegression()
-
-                lm.fit(X, Y)
-
-                Y_pred = lm.predict(X)
-
-                xr_lm_pred.loc[cond, odor, nchan, :] = Y_pred.reshape(-1)
-
-                slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(X.reshape(-1), Y.reshape(-1))
-
-                xr_lm_pred_coeff.loc[cond, odor, nchan, 'coeff'] = np.round(r_value**2, 5)
-                xr_lm_pred_coeff.loc[cond, odor, nchan, 'pval'] = np.round(p_value, 5)
-                xr_lm_pred_coeff.loc[cond, odor, nchan, 'slope'] = np.round(slope, 5)
-
-                #### verif
-                if debug:
-        
-                    plt.plot(X, Y)
-                    plt.plot(X, Y_pred, color="b", linewidth=3)
-
-                    plt.show()
+                        plt.show()
 
     return xr_lm_data, xr_lm_pred, xr_lm_pred_coeff
 
@@ -236,75 +248,88 @@ def plot_ERP(xr_data, xr_lm_data, xr_lm_pred, xr_lm_pred_coeff, cond_dys):
     PPI_lm_start = PPI_lm_time[0]
     PPI_lm_stop = PPI_lm_time[1] 
 
+    sujet_group = ['allsujet', 'rep', 'non_rep']
     sujet_no_respond = np.array([sujet for sujet in sujet_list_erp if sujet not in sujet_best_list_erp])
 
     ######## SUMMARY NCHAN ########
 
     os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary'))
 
-    #nchan_i, nchan = 0, chan_list_eeg[0]
-    for nchan_i, nchan in enumerate(chan_list_eeg):
+    for group in sujet_group:
 
-        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_dys))
+        #nchan_i, nchan = 0, chan_list_eeg[0]
+        for nchan_i, nchan in enumerate(chan_list_eeg):
 
-        plt.suptitle(f'{nchan}')
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_dys))
 
-        fig.set_figheight(10)
-        fig.set_figwidth(10)
+            plt.suptitle(f'{nchan} {group}')
 
-        scales_val = {'min' : [], 'max' : []}
+            fig.set_figheight(10)
+            fig.set_figwidth(10)
 
-        for cond_i, cond in enumerate(cond_dys):
+            scales_val = {'min' : [], 'max' : []}
 
-            #odor_i, odor = 0, odor_list[0]
-            for odor_i, odor in enumerate(odor_list):
+            for cond_i, cond in enumerate(cond_dys):
 
-                data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
-                scales_val['min'].append(data_stretch.min())
-                scales_val['max'].append(data_stretch.max())
+                #odor_i, odor = 0, odor_list[0]
+                for odor_i, odor in enumerate(odor_list):
 
-        scales_val['min'] = np.array(scales_val['min']).min()
-        scales_val['max'] = np.array(scales_val['max']).max()
+                    if group == 'allsujet':
+                        data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'rep':
+                        data_stretch = xr_data.loc[sujet_best_list_erp, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'non_rep':
+                        data_stretch = xr_data.loc[sujet_no_respond, cond, odor, nchan, :].mean('sujet').values
+                    scales_val['min'].append(data_stretch.min())
+                    scales_val['max'].append(data_stretch.max())
 
-        #cond_i, cond = 1, 'MECA'
-        for cond_i, cond in enumerate(cond_dys):
+            scales_val['min'] = np.array(scales_val['min']).min()
+            scales_val['max'] = np.array(scales_val['max']).max()
 
-            #odor_i, odor = 0, odor_list[0]
-            for odor_i, odor in enumerate(odor_list):
+            #cond_i, cond = 1, 'MECA'
+            for cond_i, cond in enumerate(cond_dys):
 
-                data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                #odor_i, odor = 0, odor_list[0]
+                for odor_i, odor in enumerate(odor_list):
 
-                ax = axs[odor_i, cond_i]
+                    if group == 'allsujet':
+                        data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'rep':
+                        data_stretch = xr_data.loc[sujet_best_list_erp, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'non_rep':
+                        data_stretch = xr_data.loc[sujet_no_respond, cond, odor, nchan, :].mean('sujet').values
 
-                if cond_i ==0:
-                    ax.set_ylabel(odor)
+                    ax = axs[odor_i, cond_i]
 
-                ax.set_title(f"{cond} \n slope : {np.round(xr_lm_pred_coeff.loc[cond, odor, nchan, 'slope'].values, 3)} / r2 : {np.round(xr_lm_pred_coeff.loc[cond, odor, nchan, 'coeff'].values, 3)} / pval : {xr_lm_pred_coeff.loc[cond, odor, nchan, 'pval'].values}", fontweight='bold')
+                    if cond_i ==0:
+                        ax.set_ylabel(odor)
 
-                stretch_point_PPI = int(np.abs(t_start_PPI)*srate + t_stop_PPI*srate)
-                time_vec = np.linspace(t_start_PPI, t_stop_PPI, stretch_point_PPI)
+                    ax.set_title(f"{cond} \n slope : {np.round(xr_lm_pred_coeff.loc[group, cond, odor, nchan, 'slope'].values, 3)} / r2 : {np.round(xr_lm_pred_coeff.loc[group, cond, odor, nchan, 'coeff'].values, 3)} / pval : {xr_lm_pred_coeff.loc[group, cond, odor, nchan, 'pval'].values}", fontweight='bold')
 
-                ax.plot(time_vec, data_stretch)
-                # ax.plot(time_vec, data_stretch.std(axis=0), color='k', linestyle='--')
-                # ax.plot(time_vec, -data_stretch.std(axis=0), color='k', linestyle='--')
+                    stretch_point_PPI = int(np.abs(t_start_PPI)*srate + t_stop_PPI*srate)
+                    time_vec = np.linspace(t_start_PPI, t_stop_PPI, stretch_point_PPI)
 
-                time_vec_lm = np.arange(PPI_lm_start, PPI_lm_stop, 1/srate)
-                ax.plot(time_vec_lm, xr_lm_pred.loc[cond, odor, nchan, :], color='r', linewidth=3)
+                    ax.plot(time_vec, data_stretch)
+                    # ax.plot(time_vec, data_stretch.std(axis=0), color='k', linestyle='--')
+                    # ax.plot(time_vec, -data_stretch.std(axis=0), color='k', linestyle='--')
 
-                ax.invert_yaxis()
+                    time_vec_lm = np.arange(PPI_lm_start, PPI_lm_stop, 1/srate)
+                    ax.plot(time_vec_lm, xr_lm_pred.loc[group, cond, odor, nchan, :], color='r', linewidth=3)
 
-                ax.vlines(0, ymin=scales_val['min'], ymax=scales_val['max'], colors='g')  
+                    ax.invert_yaxis()
 
-        fig.tight_layout()
+                    ax.vlines(0, ymin=scales_val['min'], ymax=scales_val['max'], colors='g')  
 
-        # plt.show()
+            fig.tight_layout()
 
-        #### save
-        fig.savefig(f'{nchan}.jpeg', dpi=150)
+            # plt.show()
 
-        fig.clf()
-        plt.close('all')
-        gc.collect()
+            #### save
+            fig.savefig(f'{nchan}_{group}.jpeg', dpi=150)
+
+            fig.clf()
+            plt.close('all')
+            gc.collect()
 
     ######## TOPOPLOT SLOPE ########
 
@@ -340,7 +365,7 @@ def plot_ERP(xr_data, xr_lm_data, xr_lm_pred, xr_lm_pred_coeff, cond_dys):
             if c == 0:
                 ax.set_ylabel(f'{odor}')
             
-            data_plot = xr_lm_pred_coeff.loc[cond, odor, :, 'slope'].values*-1
+            data_plot = xr_lm_pred_coeff.loc['allsujet', cond, odor, :, 'slope'].values*-1
 
             mne.viz.plot_topomap(data_plot, info, axes=ax, vlim=(scale_min, scale_max), show=False)
 

@@ -284,7 +284,7 @@ def precompute_MVL(sujet, band_prep, cond):
 
 if __name__ == '__main__':
 
-    #sujet = sujet_list[2]
+    #sujet = sujet_list[22]
     for sujet in sujet_list:    
 
         #### compute and save

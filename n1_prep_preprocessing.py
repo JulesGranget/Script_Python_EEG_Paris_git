@@ -1195,7 +1195,7 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[3]
+    #sujet = sujet_list[4]
     for sujet in sujet_list:
 
         ########################################

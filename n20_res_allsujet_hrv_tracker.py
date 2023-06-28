@@ -258,8 +258,98 @@ def analysis_pref():
     plt.savefig('perf_no_ref_detection_allsize_only_o.png')
     
 
+########################################
+######## RES FOR LABEL NUMBER ########
+########################################
+
+def res_test_labels_number():
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'HRV'))
+
+    features_test_list = ['MeanNN_SDNN_RMSSD', 'pNN50', 'SD1_SD2', 'COV', 'pNN50_SD1_SD2_COV', 'MeanNN_SDNN_RMSSD_pNN50_SD1_SD2_COV']
+
+    trim_edge = 30 #sec  
+    trim_between = 180 #sec
+    n_pnts_trim_resample = 10000
+
+    sujet_list = [sujet for sujet in sujet_list if sujet not in ['25DF', '31HJ', '21ZV', '22DI']]
+
+    xr_dict = {'sujet' : sujet_list, 'features' : np.array(features_test_list), 'type' : ['prediction', 'label', 'trig_odor'], 'times' : np.arange(n_pnts_trim_resample)}
+    xr_hrv_tracker = xr.DataArray(data=np.zeros((len(sujet_list), len(features_test_list), 3, n_pnts_trim_resample)), dims=xr_dict.keys(), coords=xr_dict.values())
+
+    xr_dict = {'sujet' : sujet_list, 'features' : np.array(features_test_list)}
+    xr_hrv_tracker_score = xr.DataArray(data=np.zeros((len(sujet_list), len(features_test_list))), dims=xr_dict.keys(), coords=xr_dict.values())
+
+    #### load results
+    for sujet in sujet_list:
+
+        os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
+        xr_hrv_tracker.loc[sujet,:,:,:] = np.squeeze(xr.load_dataarray(f'{sujet}_hrv_tracker_test_features.nc').values, 0)
+
+        xr_hrv_tracker_score.loc[sujet,:] = np.squeeze(xr.load_dataarray(f'{sujet}_hrv_tracker_test_features_score.nc').values, 0)
+
+    xr_hrv_tracker_mean = xr_hrv_tracker.mean('sujet')
+    xr_hrv_tracker_std = xr_hrv_tracker.std('sujet')
+    xr_hrv_tracker_mean_score = xr_hrv_tracker_score.mean('sujet')
+
+    #### plot & save
+    for features_i, features in enumerate(features_test_list):
+        fig_trim, ax = plt.subplots(figsize=(18, 9))
+        std_to_plot_down = xr_hrv_tracker_mean.loc[features, 'trig_odor', :].values - xr_hrv_tracker_std.loc[features, 'prediction', :].values
+        std_to_plot_down[std_to_plot_down < 0] = 0
+        ax.plot(xr_hrv_tracker_mean.loc[features, 'label', :].values, color='k', label='real', linewidth=3)
+        ax.plot(xr_hrv_tracker_mean.loc[features, 'prediction', :].values, color='y', label='prediction')
+        ax.plot(xr_hrv_tracker_mean.loc[features, 'trig_odor', :].values, color='r', label='odor_trig')
+        ax.plot(xr_hrv_tracker_mean.loc[features, 'trig_odor', :].values + xr_hrv_tracker_std.loc[features, 'prediction', :].values, color='r', label='odor_trig', linestyle=':', linewidth=0.5)
+        ax.plot(std_to_plot_down, color='r', label='odor_trig', linestyle=':', linewidth=0.5)
+        ax.set_title(f"{features}")
+        plt.suptitle(f'TRIMMED, score : {np.round(xr_hrv_tracker_mean_score.loc[features].values, 3)}')
+        plt.legend()
+        # fig_trim.show()
+        plt.close()
+
+        ######## SAVE ########
+        os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
+        fig_trim.savefig(f'test_features_{features}.png')
 
 
+
+
+########################################################
+######## RES FOR CLASSIFIER ALLSUJET ########
+########################################################
+
+
+def res_one_classifier_allsujet():
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'HRV'))
+
+    xr_data = xr.open_dataarray('o_ref_allsujettrain_hrv_tracker.nc')
+    xr_score = xr.open_dataarray('o_ref_allsujettrain_hrv_tracker.nc')
+    xr_hrv_tracker_mean = xr_data.mean('sujet')
+    xr_hrv_tracker_std = xr_data.std('sujet')
+
+    #### plot & save
+    fig_trim, axs = plt.subplots(ncols=len(odor_list), figsize=(18, 9))
+    for odor_i, odor in enumerate(odor_list):
+        std_to_plot_down = xr_hrv_tracker_mean.loc[odor, 'trig_odor', :].values - xr_hrv_tracker_std.loc[odor, 'prediction', :].values
+        std_to_plot_down[std_to_plot_down < 0] = 0
+        ax = axs[odor_i]
+        ax.plot(xr_hrv_tracker_mean.loc[odor, 'label', :].values, color='k', label='real', linewidth=3)
+        ax.plot(xr_hrv_tracker_mean.loc[odor, 'prediction', :].values, color='y', label='prediction')
+        ax.plot(xr_hrv_tracker_mean.loc[odor, 'trig_odor', :].values, color='r', label='odor_trig')
+        ax.plot(xr_hrv_tracker_mean.loc[odor, 'trig_odor', :].values + xr_hrv_tracker_std.loc[odor, 'prediction', :].values, color='r', label='odor_trig', linestyle=':', linewidth=0.5)
+        ax.plot(std_to_plot_down, color='r', label='odor_trig', linestyle=':', linewidth=0.5)
+        ax.set_title(f"odor : {odor}")
+    plt.suptitle(f'TRIMMED')
+    plt.legend()
+    # fig_trim.show()
+    plt.close()
+
+    ######## SAVE ########
+    os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
+    fig_trim.savefig(f'one_classifier_allsujet_o_ref_hrv_tracker.png')
+    
 
 
 ################################
@@ -303,5 +393,7 @@ if __name__ == '__main__':
     allsujet_hrv_tracker_one_classifier()
     df_allsujet_SVM_params()
     analysis_pref()
+    res_one_classifier_allsujet()
+    res_test_labels_number()
 
 

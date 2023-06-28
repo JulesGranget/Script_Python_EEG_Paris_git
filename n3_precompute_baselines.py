@@ -146,7 +146,7 @@ if __name__== '__main__':
     #compute_and_save_baseline(sujet, odor_i, band_prep)
     
     #### slurm execution
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[3]
     for sujet in sujet_list:
         for odor_i in odor_list:
             execute_function_in_slurm_bash('n3_precompute_baselines', 'compute_and_save_baseline', [sujet, odor_i])
