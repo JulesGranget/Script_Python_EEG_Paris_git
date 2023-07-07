@@ -217,45 +217,19 @@ def allsujet_hrv_tracker_one_classifier():
 
 def analysis_pref():
 
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'HRV'))
-
-    trim_edge = 30 #sec  
-    trim_between = 180 #sec
-    n_pnts_trim_resample = 10000
-
-    train_percentage_values = [0.5, 0.6, 0.7, 0.8]
-
-    xr_dict = {'sujet' : sujet_list, 'train_percentage' : train_percentage_values, 'odor' : np.array(odor_list), 'type' : ['prediction', 'label', 'trig_odor'], 'times' : np.arange(n_pnts_trim_resample)}
-    xr_hrv_tracker = xr.DataArray(data=np.zeros((sujet_list.shape[0], len(train_percentage_values), len(odor_list), 3, n_pnts_trim_resample)), dims=xr_dict.keys(), coords=xr_dict.values())
-
-    xr_dict = {'sujet' : sujet_list, 'train_percentage' : train_percentage_values, 'odor' : np.array(odor_list)}
-    xr_hrv_tracker_score = xr.DataArray(data=np.zeros((sujet_list.shape[0], len(train_percentage_values), len(odor_list))), dims=xr_dict.keys(), coords=xr_dict.values())
-
-    #### load results
-    for sujet in sujet_list:
-
-        os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
-        xr_hrv_tracker.loc[sujet,:,:,:] = np.squeeze(xr.load_dataarray(f'no_ref_{sujet}_hrv_tracker_alltestsize.nc').values, 0)
-
-        xr_hrv_tracker_score.loc[sujet,:] = np.squeeze(xr.load_dataarray(f'no_ref_{sujet}_hrv_tracker_score_alltestsize.nc').values, 0)
-
-    #### plot & save
     os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
 
-    xr_hrv_tracker_score.rename('value')
-    df_score = xr_hrv_tracker_score.to_dataframe(name='value').reset_index()
-    df_score = df_score.query(f"value != 0")
+    df_perf = pd.read_excel('allsujet_hrv_tracker_SVM_params.xlsx').drop(columns='Unnamed: 0')
 
-    sns.pointplot(data=df_score, x='train_percentage', y='value', hue='odor')
-    plt.ylim(0.8, 1)
-    # plt.show()
+    df_plot = df_perf.query(f"ref == 'no_ref'")
+    sns.catplot(data=df_plot, x="train_percentage", y="score", hue="balanced", col="hrv_tracker_mode", errorbar="se", kind="point")
+    plt.show()
 
-    plt.savefig('perf_no_ref_detection_allsize.png')
-
-    sns.pointplot(data=df_score.query(f"odor == 'o'"), x='train_percentage', y='value')
-    plt.ylim(0.8, 1)
-
-    plt.savefig('perf_no_ref_detection_allsize_only_o.png')
+    for balance in [True, False]:
+        df_plot = df_perf.query(f"ref == 'o' and balanced == {balance}")
+        sns.catplot(data=df_plot, x="train_percentage", y="score", hue="odor", col="hrv_tracker_mode", errorbar="se", kind="point")
+        plt.suptitle(f"balanced : {balance}")
+        plt.show()
     
 
 ########################################
@@ -272,7 +246,7 @@ def res_test_labels_number():
     trim_between = 180 #sec
     n_pnts_trim_resample = 10000
 
-    sujet_list = [sujet for sujet in sujet_list if sujet not in ['25DF', '31HJ', '21ZV', '22DI']]
+    sujet_list = [sujet for sujet in sujet_list if sujet not in ['31HJ', '21ZV', '22DI']]
 
     xr_dict = {'sujet' : sujet_list, 'features' : np.array(features_test_list), 'type' : ['prediction', 'label', 'trig_odor'], 'times' : np.arange(n_pnts_trim_resample)}
     xr_hrv_tracker = xr.DataArray(data=np.zeros((len(sujet_list), len(features_test_list), 3, n_pnts_trim_resample)), dims=xr_dict.keys(), coords=xr_dict.values())
@@ -360,6 +334,9 @@ def res_one_classifier_allsujet():
 def df_allsujet_SVM_params():
 
     for sujet in sujet_list:
+
+        if sujet in ['25DF', '31HJ']:
+            continue
 
         os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
 

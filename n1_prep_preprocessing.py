@@ -601,12 +601,13 @@ def preprocessing_ieeg(raw, prep_step):
 ######## VIEWER ########
 ################################
 
-
-def view_data(data):
+#data, data_aux = raw_eeg.get_data(), raw_aux.get_data()
+def view_data(data, data_aux):
 
     chan_selection_list = [['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1'],
                            ['Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']]
     
+    #select_chanlist_i = 0
     for select_chanlist_i in range(2):
 
         chan_i_selected = [chan_list_eeg.index(chan) for chan in chan_selection_list[select_chanlist_i]]
@@ -623,10 +624,15 @@ def view_data(data):
         time_vec_resample = np.linspace(0,data_sel.shape[-1],int(data_sel.shape[-1] * (srate_downsample / srate)))/srate
 
         data_resampled = np.zeros((data_sel.shape[0], time_vec_resample.shape[0]))
+        data_resampled_aux = np.zeros((data_aux.shape[0], time_vec_resample.shape[0]))
 
         for chan_i in range(data_sel.shape[0]):
             f = scipy.interpolate.interp1d(time_vec, data_sel[chan_i,:], kind='quadratic', fill_value="extrapolate")
             data_resampled[chan_i,:] = f(time_vec_resample)
+
+        for chan_i in range(data_aux.shape[0]):
+            f = scipy.interpolate.interp1d(time_vec, data_aux[chan_i,:], kind='quadratic', fill_value="extrapolate")
+            data_resampled_aux[chan_i,:] = f(time_vec_resample)
 
         trig_data = {'start' : [], 'stop' : []}
 
@@ -640,14 +646,20 @@ def view_data(data):
 
         trig = pd.DataFrame(trig_data)
 
+        respi = data_resampled_aux[-1,:]
+        ecg = data_resampled_aux[-2,:]
+
         print('plot')
 
         fig, ax = plt.subplots()
 
+        ax.plot(time_vec_resample, zscore(respi)+1, label='respi')
+        ax.plot(time_vec_resample, zscore(ecg), label='ecg')
+
         for chan_i, chan in enumerate(chan_selection_list[select_chanlist_i]):
         
             x = data_resampled[chan_i,:]
-            ax.plot(time_vec_resample, zscore(x)+(chan_i), label=chan)
+            ax.plot(time_vec_resample, zscore(x)+(chan_i)+2, label=chan)
 
         ax.vlines(trig['start'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='g', label='start')
         ax.vlines(trig['stop'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='r', label='stop')
@@ -991,8 +1003,14 @@ def insert_noise(sig, srate, chan_artifacts, freq_min=30., margin_s=0.2, seed=No
 
 
 
+
+
+
+
+
+
 #raw = raw_preproc_wb 
-def remove_artifacts(raw, srate, trig, odor_code):
+def remove_artifacts(raw, session_i, srate, trig, odor_code):
 
     data = raw.get_data()
 
@@ -1012,23 +1030,46 @@ def remove_artifacts(raw, srate, trig, odor_code):
     artifacts = artifacts_raw[artifacts_mask]
 
     #### add artifacts manualy if needed
-    if len(dict_artifacts_sujet[sujet]['start']) != 0:
+    if len(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['start']) != 0:
 
         artifact_add_manual_dict = {}
         for col in artifacts.columns:
             artifact_add_manual_dict[col] = []
 
-        for artifact_i, artifact_val in enumerate(dict_artifacts_sujet[sujet]['start']):
+        for artifact_i, artifact_val in enumerate(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['start']):
 
             artifact_add_manual_dict['start_ind'].append(int(artifact_val))
-            artifact_add_manual_dict['stop_ind'].append(int(dict_artifacts_sujet[sujet]['stop'][artifact_i]))
+            artifact_add_manual_dict['stop_ind'].append(int(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['stop'][artifact_i]))
             artifact_add_manual_dict['start_t'].append(artifact_val/srate)
-            artifact_add_manual_dict['stop_t'].append(dict_artifacts_sujet[sujet]['stop'][artifact_i]/srate)
-            artifact_add_manual_dict['duration'].append(dict_artifacts_sujet[sujet]['stop'][artifact_i]/srate - artifact_val/srate)
+            artifact_add_manual_dict['stop_t'].append(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['stop'][artifact_i]/srate)
+            artifact_add_manual_dict['duration'].append(dict_artifacts_sujet[sujet][f'ses0{session_i+2}']['stop'][artifact_i]/srate - artifact_val/srate)
 
         artifact_all_manual = pd.DataFrame(artifact_add_manual_dict)
 
         artifacts = pd.concat([artifacts, artifact_all_manual]).sort_values('start_ind')
+
+        artifacts = artifacts.reset_index(drop=True)
+
+        artifacts_clean = artifacts.copy()
+
+        #### clean if overlap
+        rectification_i = 0
+        for start_i, start_val in enumerate(artifacts_clean['start_ind'].values):
+            
+            start_i -= rectification_i
+
+            if start_i == artifacts_clean['start_ind'].values.shape[0]-1:
+                break
+
+            if artifacts_clean['stop_ind'].values[start_i] >= artifacts_clean['start_ind'].values[start_i+1]:
+
+                row_del_i = np.arange(start_i+1, (artifacts_clean['stop_ind'] <= artifacts_clean['stop_ind'].values[start_i]).sum())
+
+                artifacts_clean = artifacts_clean.drop(index=row_del_i).reset_index().drop(columns='index')
+
+                rectification_i += row_del_i.shape[0]
+
+        artifacts = artifacts_clean.copy()
 
     if artifacts.shape[0] == 0:
 
@@ -1036,10 +1077,26 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
     if debug:
 
-        sig = data[1,:]
+        sig = data[0,:]
+        plt.plot(data[0,:])
+        plt.plot(data[15,:])
+        plt.plot(data[30,:])
+        plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='start')
+        plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='stop')
+        for cond in conditions:
+            plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
+            plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
+        plt.legend()
+        plt.title(f"{sujet} : ses0{session_i+2} {odor_code}")
+        plt.show()
+
+        sig = data[0,:]
+        plt.plot(data[0,:])
+        plt.plot(data[15,:])
+        plt.plot(data[30,:])
         plt.plot(sig)
-        plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
-        plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
+        plt.vlines(artifacts_clean['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='start')
+        plt.vlines(artifacts_clean['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='stop')
         for cond in conditions:
             plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
             plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
@@ -1110,67 +1167,48 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
         plt.show()
 
-    #### clean idividual chan
-    if sujet in segment_to_clean.keys() and odor_code in segment_to_clean[sujet].keys():
+    #### inject corrected data
+    raw_clean = raw.copy()
+    for chan_i, chan_name in enumerate(chan_list_eeg):
+        raw_clean[chan_i,:] = data_corrected[chan_i,:]
 
-        print('#### ARTIFACT DETECTION SPECFIC CHAN ####', flush=True)
+    del data_corrected, data, raw
 
-        #chan_to_correct = segment_to_clean[sujet][odor_code][0]
-        for chan_to_correct in segment_to_clean[sujet][odor_code]:
+    return raw_clean
 
-            print(chan_to_correct, flush=True)
 
-            chan_to_correct_i = chan_list_eeg.index(chan_to_correct)
 
-            sig_to_correct = data_corrected[chan_to_correct_i,:]
 
-            artifacts_raw = detect_movement_artifacts(sig_to_correct, srate, n_chan_artifacted=1, n_deviations=10, low_freq=40 , high_freq=150, wsize=1, step=0.2)
-            artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
+#raw = raw_preproc_wb 
+def remove_artifacts_everychan(raw, srate, trig):
 
-            #### exclude artifact in intertrial in idividual chan
-            #cond = 'FR_CV_1'
-            for cond in conditions:
+    data = raw.get_data()
+    data_corrected = data.copy()
 
-                start, stop = trig[cond][0], trig[cond][1]
-                mask_include = (artifacts_raw['start_ind'].values >= start) & (artifacts_raw['stop_ind'].values <= stop)
-                artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
+    print('#### ARTIFACT DETECTION ALLCHAN ####', flush=True)
 
-            artifacts = artifacts_raw[artifacts_mask]
+    #### detect on all chan
+    for chan_i, chan in enumerate(chan_list_eeg):
+        
+        print_advancement(chan_i, len(chan_list_eeg), [25, 50, 75])
+        artifacts_raw = detect_movement_artifacts(data[chan_i,:], srate, n_chan_artifacted=1, n_deviations=5, low_freq=40 , high_freq=150, wsize=1, step=0.2)
+        artifacts_mask = np.zeros((artifacts_raw.shape[0]), dtype='bool')
 
-            if artifacts.shape[0] == 0:
+        #### exclude artifact in intertrial on all chan
+        #cond = 'FR_CV_1'
+        for cond in conditions:
 
-                continue
+            start, stop = trig[cond][0], trig[cond][1]
+            mask_include = (artifacts_raw['start_ind'].values >= start) & (artifacts_raw['stop_ind'].values <= stop)
+            artifacts_mask = np.bitwise_or(artifacts_mask, mask_include)
 
-            if debug:
+        artifacts = artifacts_raw[artifacts_mask]
 
-                sig = sig_to_correct
-                plt.plot(sig)
-                plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
-                plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
-                for cond in conditions:
-                    plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
-                    plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
-                plt.legend()
-                plt.show()
+        if artifacts.shape[0] == 0:
 
-            #### correct in idividual chan
-            print('#### ARTIFACT CORRECTION SPECFIC CHAN ####', flush=True)
-            sig_corrected = insert_noise(sig_to_correct, srate, artifacts, freq_min=30., margin_s=0.2, seed=None)
+            continue
 
-            if debug:
-
-                sig = sig_to_correct
-                plt.plot(sig)
-                plt.plot(sig_corrected)
-                plt.vlines(artifacts['start_ind'].values, ymin=sig.min(), ymax=sig.max(), color='r', label='start')
-                plt.vlines(artifacts['stop_ind'].values, ymin=sig.min(), ymax=sig.max(), color='g', label='stop')
-                for cond in conditions:
-                    plt.vlines(trig[cond][0], ymin=sig.min(), ymax=sig.max(), color='k', label='start', linewidth=2)
-                    plt.vlines(trig[cond][1], ymin=sig.min(), ymax=sig.max(), color='k', linestyle='dashed', label='stop', linewidth=2)
-                plt.legend()
-                plt.show()
-
-            data_corrected[chan_to_correct_i,:] = sig_corrected
+        data_corrected[chan_i,:] = insert_noise(data[chan_i,:], srate, artifacts, freq_min=30., margin_s=0.2, seed=None)
 
     #### inject corrected data
     raw_clean = raw.copy()
@@ -1188,6 +1226,15 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
 
 
+
+
+
+
+
+
+
+
+
 ################################
 ######## EXECUTE ########
 ################################
@@ -1195,7 +1242,7 @@ def remove_artifacts(raw, srate, trig, odor_code):
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[4]
+    #sujet = sujet_list[10]
     for sujet in sujet_list:
 
         ########################################
@@ -1276,7 +1323,7 @@ if __name__== '__main__':
             if debug == True:
                 mne.viz.plot_raw_psd(raw_eeg)
 
-                view_data(raw_eeg.get_data())
+                view_data(raw_eeg.get_data(), raw_aux.get_data())
 
             ################################
             ######## AUX PROCESSING ########
@@ -1336,16 +1383,24 @@ if __name__== '__main__':
             raw_preproc_wb = preprocessing_ieeg(raw_eeg, prep_step_wb)
             #compare_pre_post(raw_eeg, raw_preproc_wb, 'F4') # to verify
 
-            if sujet in sujet_extra_ICA:
+            if debug:
 
-                raw_preproc_wb = ICA_computation(raw_preproc_wb)
+                view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
 
-            #view_data(raw_preproc_wb.get_data())
+            raw_preproc_wb = ICA_computation(raw_preproc_wb)
 
-            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, srate, trig, odor_code)
+            if debug:
+
+                view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
+
+            raw_preproc_wb = remove_artifacts_everychan(raw_preproc_wb, srate, trig)
+
+            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig, odor_code)
             #compare_pre_post(raw_preproc_wb, raw_preproc_wb_clean, 'F4') # to verify
 
-            #view_data(raw_preproc_wb.get_data())
+            if debug:
+
+                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data()) 
 
             ################################
             ######## CHOP AND SAVE ########

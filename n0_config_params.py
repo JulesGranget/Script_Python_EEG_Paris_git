@@ -280,14 +280,7 @@ prep_step_hf = {
 
 
 
-segment_to_clean = {
 
-'04GB' : {'-' : ['O1', 'O2', 'Oz']}
-
-}
-
-
-sujet_extra_ICA = ['05LV']
 
 ################################
 ######## ERP PARAMS ########
@@ -466,8 +459,8 @@ prms_tracker = {
 'srate' : srate
 }
 
+points_per_cond = 1000
 trim_between = 100 #sec
-n_pnts_trim_resample = 10000
 
 
 

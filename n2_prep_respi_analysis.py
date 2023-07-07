@@ -251,7 +251,7 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
 
             cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',inspration_ajust_on_derivative=True)
 
-            if sujet in ['18SE', '20TY', '26MN', '32CM']:
+            if sujet in ['07PB', '18SE', '20TY', '24TJ', '25DF', '26MN', '28NT', '30AR', '32CM']:
 
                 cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
                         exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
