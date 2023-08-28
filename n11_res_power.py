@@ -1125,17 +1125,17 @@ if __name__ == '__main__':
     band_prep = 'wb'
     stats_plot = False
 
-    #sujet = sujet_list[0]
+    #sujet = sujet_list[14]
     for sujet in sujet_list:
 
         print(sujet, flush=True)
 
         #### Pxx Cxy CycleFreq
-        # compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
-        execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
+        compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
+        # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
 
         #### TF & ITPC
-        # compilation_compute_TF_ITPC(sujet, band_prep, stats_plot)
-        execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep, stats_plot], '15G')
+        compilation_compute_TF_ITPC(sujet, band_prep, stats_plot)
+        # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep, stats_plot], '15G')
 
 

@@ -279,7 +279,7 @@ def precompute_itpc(sujet, cond):
 if __name__ == '__main__':
 
 
-    #sujet = sujet_list[19]
+    #sujet = sujet_list[3]
     for sujet in sujet_list:
     
         #precompute_tf_all_conv(sujet)

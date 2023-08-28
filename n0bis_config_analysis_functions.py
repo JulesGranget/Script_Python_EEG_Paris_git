@@ -1806,6 +1806,20 @@ def nk_analysis(ecg_i, srate):
 
 
 
+########################################
+######## CLUSTER WORKING ######## 
+########################################
+
+#name = 'test.png'
+def export_fig(name, fig):
+
+    path_pre = os.getcwd()
+
+    os.chdir(path_general)
+
+    fig.savefig(name)
+
+    os.chdir(path_pre)
 
 
 

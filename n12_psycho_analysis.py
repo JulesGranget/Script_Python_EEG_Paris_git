@@ -161,11 +161,13 @@ def processing_maia(sujet):
 
 if __name__ == '__main__':
 
-    processing_stai_longform(sujet)
-    processing_maia(sujet)
-    processing_odor_cotation(sujet)
+    for sujet in sujet_list:
 
-    
-    for session_eeg in range(3):
-        STAI_short_process(sujet, session_eeg)
-    
+        processing_stai_longform(sujet)
+        processing_maia(sujet)
+        processing_odor_cotation(sujet)
+
+        
+        for session_eeg in range(3):
+            STAI_short_process(sujet, session_eeg)
+        

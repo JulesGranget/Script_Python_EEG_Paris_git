@@ -116,10 +116,14 @@ def open_raw_data_session(sujet, session_i):
         _start = _stop - (srate*5*60)
         trig[cond] = np.array([_start, _stop])
 
-        if debug:
+    if debug:
+
+        for cond in conditions:
+
             respi = raw_aux.get_data()[0,:]
             plt.plot(respi)
-            plt.vlines([_start, _stop], ymin=respi.min(), ymax=respi.max(), color='r')
+            plt.vlines([trig[cond][0], trig[cond][1]], ymin=respi.min(), ymax=respi.max(), color='r')
+            plt.title(cond)
             plt.show()
 
     #### remove trig

@@ -6,7 +6,7 @@ import scipy.signal
 import pandas as pd
 import joblib
 import xarray as xr
-import cv2
+# import cv2
 
 import pickle
 import gc
@@ -93,15 +93,15 @@ def get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet):
         
 
 
-def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute):
+def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet():
 
     metric_to_load = ['Cxy', 'MVL', 'Cxy_surr', 'MVL_surr', 'Pxx_theta', 'Pxx_alpha', 'Pxx_beta', 'Pxx_l_gamma', 'Pxx_h_gamma']
-    xr_data = np.zeros(( len(sujet_list_compute), len(metric_to_load), len(conditions), len(odor_list), len(chan_list_eeg)))
-    xr_dict = {'sujet' : sujet_list_compute, 'metric' : metric_to_load, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg}
+    xr_data = np.zeros(( len(sujet_list), len(metric_to_load), len(conditions), len(odor_list), len(chan_list_eeg)))
+    xr_dict = {'sujet' : sujet_list, 'metric' : metric_to_load, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg}
     xr_allsujet = xr.DataArray(xr_data, dims=xr_dict.keys(), coords=xr_dict.values())  
 
-    #sujet = sujet_list_compute[0]
-    for sujet in sujet_list_compute:
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
 
         #### load data
         Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
@@ -170,7 +170,7 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute):
                         baseline_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,'FR_CV_1',odor,:,:].values
                         cond_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,cond,odor,:,:].values
 
-                        # print(stats_type,metric,cond,odor)
+                        # print(stats_type,metric,cond,odor, flush=True)
 
                         allsujet_stats_data[stats_type_i, metric_i, odor_i, cond_i, :] = get_stats_topoplots(baseline_values, cond_values, chan_list_eeg)
 
@@ -190,14 +190,12 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute):
                         baseline_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,cond,'o',:,:].values
                         cond_values = xr_allsujet.transpose('metric', 'cond', 'odor', 'chan', 'sujet').loc[metric,cond,odor,:,:].values
 
-                        # print(stats_type,metric,cond,odor)
+                        # print(stats_type,metric,cond,odor, flush=True)
 
                         allsujet_stats_data[stats_type_i, metric_i, odor_i, cond_i, :] = get_stats_topoplots(baseline_values, cond_values, chan_list_eeg)
 
     xr_dict = {'stats_type' : ['intra', 'inter'], 'metric' : ['theta', 'alpha', 'beta', 'l_gamma', 'h_gamma'], 'odor' : odor_list, 'cond' : conditions, 'chan' : chan_list_eeg}
     xr_allsujet_stats = xr.DataArray(allsujet_stats_data, dims=xr_dict.keys(), coords=xr_dict.values())  
-
-    xr_allsujet = xr_allsujet.median(axis=0)
     
     return xr_allsujet, xr_allsujet_stats
 
@@ -219,46 +217,14 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats):
     info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
     info.set_montage('standard_1020')
 
+    sujet_respond = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_best_list])
+    sujet_no_respond = np.array([sujet for sujet in sujet_list if sujet not in sujet_respond])
+
     #### scales
-    scales_cond = {}
-    scales_odor = {}
     scales_allband = {}
 
-    data_type_list = [f'Pxx_{band}' for band in freq_band_fc_analysis.keys()] + ['MVL']
-
     #data_type = data_type_list[0]
-    for data_type in data_type_list:
-
-        if data_type == 'MVL':
-
-            scales_cond[data_type] = {}
-            scales_odor[data_type] = {}
-
-            for odor_i in odor_list:
-
-                scales_cond[data_type][odor_i] = {}
-
-                val = np.array([])
-
-                for cond in conditions:
-
-                    val = np.append(val, xr_allsujet.loc[data_type, cond, odor_i])
-
-                scales_cond[data_type][odor_i]['min'] = val.min()
-                scales_cond[data_type][odor_i]['max'] = val.max()
-
-            for cond in conditions:
-
-                scales_odor[data_type][cond] = {}
-
-                val = np.array([])
-
-                for odor_i in odor_list:
-
-                    val = np.append(val, xr_allsujet.loc[data_type, cond, odor_i])
-
-                scales_odor[data_type][cond]['min'] = val.min()
-                scales_odor[data_type][cond]['max'] = val.max()
+    for data_type in xr_allsujet['metric'].values:
 
         scales_allband[data_type] = {}
 
@@ -268,100 +234,140 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats):
 
             for cond in conditions:
 
-                val = np.append(val, xr_allsujet.loc[data_type, cond, odor_i])
+                for sujet_group in ['allsujet', 'rep', 'no_rep']:
+
+                    if data_type.find('surr') == -1:
+
+                        if sujet_group == 'allsujet':
+                            data_sel = xr_allsujet.loc[:,data_type, cond, odor_i].median('sujet').values
+                        if sujet_group == 'rep':
+                            data_sel = xr_allsujet.loc[sujet_respond,data_type, cond, odor_i].median('sujet').values
+                        if sujet_group == 'no_rep':
+                            data_sel = xr_allsujet.loc[sujet_no_respond,data_type, cond, odor_i].median('sujet').values
+                    
+                    if data_type.find('surr') != -1:
+
+                        if sujet_group == 'allsujet':
+                            data_sel = xr_allsujet.loc[:,data_type, cond, odor_i].sum('sujet').values / sujet_list.shape[0]
+                        if sujet_group == 'rep':
+                            data_sel = xr_allsujet.loc[sujet_respond,data_type, cond, odor_i].sum('sujet').values / sujet_respond.shape[0]
+                        if sujet_group == 'no_rep':
+                            data_sel = xr_allsujet.loc[sujet_no_respond,data_type, cond, odor_i].sum('sujet').values / sujet_no_respond.shape[0]
+                    
+                    val = np.append(val, data_sel)
 
         scales_allband[data_type]['min'] = val.min()
         scales_allband[data_type]['max'] = val.max()
 
     #### plot Cxy, MVL
-    for data_type in ['raw', 'stats']:
+    #sujet_group = 'allsujet'
+    for sujet_group in ['allsujet', 'rep', 'no_rep']:
 
-        for metric_type in ['Cxy', 'MVL']:
+        #data_type = 'Cxy_surr'
+        for data_type in xr_allsujet['metric'].values:
 
-            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
-            plt.suptitle(f'allsujet_{metric_type}_{data_type}')
-            fig.set_figheight(10)
-            fig.set_figwidth(10)
+            if data_type.find('Pxx') == -1:
 
-            #c, cond = 0, 'FR_CV_1'
-            for c, cond in enumerate(conditions):
+                vmin = np.round(scales_allband[data_type]['min'], 2)
+                vmax = np.round(scales_allband[data_type]['max'], 2)
 
-                #r, odor_i = 0, odor_list[0]
-                for r, odor_i in enumerate(odor_list):
+                fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+                plt.suptitle(f'{sujet_group}_{data_type}, vmin:{vmin} vmax:{vmax}')
+                fig.set_figheight(10)
+                fig.set_figwidth(10)
 
-                    #### plot
-                    ax = axs[r, c]
+                #c, cond = 0, 'FR_CV_1'
+                for c, cond in enumerate(conditions):
 
-                    if r == 0:
-                        ax.set_title(cond, fontweight='bold', rotation=0)
-                    if c == 0:
-                        ax.set_ylabel(f'{odor_i}')
-                    
-                    if metric_type == 'Cxy' and data_type == 'stats':
-                        mne.viz.plot_topomap(xr_allsujet.loc[f'Cxy_surr', cond, odor_i], info, axes=ax, vmin=0, 
-                                            vmax=1, show=False)
-                        
-                    if metric_type == 'Cxy' and data_type == 'raw':
-                        mne.viz.plot_topomap(xr_allsujet.loc[f'Cxy', cond, odor_i], info, axes=ax, show=False)
+                    #r, odor_i = 0, odor_list[0]
+                    for r, odor_i in enumerate(odor_list):
 
-                    if metric_type == 'MVL' and data_type == 'stats':
-                        mne.viz.plot_topomap(xr_allsujet.loc[f'MVL_surr', cond, odor_i], info, axes=ax, show=False)
-                        
-                    if metric_type == 'MVL' and data_type == 'raw':
-                        vmin = np.round(scales_allband['MVL']['min'], 2)
-                        vmax = np.round(scales_allband['MVL']['max'], 2)
-                        mne.viz.plot_topomap(xr_allsujet.loc[f'MVL', cond, odor_i], info, axes=ax, vmin=vmin, vmax=vmax, show=False)
+                        #### plot
+                        ax = axs[r, c]
 
-            # plt.show() 
+                        if r == 0:
+                            ax.set_title(cond, fontweight='bold', rotation=0)
+                        if c == 0:
+                            ax.set_ylabel(f'{odor_i}')
 
-            #### save
-            os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
-            fig.savefig(f'allsujet_{metric_type}_{data_type}_{band_prep}_topo.jpeg', dpi=150)
-            fig.clf()
-            plt.close('all')
-            gc.collect()
+                        if sujet_group == 'allsujet':
+                            data_sel = xr_allsujet.loc[:, data_type, cond, odor_i].values
+                        if sujet_group == 'rep':
+                            data_sel = xr_allsujet.loc[sujet_respond, data_type, cond, odor_i].values
+                        if sujet_group == 'no_rep':
+                            data_sel = xr_allsujet.loc[sujet_no_respond, data_type, cond, odor_i].values
 
-    #### plot Pxx
-    for stats_type in ['intra', 'inter']:
+                        if data_type.find('surr') == -1:
+                            data_sel = np.median(data_sel, axis=0)
 
-        #band, freq = 'theta', [4, 8]
-        for band, freq in freq_band_fc_analysis.items():
+                        elif data_type.find('surr') != -1:
+                            if sujet_group == 'allsujet':
+                                data_sel = np.sum(data_sel, axis=0) / sujet_list.shape[0]
+                            if sujet_group == 'rep':
+                                data_sel = np.sum(data_sel, axis=0) / sujet_respond.shape[0]
+                            if sujet_group == 'no_rep':
+                                data_sel = np.sum(data_sel, axis=0) / sujet_no_respond.shape[0]
+                                             
+                        mne.viz.plot_topomap(data_sel, info, axes=ax, vlim=(vmin, vmax), show=False)
+                
+                # plt.show() 
 
-            #### plot Pxx
-            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
-            plt.suptitle(f'allsujet_{band}_{stats_type}_Pxx')
-            fig.set_figheight(10)
-            fig.set_figwidth(10)
+                #### save
+                os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
+                fig.savefig(f'{data_type}_{sujet_group}_{band_prep}_topo.jpeg', dpi=150)
+                fig.clf()
+                plt.close('all')
+                gc.collect()
 
-            #c, cond = 0, 'FR_CV_1'
-            for c, cond in enumerate(conditions):
+            elif data_type.find('Pxx') != -1:
 
-                #r, odor = 0, odor_list[0]
-                for r, odor in enumerate(odor_list):
+                #### plot Pxx
+                for stats_type in ['intra', 'inter']:
 
-                    #### plot
-                    ax = axs[r, c]
+                    band = data_type[4:]
 
-                    if r == 0:
-                        ax.set_title(cond, fontweight='bold', rotation=0)
-                    if c == 0:
-                        ax.set_ylabel(f'{odor}')
+                    #### plot Pxx
+                    fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+                    plt.suptitle(f'{sujet_group}_{data_type}_{stats_type}_Pxx')
+                    fig.set_figheight(10)
+                    fig.set_figwidth(10)
 
-                    mask = xr_allsujet_stats.loc[stats_type, band, odor, cond,:].values
-                    mask_params = dict(markersize=5, markerfacecolor='y')
-                    
-                    mne.viz.plot_topomap(xr_allsujet.loc[f'Pxx_{band}', cond, odor], info, axes=ax, 
-                                        vlim=(scales_allband[f'Pxx_{band}']['min'], scales_allband[f'Pxx_{band}']['max']), 
-                                        mask=mask, mask_params=mask_params, show=False)
+                    #c, cond = 0, 'FR_CV_1'
+                    for c, cond in enumerate(conditions):
 
-            # plt.show() 
+                        #r, odor = 0, odor_list[0]
+                        for r, odor in enumerate(odor_list):
 
-            #### save
-            os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
-            fig.savefig(f'allsujet_Pxx_{band}_{band_prep}_{stats_type}_topo.jpeg', dpi=150)
-            fig.clf()
-            plt.close('all')
-            gc.collect()
+                            #### plot
+                            ax = axs[r, c]
+
+                            if r == 0:
+                                ax.set_title(cond, fontweight='bold', rotation=0)
+                            if c == 0:
+                                ax.set_ylabel(f'{odor}')
+
+                            mask = xr_allsujet_stats.loc[stats_type, band, odor, cond,:].values
+                            mask_params = dict(markersize=5, markerfacecolor='y')
+
+                            if sujet_group == 'allsujet':
+                                data_sel = xr_allsujet.loc[:, data_type, cond, odor_i].median('sujet').values
+                            if sujet_group == 'rep':
+                                data_sel = xr_allsujet.loc[sujet_respond, data_type, cond, odor_i].median('sujet').values
+                            if sujet_group == 'no_rep':
+                                data_sel = xr_allsujet.loc[sujet_no_respond, data_type, cond, odor_i].median('sujet').values
+                            
+                            mne.viz.plot_topomap(data_sel, info, axes=ax, 
+                                                vlim=(scales_allband[data_type]['min'], scales_allband[data_type]['max']), 
+                                                mask=mask, mask_params=mask_params, show=False)
+
+                    # plt.show() 
+
+                    #### save
+                    os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
+                    fig.savefig(f'{data_type}_{sujet_group}_{band_prep}_{stats_type}_topo.jpeg', dpi=150)
+                    fig.clf()
+                    plt.close('all')
+                    gc.collect()
 
 
 
@@ -442,10 +448,7 @@ def get_tf_stats(tf, pixel_based_distrib):
 
 
 
-    
-
-
-def compilation_compute_TF_ITPC(sujet_list_compute):
+def compute_TF_allsujet():
 
     #tf_mode = 'TF'
     for tf_mode in ['TF', 'ITPC']:
@@ -453,27 +456,37 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
         if tf_mode == 'ITPC':
             continue
 
+        sujet_best_list_rev = []
+        for sujet in sujet_best_list:
+            sujet_best_list_rev.append(f'{sujet[2:]}{sujet[:2]}')
+
+        sujet_best_list = sujet_best_list_rev.copy()
+        sujet_no_best_list = [sujet for sujet in sujet_list if sujet not in sujet_best_list]
+
+        print('COMPUTE', flush=True)
+
         if os.path.exists(os.path.join(path_precompute, 'allsujet', tf_mode, f'allsujet_{tf_mode}.nc')):
-            os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
-            xr_allsujet = xr.open_dataarray(f'allsujet_{tf_mode}.nc')
+            print('ALREADY COMPUTED', flush=True)
+            return
 
         else:
 
             #### generate xr
             os.chdir(path_memmap)
-            data_xr = np.memmap(f'allsujet_tf_reduction.dat', dtype=np.float64, mode='w+', shape=(len(chan_list_eeg), len(conditions), len(odor_list), nfrex, stretch_point_TF))
+            group_sujet = ['allsujet', 'rep', 'no_rep']
+            data_xr = np.memmap(f'allsujet_tf_reduction.dat', dtype=np.float64, mode='w+', shape=(len(chan_list_eeg), len(group_sujet), len(conditions), len(odor_list), nfrex, stretch_point_TF))
 
             #nchan = 0
             def compute_TF_ITPC(nchan, tf_mode):
 
-                print_advancement(nchan, len(chan_list_eeg), steps=[25, 50, 75])
+                print(f'#### chan{nchan}', flush=True)
 
-                tf_median = np.zeros((len(sujet_list_compute),len(conditions),len(odor_list),nfrex,stretch_point_TF))
+                tf_median = np.zeros((len(sujet_list),len(conditions),len(odor_list),nfrex,stretch_point_TF))
 
-                #sujet_i, sujet = 0, sujet_list_compute[0]
-                for sujet_i, sujet in enumerate(sujet_list_compute):
+                #sujet_i, sujet = 0, sujet_list[0]
+                for sujet_i, sujet in enumerate(sujet_list):
 
-                    print_advancement(sujet_i, len(sujet_list_compute), steps=[25, 50, 75])
+                    print_advancement(sujet_i, len(sujet_list), steps=[25, 50, 75])
 
                     #cond_i, cond = 0, conditions[0]
                     for cond_i, cond in enumerate(conditions):
@@ -483,7 +496,16 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
                             os.chdir(os.path.join(path_precompute, sujet, tf_mode))
                             tf_median[sujet_i, cond_i, odor_i, :, :] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor}.npy')[nchan,:,:,:], axis=0)
 
-                data_xr[nchan,:,:,:,:] = np.median(tf_median, axis=0)
+                for sujet_group_i, sujet_group in enumerate(group_sujet):
+
+                    if sujet_group == 'allsujet':  
+                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median, axis=0)
+                    if sujet_group == 'rep':
+                        sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_best_list]
+                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sujet_sel,:], axis=0)
+                    if sujet_group == 'no_rep':  
+                        sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_no_best_list]
+                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median, axis=0)
 
                 if debug:
 
@@ -496,7 +518,7 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 
             joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_TF_ITPC)(nchan, tf_mode) for nchan, nchan_name in enumerate(chan_list_eeg))
 
-            dict_xr = {'nchan' : chan_list_eeg, 'cond' : conditions, 'odor' : odor_list, 'nfrex' : np.arange(0, nfrex), 'times' : np.arange(0, stretch_point_TF)}
+            dict_xr = {'nchan' : chan_list_eeg, 'group_sujet' : group_sujet, 'cond' : conditions, 'odor' : odor_list, 'nfrex' : np.arange(0, nfrex), 'times' : np.arange(0, stretch_point_TF)}
             xr_allsujet = xr.DataArray(data_xr, coords=dict_xr.values(), dims=dict_xr.keys())
 
             os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
@@ -504,7 +526,25 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 
             os.chdir(path_memmap)
             os.remove(f'allsujet_tf_reduction.dat')
+
+    print('done', flush=True)
+
+
+def compilation_compute_TF_ITPC():
+
+    #tf_mode = 'TF'
+    for tf_mode in ['TF', 'ITPC']:
+        
+        if tf_mode == 'ITPC':
+            continue
+
+        print('COMPUTE', flush=True)
+
+        os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
+        xr_allsujet = xr.open_dataarray(f'allsujet_{tf_mode}.nc')
     
+        print('PLOT', flush=True)
+
         #### scale
         vmin = np.array([])
         vmax = np.array([])
@@ -568,6 +608,8 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 
         #tf_stats_type = 'intra'
         for tf_stats_type in ['inter', 'intra']:
+
+            print(tf_stats_type, flush=True)
 
             #n_chan, chan_name = 0, chan_list_eeg[0]
             for n_chan, chan_name in enumerate(chan_list_eeg):
@@ -645,14 +687,14 @@ def compilation_compute_TF_ITPC(sujet_list_compute):
 ######## COMPILATION FUNCTION ########
 ########################################
 
-def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet_list_compute):
+def compilation_compute_Pxx_Cxy_Cyclefreq_MVL():
 
-    xr_allsujet, xr_allsujet_stats = compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet(sujet_list_compute)
+    xr_allsujet, xr_allsujet_stats = compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet()
 
-    print('######## PLOT & SAVE TOPOPLOT ########')
+    print('######## PLOT & SAVE TOPOPLOT ########', flush=True)
     plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats)
 
-    print('done')
+    print('done', flush=True)
 
 
 
@@ -666,14 +708,15 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet_list_compute):
 if __name__ == '__main__':
 
     band_prep = 'wb'
-    sujet_list_compute = sujet_list
 
     #### Pxx Cxy CycleFreq
-    compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet_list_compute)
-    # execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [nchan, nchan_name, band_prep], 15)
+    compilation_compute_Pxx_Cxy_Cyclefreq_MVL()
+    # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [nchan, nchan_name, band_prep], 15)
 
     #### TF & ITPC
-    compilation_compute_TF_ITPC(sujet_list_compute)
-    # execute_function_in_slurm_bash_mem_choice('n9_res_power', 'compilation_compute_TF_ITPC', [nchan, nchan_name, band_prep], 15)
+    execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compute_TF_allsujet', [], 15)
+
+    compilation_compute_TF_ITPC()
+    # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_TF_ITPC', [nchan, nchan_name, band_prep], 15)
 
 

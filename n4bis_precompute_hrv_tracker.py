@@ -95,11 +95,13 @@ def get_label_vec(sujet, odor_i, ecg, hrv_tracker_mode):
         return label_vec, trig
 
     else:
+
         for time_i in range(label_vec.shape[0]):
             if label_vec[time_i] in [0, 1]:
                 label_vec[time_i] = 0
             else:
                 label_vec[time_i] = 1
+                
         return label_vec, trig
 
 
@@ -209,21 +211,23 @@ def split_data(X, y, train_size, balance=True):
         min_shape = classes_shape.min()
 
         #### random sel and balancing of classes
-        classe_random_sel = np.array([np.random.randint(0, classes_shape[int(classe_i)], min_shape) for classe_i in range(classes.shape[0])])
+        classe_random_sel = np.array([np.random.choice(classes_shape[int(classe_i)], min_shape, replace=False) for classe_i in range(classes.shape[0])])
 
         classe_sig_balanced = {'X' : {}, 'y' : {}}
 
         for classe_i, classe in enumerate(classes):
         
-            classe_sig_balanced['X'][classe] = classe_sig['X'][classe][classe_random_sel[classe_i],:]
-            classe_sig_balanced['y'][classe] = classe_sig['y'][classe][classe_random_sel[classe_i]]
+            classe_sig_balanced['X'][classe] = classe_sig['X'][classe][classe_random_sel[classe_i,:],:]
+            classe_sig_balanced['y'][classe] = classe_sig['y'][classe][classe_random_sel[classe_i,:]]
 
         if debug:
             
-            for classe in classes:
+            for classe_i, classe in enumerate(classes):
 
                 classe_sig_balanced['X'][classe].shape
                 classe_sig_balanced['y'][classe].shape
+
+                np.unique(classe_random_sel[classe_i,:]).max()
     else:
 
         classe_sig_balanced = {'X' : {}, 'y' : {}}
@@ -239,18 +243,18 @@ def split_data(X, y, train_size, balance=True):
     #classe_i, classe = 0, 0
     for classe_i, classe in enumerate(classes):
             
-            _X_train, _X_test, _y_train, _y_test = train_test_split(classe_sig_balanced['X'][classe], classe_sig_balanced['y'][classe], train_size=train_size, random_state=5)
+        _X_train, _X_test, _y_train, _y_test = train_test_split(classe_sig_balanced['X'][classe], classe_sig_balanced['y'][classe], train_size=train_size, random_state=5)
 
-            if classe_i == 0:
-                X_train = _X_train
-                X_test = _X_test
-                y_train = _y_train
-                y_test = _y_test
-            else:
-                X_train = np.append(X_train, _X_train, axis=0)
-                X_test = np.append(X_test, _X_test, axis=0)
-                y_train = np.append(y_train, _y_train, axis=0)
-                y_test = np.append(y_test, _y_test, axis=0)
+        if classe_i == 0:
+            X_train = _X_train
+            X_test = _X_test
+            y_train = _y_train
+            y_test = _y_test
+        else:
+            X_train = np.append(X_train, _X_train, axis=0)
+            X_test = np.append(X_test, _X_test, axis=0)
+            y_train = np.append(y_train, _y_train, axis=0)
+            y_test = np.append(y_test, _y_test, axis=0)
 
     return X_train, X_test, y_train, y_test
 
@@ -563,7 +567,7 @@ def hrv_tracker_features_selection(sujet, hrv_tracker_mode):
         params = {
         # 'SVM__kernel' : ['linear', 'poly', 'rbf', 'sigmoid'], 
         # 'SVM__kernel' : ['linear', 'poly', 'rbf'],    
-        'SVM__C' : [1e6], 
+        'SVM__C' : [1e4], 
         'SVM__gamma' : [0.1]
         }
 

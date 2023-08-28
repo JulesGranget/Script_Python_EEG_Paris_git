@@ -32,9 +32,6 @@ def get_figure_allsujet(mode_plot_prediction):
         #### load data
         #sujet = sujet_list[0]
         for sujet in sujet_list:
-            
-            if sujet in ['31HJ']:
-                continue
 
             os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
 
@@ -118,9 +115,6 @@ def get_figure_allsujet(mode_plot_prediction):
         #### load data with ref
         #sujet = sujet_list[1]
         for sujet in sujet_list:
-
-            if sujet in ['31HJ']:
-                continue
 
             os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
 
@@ -246,7 +240,60 @@ def get_figure_allsujet(mode_plot_prediction):
 
 
 
+def get_figure_everysujet():
 
+    #n_classes = '2classes'
+    for n_classes in ['2classes', '4classes']:
+
+        #### load data
+        #sujet = sujet_list[0]
+        for sujet in sujet_list:
+            
+            if sujet in ['31HJ', '25DF']:
+                continue
+
+            os.chdir(os.path.join(path_precompute, sujet, 'HRV'))
+
+            if sujet == sujet_list[0]:
+
+                xr_hrv_tracker_allsujet = xr.open_dataarray(f'{n_classes}_no_ref_{sujet}_hrv_tracker_alltestsize.nc')
+                xr_hrv_tracker_score_allsujet = xr.open_dataarray(f'{n_classes}_no_ref_{sujet}_hrv_tracker_score_alltestsize.nc')
+
+            else:
+
+                xr_hrv_tracker_allsujet_i = xr.open_dataarray(f'{n_classes}_no_ref_{sujet}_hrv_tracker_alltestsize.nc')
+                xr_hrv_tracker_score_allsujet_i = xr.open_dataarray(f'{n_classes}_no_ref_{sujet}_hrv_tracker_score_alltestsize.nc')
+
+                xr_hrv_tracker_allsujet = xr.concat([xr_hrv_tracker_allsujet, xr_hrv_tracker_allsujet_i], dim='sujet')
+                xr_hrv_tracker_score_allsujet = xr.concat([xr_hrv_tracker_score_allsujet, xr_hrv_tracker_score_allsujet_i], dim='sujet')
+        
+        n_sujet = xr_hrv_tracker_allsujet['sujet'].shape[0]
+
+        ################################
+        ######## TRAIN MODIF ########
+        ################################
+
+        train_percentage = 0.8
+
+        for sujet in sujet_list:
+
+            os.chdir(os.path.join(path_results, 'allplot', 'HRV', 'allsujet'))
+            
+            if sujet in ['31HJ', '25DF']:
+                continue
+
+            fig_whole, axs = plt.subplots(ncols=len(odor_list), figsize=(18,9))
+            for odor_i, odor in enumerate(odor_list):
+                ax = axs[odor_i]
+                ax.plot(xr_hrv_tracker_allsujet.loc[sujet, train_percentage, odor, 'label', :], color='k', label='real', linewidth=3)
+                ax.plot(xr_hrv_tracker_allsujet.loc[sujet, train_percentage, odor, 'prediction', :], color='y', label='prediction')
+                ax.plot(xr_hrv_tracker_allsujet.loc[sujet, train_percentage, odor, 'trig_odor', :], color='r', label='odor_trig', linestyle='--')
+                ax.set_title(f"{odor}")
+            plt.suptitle(f'{sujet} {n_classes}')
+            plt.legend()
+            plt.savefig(f"{n_classes}_{sujet}.png")
+            # fig_whole.show()
+            plt.close()
 
 
 
@@ -262,6 +309,7 @@ if __name__ == '__main__':
     # mode_plot_prediction = 'full_proba'
 
     get_figure_allsujet(mode_plot_prediction)
+    get_figure_everysujet()
 
 
 

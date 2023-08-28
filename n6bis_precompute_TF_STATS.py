@@ -170,8 +170,8 @@ def precompute_tf_STATS(sujet):
 
                     #### random selection
                     draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
-                    sel_baseline = np.random.randint(low=0, high=n_cycle_baselines, size=(draw_indicator == 1).sum())
-                    sel_cond = np.random.randint(low=0, high=n_cycle_cond, size=(draw_indicator == 0).sum())
+                    sel_baseline = np.random.choice(n_cycle_baselines, size=(draw_indicator == 1).sum(), replace=False)
+                    sel_cond = np.random.choice(n_cycle_cond, size=(draw_indicator == 0).sum(), replace=False)
 
                     #### extract max min
                     tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[nchan, sel_baseline, :, :]
@@ -325,8 +325,8 @@ def precompute_tf_STATS(sujet):
 
                     #### random selection
                     draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
-                    sel_baseline = np.random.randint(low=0, high=n_cycle_baselines, size=(draw_indicator == 1).sum())
-                    sel_cond = np.random.randint(low=0, high=n_cycle_cond, size=(draw_indicator == 0).sum())
+                    sel_baseline = np.random.choice(n_cycle_baselines, size=(draw_indicator == 1).sum(), replace=False)
+                    sel_cond = np.random.choice(n_cycle_cond, size=(draw_indicator == 0).sum(), replace=False)
 
                     #### extract max min
                     tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[nchan, sel_baseline, :, :]

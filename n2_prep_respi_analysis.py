@@ -22,15 +22,162 @@ debug = False
 
 
 ########################################
+######## PHYSIO TOOL DEBUGGED ########
+########################################
+
+
+#resp = respi_allcond[cond][odor_i]
+def detect_respiration_cycles(resp, srate, baseline_mode='manual', baseline=None, 
+                              epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False):
+    """
+    Detect respiration cycles based on:
+      * crossing zeros (or crossing baseline)
+      * some cleanning with euristicts
+
+    Parameters
+    ----------
+    resp: np.array
+        Preprocess traces of respiratory signal.
+    srate: float
+        Sampling rate
+    baseline_mode: 'manual' / 'zero' / 'median' / 'mode'
+        How to compute the baseline for zero crossings.
+    baseline: float or None
+        External baseline when baseline_mode='manual'
+    inspration_ajust_on_derivative: bool (default False)
+        For the inspiration detection, the zero crossing can be refined to auto detect the inflection point.
+        This can be usefull when expiration ends with a long plateau.
+    Returns
+    -------
+    cycles: np.array
+        Indices of inspiration and expiration. shape=(num_cycle, 3)
+        with [index_inspi, index_expi, index_next_inspi]
+    """
+
+    # baseline = get_respiration_baseline(resp, srate, baseline_mode=baseline_mode, baseline=baseline)
+    baseline = resp.mean()
+
+    #~ q90 = np.quantile(resp, 0.90)
+    q10 = np.quantile(resp, 0.10)
+    epsilon = (baseline - q10) / 100.
+
+    baseline_dw = baseline - epsilon * epsilon_factor1
+    baseline_insp = baseline - epsilon * epsilon_factor2
+
+    resp0 = resp[:-1]
+    resp1 = resp[1:]
+
+    ind_dw, = np.nonzero((resp0 >= baseline_dw) & (resp1 < baseline_dw))
+    
+    ind_insp, = np.nonzero((resp0 >= baseline_insp) & (resp1 < baseline_insp))
+    ind_insp_no_clean = ind_insp.copy()
+    keep_inds = np.searchsorted(ind_insp, ind_dw, side='left')
+    keep_inds = keep_inds[keep_inds > 0]
+    ind_insp = ind_insp[keep_inds - 1]
+    ind_insp = np.unique(ind_insp)
+
+    ind_exp, = np.nonzero((resp0 < baseline) & (resp1 >= baseline))
+    keep_inds = np.searchsorted(ind_exp, ind_insp, side='right')
+    keep_inds = keep_inds[keep_inds<ind_exp.size]
+    ind_exp = ind_exp[keep_inds]
+    
+    # this is tricky to read but quite simple in concept
+    # this remove ind_exp assigned to the same ind_insp
+    bad, = np.nonzero(np.diff(ind_exp) == 0)
+    keep = np.ones(ind_insp.size, dtype='bool')
+    keep[bad + 1] = False
+    ind_insp = ind_insp[keep]
+    keep = np.ones(ind_exp.size, dtype='bool')
+    keep[bad + 1] = False
+    ind_exp = ind_exp[keep]
+
+    #~ import matplotlib.pyplot as plt
+    #~ fig, ax = plt.subplots()
+    #~ ax.plot(resp)
+    #~ ax.scatter(ind_insp_no_clean, resp[ind_insp_no_clean], color='m', marker='*', s=100)
+    #~ ax.scatter(ind_dw, resp[ind_dw], color='orange', marker='o', s=30)
+    #~ ax.scatter(ind_insp, resp[ind_insp], color='g', marker='o')
+    #~ ax.scatter(ind_exp, resp[ind_exp], color='r', marker='o')
+    #~ ax.axhline(baseline, color='r')
+    #~ ax.axhline(baseline_insp, color='g')
+    #~ ax.axhline(baseline_dw, color='orange')
+    #~ ax.axhline(q10, color='k')
+    #~ plt.show()
+
+
+    if ind_insp.size == 0:
+        print('no cycle dettected')
+        return
+
+
+    mask = (ind_exp > ind_insp[0]) & (ind_exp < ind_insp[-1])
+    ind_exp = ind_exp[mask]
+
+    if inspiration_adjust_on_derivative:
+        # lets find local minima on second derivative
+        # this can be slow
+        delta_ms = 10.
+        delta = int(delta_ms * srate / 1000.)
+        derivate1 = np.gradient(resp)
+        derivate2 = np.gradient(derivate1)
+        for i in range(ind_exp.size):
+            i0, i1 = ind_insp[i], ind_exp[i]
+            i0 = max(0, i0 - delta)
+            i1 = i0 + np.argmin(resp[i0:i1])
+            d1 = derivate1[i0:i1]
+            i1 = i0 + np.argmin(d1)
+            if (i1 - i0) >2:
+                # find the last crossing zeros in this this short segment
+                d2 = derivate2[i0:i1]
+                i1 = i0 + np.argmin(d2)
+                if (i1 - i0) >2:
+                    d2 = derivate2[i0:i1]
+                    mask = (d2[:-1] >=0) & (d2[1:] < 0)
+                    if np.any(mask):
+                        ind_insp[i] = i0 + np.nonzero(mask)[0][-1]
+
+    if ind_exp.shape[0] != ind_insp[:-1].shape[0]:
+
+        ind_insp = ind_insp[:-1]
+    
+    cycles = np.zeros((ind_insp.size - 1, 3), dtype='int64')
+    cycles[:, 0] = ind_insp[:-1]
+    cycles[:, 1] = ind_exp
+    cycles[:, 2] = ind_insp[1:]
+
+    if debug:
+
+        plt.plot(resp)
+        plt.scatter(ind_insp[:-1], resp[ind_insp[:-1]], label='inspi')
+        plt.scatter(ind_exp, resp[ind_exp], label='expi')
+        plt.legend()
+        plt.show()
+
+    return cycles
+
+
+
+
+
+
+
+########################################
 ######## COMPUTE RESPI FEATURES ########
 ########################################
 
 
-#respi = respi_allcond[cond][odor_i]
-def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coeff_exclusion=3, inspi_coeff_exclusion=2, respi_scale=[0.1, 0.35]):
+#respi, cycles_init = respi_allcond[cond][odor_i], cycles
+def exclude_bad_cycles(respi, cycles_init, srate, exclusion_metrics='med', metric_coeff_exclusion=3, inspi_coeff_exclusion=2, respi_scale=[0.1, 0.35]):
 
-    cycles_init = cycles.copy()
     next_inspi = cycles_init[:,-1]
+
+    if debug:
+
+        inspi_starts_init = cycles_init[:,0]
+        fig, ax = plt.subplots()
+        ax.plot(respi)
+        ax.scatter(inspi_starts_init, respi[inspi_starts_init], color='g')
+        plt.show()
 
     #### exclude regarding inspi/expi diff
     _diff = np.log(np.diff(cycles_init[:,:2], axis=1).reshape(-1))
@@ -41,6 +188,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
 
         plt.plot(zscore(_diff))
         plt.plot(zscore(np.log(_diff)))
+        plt.title('inspi/expi diff')
         plt.show()
 
     if exclusion_metrics == 'med':
@@ -79,6 +227,7 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
         ax2.axhline(metric_center, color='r')
         ax2.axhline(metric_center - metric_dispersion*inspi_coeff_exclusion, color='r', linestyle='--')
         ax2.axhline(metric_center + metric_dispersion*inspi_coeff_exclusion, color='r', linestyle='--')
+        plt.title('inspi/expi diff')
         plt.legend()
         plt.show()
 
@@ -95,12 +244,6 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
 
     cycle_metrics = np.log(sums)
 
-    if debug:
-        plt.plot(zscore(sums))
-        plt.plot(zscore(np.log(sums)), label='log')
-        plt.legend()
-        plt.show()
-
     #### exclude regarding duration
     durations = np.diff(inspi_starts/srate)
 
@@ -109,6 +252,21 @@ def exclude_bad_cycles(respi, cycles, srate, exclusion_metrics='med', metric_coe
     cycle_duration_sel_i = [i for i, val in enumerate(durations) if (val < 1/respi_scale[1]) == False]
     cycle_duration_excluded_i = [i for i, val in enumerate(durations) if (val < 1/respi_scale[1])]
     cycle_metrics_cleaned = cycle_metrics[cycle_duration_sel_i]
+
+    if debug:
+
+        fig, ax = plt.subplots()
+        ax.plot(respi)
+        ax.scatter(inspi_starts, respi[inspi_starts], color='g')
+        ax.scatter(inspi_starts[cycle_duration_excluded_i], respi[inspi_starts[cycle_duration_excluded_i]], color='k', marker='x', s=100)
+
+        ax2 = ax.twinx()
+        ax2.scatter(inspi_starts[1:], 1/durations, color='r', label=exclusion_metrics)
+        ax2.axhline(respi_scale[0], color='r')
+        ax2.axhline(respi_scale[1], color='r')
+        plt.title('durations')
+        plt.legend()
+        plt.show()
 
     cycles = cycles[cycle_duration_sel_i, :]
     next_inspi = next_inspi[cycle_duration_sel_i]
@@ -224,6 +382,25 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
 
             raw_allcond[cond][odor_i] = load_data
 
+    #### extract zscore params
+    zscore_prms = {'mean' : {}, 'std' : {}}
+
+    #odor = odor_list[1]
+    for odor in odor_list:
+
+        respi_concat = []
+
+        #cond = 'MECA'
+        for cond in conditions:
+
+            resp_clean = physio.preprocess(raw_allcond[cond][odor_i], srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
+            resp_clean_smooth = physio.smooth_signal(resp_clean, srate, win_shape='gaussian', sigma_ms=40.0)
+
+            respi_concat = np.concatenate((respi_concat, resp_clean_smooth), axis=0)
+
+        zscore_prms['mean'][odor] = np.array(respi_concat).mean()
+        zscore_prms['std'][odor] = np.array(respi_concat).std()
+
     #### preproc respi
     respi_allcond = {}
 
@@ -236,12 +413,14 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
             resp_clean = physio.preprocess(raw_allcond[cond][odor_i], srate, band=25., btype='lowpass', ftype='bessel', order=5, normalize=False)
             resp_clean_smooth = physio.smooth_signal(resp_clean, srate, win_shape='gaussian', sigma_ms=40.0)
 
+            resp_clean_smooth = (resp_clean_smooth - zscore_prms['mean'][odor]) / zscore_prms['std'][odor]
+
             respi_allcond[cond][odor_i] = resp_clean_smooth
 
     #### detect
     respfeatures_allcond = {}
 
-    #cond = 'FR_CV_1'
+    #cond = 'CO2'
     for cond in conditions:
 
         respfeatures_allcond[cond] = {}
@@ -249,19 +428,43 @@ def load_respi_allcond_data(sujet, cycle_detection_params):
         #odor_i = '-'
         for odor_i in odor_list:
 
-            cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',inspration_ajust_on_derivative=True)
+            # cycles = physio.detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',
+            #                                           baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
+            cycles = detect_respiration_cycles(respi_allcond[cond][odor_i], srate, baseline_mode='median',
+                                                      baseline=None, epsilon_factor1=10, epsilon_factor2=5, inspiration_adjust_on_derivative=False)
+            
+            if debug:
 
-            if sujet in ['07PB', '18SE', '20TY', '24TJ', '25DF', '26MN', '28NT', '30AR', '32CM']:
+                fig, ax = plt.subplots()
+                ax.plot(respi_allcond[cond][odor_i])
+                ax.scatter(cycles[:,0], respi_allcond[cond][odor_i][cycles[:,0]], color='g')
+                plt.show()
+
+            if sujet in ['07PB', '11FA', '16GM', '18SE', '20TY', '24TJ', '25DF', '26MN', '28NT', '30AR']:
 
                 cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
                         exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
                         inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=[0.1, 0.5])
+            
+            elif sujet in ['32CM']:
+
+                cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
+                        exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
+                        inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=[0.1, 0.6])
 
             else:
 
                 cycles, cycles_mask_keep, fig_respi_exclusion, fig_final = exclude_bad_cycles(respi_allcond[cond][odor_i], cycles, srate, 
                         exclusion_metrics=cycle_detection_params['exclusion_metrics'], metric_coeff_exclusion=cycle_detection_params['metric_coeff_exclusion'], 
                         inspi_coeff_exclusion=cycle_detection_params['inspi_coeff_exclusion'], respi_scale=cycle_detection_params['respi_scale'])
+                
+            if debug:
+
+                fig, ax = plt.subplots()
+                ax.plot(respi_allcond[cond][odor_i])
+                ax.scatter(cycles[:,0], respi_allcond[cond][odor_i][cycles[:,0]], color='r')
+                ax.scatter(cycles[:,0][cycles_mask_keep.astype('bool')], respi_allcond[cond][odor_i][cycles[:,0][cycles_mask_keep.astype('bool')]], color='g')
+                plt.show()
 
             #### get resp_features
             resp_features_i = physio.compute_respiration_cycle_features(respi_allcond[cond][odor_i], srate, cycles, baseline=None)
@@ -455,10 +658,6 @@ if __name__ == '__main__':
         
         raw_allcond, respi_allcond, respfeatures_allcond = load_respi_allcond_data(sujet, cycle_detection_params)
 
-
-
-
-
         ########################################
         ######## VERIF RESPIFEATURES ########
         ########################################
@@ -477,9 +676,6 @@ if __name__ == '__main__':
             respfeatures_allcond[cond][odor_i][1].show()
             respfeatures_allcond[cond][odor_i][2].show()
 
-
-
-
         ########################################
         ######## EDIT CYCLES SELECTED ########
         ########################################
@@ -488,9 +684,17 @@ if __name__ == '__main__':
 
         export_cycle_count(sujet, respfeatures_allcond)
 
+        if debug :
 
+            for cond in conditions:
 
+                for odor in odor_list:
 
+                    _respi = respi_allcond[cond][odor_i]
+                    plt.plot(_respi)
+                    plt.vlines(respfeatures_allcond[cond][odor_i][0]['inspi_index'].values, ymin=_respi.min(), ymax=_respi.max(), color='r')
+                    plt.title(f"{odor} {cond}")
+                    plt.show()
 
         ################################
         ######## SAVE FIG ########
@@ -508,3 +712,12 @@ if __name__ == '__main__':
 
 
         
+
+
+
+
+
+
+
+
+

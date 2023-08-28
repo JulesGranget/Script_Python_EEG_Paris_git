@@ -26,16 +26,35 @@ perso_repo_computation = False
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
 sujet_list = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
-'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
-'30AR','31HJ', '32CM','33MA'])
+'14MD','15LG','16GM','17JR','19TM','20TY','21ZV','23LF','24TJ','25DF','26MN','28NT','29SC',
+'30AR','31HJ','32CM','33MA'])
 
 # 02MJ signal problems
-# DF25 has no session 2
-# HJ31 has no session 4
+# 18SE signal problems
+# 22DI signal problems
+# 27BD signal problems
 
-sujet_best_list = np.array(['BD12', 'CM32', 'DI22', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
-       'MJ02', 'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03',
-       'ZV21'])
+sujet_best_list = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
+                            'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03','ZV21'])
+                            
+
+sujet_no_respond = np.array(['GB04', 'LV05', 'EF06', 'PB07', 'DM08', 'BH10', 'FP13', 
+                             'MD14', 'LG15', 'TY20', 'LF23', 'DF25', 'NT28', 'AR30'])
+
+[f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_list if f"{sujet[2:]}{sujet[:2]}" not in sujet_best_list]
+
+sujet_list_erp = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD',
+'14MD','15LG','16GM','17JR','19TM','20TY','21ZV','23LF','24TJ','25DF','26MN','28NT','29SC',
+'30AR','31HJ','32CM','33MA'])
+
+# 13FP to much noise
+
+sujet_best_list_erp = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
+                                'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03','ZV21'])
+
+sujet_no_respond_erp = np.array(['GB04', 'LV05', 'EF06', 'PB07', 'DM08', 'BH10', 'MD14',
+                                'LG15', 'TY20', 'LF23', 'DF25', 'NT28', 'AR30'])
+
 
 sujet_list_hyperventilation = ['20TY']
 
@@ -208,6 +227,8 @@ cycle_detection_params = {
 }
 
 
+scale_for_respi_abnormalities = {'04GB' : {'session' : 'o', 'coeff' : 6840}, '07PB' : {'session' : 'o', 'coeff' : 597}}
+
 
 ################################
 ######## ECG PARAMS ########
@@ -246,7 +267,7 @@ prep_step_debug = {
 }
 
 prep_step_wb = {
-'reref' : {'execute': True, 'params' : ['TP9', 'TP10']}, #chan = chan to reref
+'reref' : {'execute': False, 'params' : ['TP9', 'TP10']}, #chan = chan to reref
 'mean_centered' : {'execute': True},
 'line_noise_removing' : {'execute': True},
 'high_pass' : {'execute': False, 'params' : {'l_freq' : None, 'h_freq': None}},
@@ -289,19 +310,14 @@ prep_step_hf = {
 
 
 PPI_time_vec = [-3, 1] #seconds
-PPI_lm_time = [-1.5, -.5]
+mean_respi_ERP_time_vec = [-3,3]
+PPI_lm_time = [-2.5, 0]
 
-# '13FP' signal bad
+allplot_erp_ylim = (-0.3, 0.3)
 
-sujet_list_erp = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD',
-'14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','26MN','27BD','28NT','29SC',
-'30AR','32CM','33MA'])
-
+ERP_n_surrogate = 500
 
 
-sujet_best_list_erp = np.array(['12BD', '32CM', '22DI', '11FA', '16GM', '17JR', '33MA',
-       '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '03VN',
-       '21ZV'])
 
 
 ########################################
