@@ -447,6 +447,49 @@ def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', m
     return ax
 
 
+
+def get_auto_stats_df(df, predictor, outcome, subject=None, design='within', transform=False, verbose=True):
+    
+    if isinstance(predictor, str):
+        
+        parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
+        
+        if transform:
+            if not parametricity_pre_transfo:
+                df = transform_data(df, outcome)
+                parametricity_post_transfo = parametric(df, predictor, outcome, subject)
+                parametricity = parametricity_post_transfo
+                if verbose:
+                    if parametricity_post_transfo:
+                        print('Successfull transformation')
+                    else:
+                        print('Un-successfull transformation')
+            else:
+                parametricity = parametricity_pre_transfo
+        else:
+            parametricity = parametricity_pre_transfo
+        
+        tests = guidelines(df, predictor, outcome, design, parametricity)
+        
+        pre_test = tests['pre']
+        post_test = tests['post']
+        results = pg_compute_pre(df, predictor, outcome, pre_test, subject)
+        pval = round(results['p'], 4)
+
+        if not post_test is None:
+            post_hoc = pg_compute_post_hoc(df, predictor, outcome, post_test, subject)
+
+    post_hoc['pre_test'] = np.array([pre_test] * post_hoc.shape[0])
+    post_hoc['pre_test_pval'] = np.array([pval] * post_hoc.shape[0])
+    post_hoc['Contrast'] = np.array([predictor] * post_hoc.shape[0])
+
+    df_post_hoc = post_hoc.reindex(columns=['pre_test', 'pre_test_pval', 'Contrast', 'A', 'B', 'p-unc'])
+
+    df_post_hoc = df_post_hoc.rename(columns={'p-unc': 'p_unc'})
+
+    return df_post_hoc
+
+
 def virer_outliers(df, predictor, outcome, deviations = 5):
     
     groups = list(df[predictor].unique())
@@ -603,7 +646,6 @@ def confidence_interval(x, confidence = 0.95, verbose = False):
     if verbose:
         print(f'm : {round(m, 3)} , std : {round(s,3)} , ci : [{round(ci[0],3)};{round(ci[1],3)}]')
     return ci
-
 
 
 

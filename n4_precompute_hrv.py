@@ -207,56 +207,62 @@ if __name__ == '__main__':
 
 
     ### compute & save
-    #sujet = sujet_list[0]
-    for sujet in sujet_list:
+    for analysis_time in ['5min', '3min']:
 
-        print(sujet)
+        #sujet = sujet_list[0]
+        for sujet in sujet_list:
 
-        if sujet not in sujet_list_clean_hrv:
+            print(sujet)
+
+            if sujet not in sujet_list_clean_hrv:
+                os.chdir(os.path.join(path_results, sujet, 'HRV'))
+
+                lines = [f'{sujet}', 'bad detection so far']
+                with open(f'{sujet}_bad_detection.txt', 'w') as f:
+                    f.writelines(lines)
+
+            #### initiate containers
+            df_hrv_dict = {}
+            df_hrv_dict['sujet'], df_hrv_dict['cond'], df_hrv_dict['odor'] = [], [], []
+            for metric_i in prms_hrv['metric_list']:
+                df_hrv_dict[metric_i] = []
+            df_hrv = pd.DataFrame(df_hrv_dict)
+
+            #### load data
+            ecg_allcond, ecg_cR_allcond = load_ecg(sujet, band_prep)
+            ecg_cR_allcond = load_ecg_cR_corrected(sujet)
+
+            #### compute
+            #cond = conditions[0]
+            for cond in conditions:
+
+                #odor_i = odor_list[0]
+                for odor_i in odor_list:
+
+                    cR_time = ecg_cR_allcond[cond][odor_i]
+        
+                    df = get_hrv_metrics_homemade(cR_time, prms_hrv, analysis_time=analysis_time)
+
+                    dict_res = {}
+                    dict_res['sujet'], dict_res['cond'], dict_res['odor'] = [sujet], [cond], [odor_i]
+                    
+                    #metric_i = prms_hrv['metric_list'][0]
+                    for metric_i in prms_hrv['metric_list']:
+                        dict_res[metric_i] = df[metric_i].values
+
+                    df_i = pd.DataFrame(dict_res) 
+
+                    df_hrv = pd.concat((df_hrv, df_i))
+
+            #### verif
+            sujet_list_clean_hrv
+
+            #### save
+            df_hrv = df_hrv.reset_index().drop(columns='index')
             os.chdir(os.path.join(path_results, sujet, 'HRV'))
 
-            lines = [f'{sujet}', 'bad detection so far']
-            with open(f'{sujet}_bad_detection.txt', 'w') as f:
-                f.writelines(lines)
-
-        #### initiate containers
-        df_hrv_dict = {}
-        df_hrv_dict['sujet'], df_hrv_dict['cond'], df_hrv_dict['odor'] = [], [], []
-        for metric_i in prms_hrv['metric_list']:
-            df_hrv_dict[metric_i] = []
-        df_hrv = pd.DataFrame(df_hrv_dict)
-
-        #### load data
-        ecg_allcond, ecg_cR_allcond = load_ecg(sujet, band_prep)
-        ecg_cR_allcond = load_ecg_cR_corrected(sujet)
-
-        #### compute
-        #cond = conditions[0]
-        for cond in conditions:
-
-            #odor_i = odor_list[0]
-            for odor_i in odor_list:
-
-                cR_time = ecg_cR_allcond[cond][odor_i]
-    
-                df = get_hrv_metrics_homemade(cR_time, prms_hrv)
-
-                dict_res = {}
-                dict_res['sujet'], dict_res['cond'], dict_res['odor'] = [sujet], [cond], [odor_i]
-                
-                #metric_i = prms_hrv['metric_list'][0]
-                for metric_i in prms_hrv['metric_list']:
-                    dict_res[metric_i] = df[metric_i].values
-
-                df_i = pd.DataFrame(dict_res) 
-
-                df_hrv = pd.concat((df_hrv, df_i))
-
-        #### verif
-        sujet_list_clean_hrv
-
-        #### save
-        df_hrv = df_hrv.reset_index().drop(columns='index')
-        os.chdir(os.path.join(path_results, sujet, 'HRV'))
-        df_hrv.to_excel(f"{sujet}_df_hrv.xlsx")
+            if analysis_time == '3min':
+                df_hrv.to_excel(f"{sujet}_df_hrv_3min.xlsx")
+            else:
+                df_hrv.to_excel(f"{sujet}_df_hrv.xlsx")
     

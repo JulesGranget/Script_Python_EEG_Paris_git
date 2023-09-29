@@ -1727,10 +1727,15 @@ def get_poincarre(RRI):
 
 
 
-def get_hrv_metrics_homemade(cR_time, prms_hrv):
+def get_hrv_metrics_homemade(cR_time, prms_hrv, analysis_time='5min'):
 
     #### get RRI
     cR_sec = cR_time/prms_hrv['srate'] # cR in sec
+
+    if analysis_time == '3min':
+
+        cR_sec_mask = (cR_sec >= 60) & (cR_sec <= 240)
+        cR_sec = cR_sec[cR_sec_mask] - 60
 
     RRI = np.diff(cR_sec)
     RRI = np.insert(RRI, 0, np.median(RRI))

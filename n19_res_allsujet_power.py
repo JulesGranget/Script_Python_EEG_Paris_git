@@ -456,11 +456,16 @@ def compute_TF_allsujet():
         if tf_mode == 'ITPC':
             continue
 
-        sujet_best_list_rev = []
-        for sujet in sujet_best_list:
-            sujet_best_list_rev.append(f'{sujet[2:]}{sujet[:2]}')
+        sujet_best_list = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
+                            'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03','ZV21'])
+        sujet_best_list_rev = np.array(['12BD', '32CM', '11FA', '16GM', '31HJ', '17JR', '33MA',
+                                    '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '03VN','21ZV'])
 
-        sujet_best_list = sujet_best_list_rev.copy()
+        # sujet_best_list_rev = []
+        # for sujet in sujet_best_list:
+        #     sujet_best_list_rev.append(f'{sujet[2:]}{sujet[:2]}')
+
+        # sujet_best_list = sujet_best_list_rev.copy()
         sujet_no_best_list = [sujet for sujet in sujet_list if sujet not in sujet_best_list]
 
         print('COMPUTE', flush=True)
@@ -542,6 +547,9 @@ def compilation_compute_TF_ITPC():
 
         os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
         xr_allsujet = xr.open_dataarray(f'allsujet_{tf_mode}.nc')
+
+        group_list = ['allsujet', 'rep', 'no_rep']
+        stats_plot = False
     
         print('PLOT', flush=True)
 
@@ -557,7 +565,7 @@ def compilation_compute_TF_ITPC():
 
                 for odor_i in odor_list:
 
-                    vals = np.append(vals, xr_allsujet.loc[nchan_name, cond, odor_i, :, :].values.reshape(-1))
+                    vals = np.append(vals, xr_allsujet.loc[nchan_name, 'allsujet', cond, odor_i, :, :].values.reshape(-1))
 
             median_diff = np.percentile(np.abs(vals - np.median(vals)), tf_plot_percentile_scale)
 
@@ -609,74 +617,79 @@ def compilation_compute_TF_ITPC():
         #tf_stats_type = 'intra'
         for tf_stats_type in ['inter', 'intra']:
 
-            print(tf_stats_type, flush=True)
+            #group = group_list[0]
+            for group in group_list:
 
-            #n_chan, chan_name = 0, chan_list_eeg[0]
-            for n_chan, chan_name in enumerate(chan_list_eeg):
+                print(tf_stats_type, flush=True)
 
-                print_advancement(n_chan, len(chan_list_eeg), steps=[25, 50, 75])
+                #n_chan, chan_name = 0, chan_list_eeg[0]
+                for n_chan, chan_name in enumerate(chan_list_eeg):
 
-                #### plot
-                fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+                    print_advancement(n_chan, len(chan_list_eeg), steps=[25, 50, 75])
 
-                plt.suptitle(f'allsujet_{chan_name}')
+                    #### plot
+                    fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
 
-                fig.set_figheight(10)
-                fig.set_figwidth(15)
+                    plt.suptitle(f'allsujet_{chan_name}')
 
-                time = range(stretch_point_TF)
+                    fig.set_figheight(10)
+                    fig.set_figwidth(15)
 
-                #r, odor_i = 0, odor_list[0]
-                for r, odor_i in enumerate(odor_list):
+                    time = range(stretch_point_TF)
 
-                    #c, cond = 1, conditions[1]
-                    for c, cond in enumerate(conditions):
+                    #r, odor_i = 0, odor_list[0]
+                    for r, odor_i in enumerate(odor_list):
 
-                        tf_plot = xr_allsujet.loc[chan_name, cond, odor_i, :, :]
-                    
-                        ax = axs[r,c]
+                        #c, cond = 1, conditions[1]
+                        for c, cond in enumerate(conditions):
 
-                        if r == 0 :
-                            ax.set_title(cond, fontweight='bold', rotation=0)
+                            tf_plot = xr_allsujet.loc[chan_name, group, cond, odor_i, :, :].values
+                        
+                            ax = axs[r,c]
 
-                        if c == 0:
-                            ax.set_ylabel(odor_i)
+                            if r == 0 :
+                                ax.set_title(cond, fontweight='bold', rotation=0)
 
-                        ax.pcolormesh(time, frex, tf_plot, vmin=vmin[nchan], vmax=vmax[nchan], shading='gouraud', cmap=plt.get_cmap('seismic'))
-                        ax.set_yscale('log')
+                            if c == 0:
+                                ax.set_ylabel(odor_i)
 
-                        if tf_mode == 'TF' and cond != 'FR_CV_1' and tf_stats_type == 'intra':
-                            os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
+                            ax.pcolormesh(time, frex, tf_plot, vmin=vmin[nchan], vmax=vmax[nchan], shading='gouraud', cmap=plt.get_cmap('seismic'))
+                            ax.set_yscale('log')
 
-                            pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy'), axis=1)
-                            
-                            if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
-                                ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
+                            if stats_plot:
 
-                        if tf_mode == 'TF' and odor_i != 'o' and tf_stats_type == 'inter':
-                            os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
+                                if tf_mode == 'TF' and cond != 'FR_CV_1' and tf_stats_type == 'intra':
+                                    os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
 
-                            pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy'), axis=1)
-                            
-                            if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
-                                ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
+                                    pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy'), axis=1)
+                                    
+                                    if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
+                                        ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
 
-                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
-                        ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+                                if tf_mode == 'TF' and odor_i != 'o' and tf_stats_type == 'inter':
+                                    os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
 
-                #plt.show()
+                                    pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy'), axis=1)
+                                    
+                                    if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
+                                        ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
 
-                os.chdir(os.path.join(path_results, 'allplot', tf_mode))
+                            ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
+                            ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
 
-                #### save
-                if tf_stats_type == 'inter':
-                    fig.savefig(f'allsujet_{chan_name}_inter_{band_prep}.jpeg', dpi=150)
-                if tf_stats_type == 'intra':
-                    fig.savefig(f'allsujet_{chan_name}_intra_{band_prep}.jpeg', dpi=150)
-                    
-                fig.clf()
-                plt.close('all')
-                gc.collect()
+                    #plt.show()
+
+                    os.chdir(os.path.join(path_results, 'allplot', tf_mode))
+
+                    #### save
+                    if tf_stats_type == 'inter':
+                        fig.savefig(f'allsujet_{chan_name}_{group}_inter.jpeg', dpi=150)
+                    if tf_stats_type == 'intra':
+                        fig.savefig(f'allsujet_{chan_name}_{group}_intra.jpeg', dpi=150)
+                        
+                    fig.clf()
+                    plt.close('all')
+                    gc.collect()
 
 
 
@@ -710,7 +723,7 @@ if __name__ == '__main__':
     band_prep = 'wb'
 
     #### Pxx Cxy CycleFreq
-    compilation_compute_Pxx_Cxy_Cyclefreq_MVL()
+    # compilation_compute_Pxx_Cxy_Cyclefreq_MVL()
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [nchan, nchan_name, band_prep], 15)
 
     #### TF & ITPC
