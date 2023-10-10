@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import scipy.signal
 import mne
 import pandas as pd
-import respirationtools
 import sys
 import stat
 import subprocess

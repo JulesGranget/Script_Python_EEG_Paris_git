@@ -39,6 +39,11 @@ sujet_best_list = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA3
 sujet_best_list_rev = np.array(['12BD', '32CM', '11FA', '16GM', '31HJ', '17JR', '33MA',
                             '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '03VN','21ZV'])
 
+sujet_best_list_balanced = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'MA33',
+                            'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'ZV21'])
+sujet_best_list_balanced_rev = np.array(['12BD', '32CM', '11FA', '16GM', '31HJ', '33MA',
+                            '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '21ZV'])
+
 sujet_no_respond = np.array(['GB04', 'LV05', 'EF06', 'PB07', 'DM08', 'BH10', 'FP13', 
                              'MD14', 'LG15', 'TY20', 'LF23', 'DF25', 'NT28', 'AR30'])
 sujet_no_respond_rev = np.array(['04GB', '05LV', '06EF', '07PB', '08DM', '10BH', '13FP', 
@@ -140,9 +145,9 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
     if perso_repo_computation:
         path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
     else:    
-        path_main_workdir = 'Z:\\multisite\\DATA_MANIP\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
-    path_general = 'Z:\\multisite\\DATA_MANIP\\EEG_Paris_J'
-    path_memmap = 'Z:\\multisite\\DATA_MANIP\\EEG_Paris_J\\Mmap'
+        path_main_workdir = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
+    path_general = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
+    path_memmap = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
     n_core = 4
 
 
@@ -163,9 +168,9 @@ elif PC_ID == 'pc-jules' or PC_ID == 'LAPTOP-EI7OSP7K':
     if perso_repo_computation:
         path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
     else:    
-        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
-    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Mmap'
+        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
+    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Mmap'
     n_core = 4
 
 elif PC_ID == 'pc-valentin':
@@ -174,24 +179,24 @@ elif PC_ID == 'pc-valentin':
     if perso_repo_computation:
         path_main_workdir = '/home/valentin/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
     else:    
-        path_main_workdir = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
-    path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Mmap'
+        path_main_workdir = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
+    path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Mmap'
     n_core = 6
 
 elif PC_ID == 'nodeGPU':
 
     PC_working = 'nodeGPU'
-    path_main_workdir = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
+    path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
     path_memmap = '/mnt/data/julesgranget'
     n_core = 15
 
 else:
 
     PC_working = 'crnl_cluster'
-    path_main_workdir = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/crnldata/cmo/multisite/DATA_MANIP/EEG_Paris_J'
+    path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
     path_memmap = '/mnt/data/julesgranget'
     n_core = 10
     

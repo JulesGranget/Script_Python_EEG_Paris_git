@@ -6,7 +6,7 @@ import scipy.signal
 import pandas as pd
 import joblib
 import xarray as xr
-# import cv2
+import cv2
 
 import pickle
 import gc
@@ -466,7 +466,7 @@ def compute_TF_allsujet():
         #     sujet_best_list_rev.append(f'{sujet[2:]}{sujet[:2]}')
 
         # sujet_best_list = sujet_best_list_rev.copy()
-        sujet_no_best_list = [sujet for sujet in sujet_list if sujet not in sujet_best_list]
+        sujet_no_best_list = [sujet for sujet in sujet_list if sujet not in sujet_best_list_rev]
 
         print('COMPUTE', flush=True)
 
@@ -501,12 +501,13 @@ def compute_TF_allsujet():
                             os.chdir(os.path.join(path_precompute, sujet, tf_mode))
                             tf_median[sujet_i, cond_i, odor_i, :, :] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor}.npy')[nchan,:,:,:], axis=0)
 
+                #sujet_group_i, sujet_group = 0, sujet_group[0] 
                 for sujet_group_i, sujet_group in enumerate(group_sujet):
 
                     if sujet_group == 'allsujet':  
                         data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median, axis=0)
                     if sujet_group == 'rep':
-                        sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_best_list]
+                        sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_best_list_rev]
                         data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sujet_sel,:], axis=0)
                     if sujet_group == 'no_rep':  
                         sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_no_best_list]
@@ -549,7 +550,7 @@ def compilation_compute_TF_ITPC():
         xr_allsujet = xr.open_dataarray(f'allsujet_{tf_mode}.nc')
 
         group_list = ['allsujet', 'rep', 'no_rep']
-        stats_plot = False
+        stats_plot = True
     
         print('PLOT', flush=True)
 
@@ -583,15 +584,18 @@ def compilation_compute_TF_ITPC():
             c, cond = 1, conditions[1] 
             _vmin, _vmax = vmin[n_chan], vmax[n_chan]
 
-            tf_plot = xr_allsujet.loc[nchan_name, cond, odor_i, :, :].values
+            tf_plot = xr_allsujet.loc[nchan_name, 'allsujet', cond, odor_i, :, :].values
             time = xr_allsujet['times'].values
 
             os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
             pixel_based_distrib = np.load(f'allsujet_{tf_mode.lower()}_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy')[n_chan]
 
-            plt.pcolormesh(time, frex, tf_plot, vmin=_vmin, vmax=_vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
-            plt.yscale('log')
-            plt.contour(time, frex, get_tf_stats_no_cluster_thresh(tf_plot, pixel_based_distrib), levels=0, colors='g')
+            fig, ax = plt.subplots()
+            ax.pcolormesh(time, frex, tf_plot, vmin=_vmin, vmax=_vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
+            ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
+            ax.set_yscale('log')
+            ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
             plt.show()
 
             plt.pcolormesh(time, frex, tf_plot, vmin=_vmin, vmax=_vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
@@ -614,13 +618,13 @@ def compilation_compute_TF_ITPC():
         #### plot
         os.chdir(os.path.join(path_results, 'allplot', tf_mode))
 
-        #tf_stats_type = 'intra'
+        #tf_stats_type = 'inter'
         for tf_stats_type in ['inter', 'intra']:
 
-            #group = group_list[0]
+            #group = group_list[1]
             for group in group_list:
 
-                print(tf_stats_type, flush=True)
+                print(f"{tf_stats_type} {group}", flush=True)
 
                 #n_chan, chan_name = 0, chan_list_eeg[0]
                 for n_chan, chan_name in enumerate(chan_list_eeg):
@@ -654,6 +658,7 @@ def compilation_compute_TF_ITPC():
                                 ax.set_ylabel(odor_i)
 
                             ax.pcolormesh(time, frex, tf_plot, vmin=vmin[nchan], vmax=vmax[nchan], shading='gouraud', cmap=plt.get_cmap('seismic'))
+                            ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
                             ax.set_yscale('log')
 
                             if stats_plot:
@@ -663,18 +668,17 @@ def compilation_compute_TF_ITPC():
 
                                     pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy'), axis=1)
                                     
-                                    if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
-                                        ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
+                                    if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
+                                        ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
 
                                 if tf_mode == 'TF' and odor_i != 'o' and tf_stats_type == 'inter':
                                     os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
 
                                     pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy'), axis=1)
                                     
-                                    if get_tf_stats(tf_plot.values, pixel_based_distrib).sum() != 0:
-                                        ax.contour(time, frex, get_tf_stats(tf_plot.values, pixel_based_distrib), levels=0, colors='g')
+                                    if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
+                                        ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
 
-                            ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
                             ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
 
                     #plt.show()

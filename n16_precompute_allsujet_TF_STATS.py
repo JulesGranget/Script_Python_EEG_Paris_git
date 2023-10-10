@@ -140,6 +140,7 @@ def get_tf_stats(tf, min, max):
 #nchan = 0
 def precompute_tf_STATS(nchan, sujet_list_to_compute):
 
+    ######## INTRA ########
     print(f'#### COMPUTE TF STATS INTRA NCHAN:{nchan} ####', flush=True)
 
     cond_to_compute = [cond for cond in conditions if cond != 'FR_CV_1']
@@ -152,20 +153,15 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
 
         print('#### LOAD BASELINE ####', flush=True)
 
+        tf_stretch_baselines = np.zeros((len(sujet_list_to_compute), nfrex, stretch_point_TF))
+
         #sujet_i, sujet = 0, sujet_list_to_compute[0]
         for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
             print_advancement(sujet_i, len(sujet_list_to_compute), steps=[25, 50, 75])
 
             os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-            _tf_stretch_baselines = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
-
-            if sujet_i == 0:
-                tf_stretch_baselines = _tf_stretch_baselines
-            else:     
-                tf_stretch_baselines = np.concatenate((tf_stretch_baselines, _tf_stretch_baselines), axis=0)
-
-            del _tf_stretch_baselines
+            tf_stretch_baselines[sujet_i,:,:] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:], axis=0)
 
         ######## FOR OTHER COND ########
         
@@ -180,20 +176,15 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
 
             print('#### LOAD COND ####', flush=True)
 
+            tf_stretch_cond = np.zeros((len(sujet_list_to_compute), nfrex, stretch_point_TF))
+
             #sujet_i, sujet = 0, sujet_list_to_compute[0]
             for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
                 print_advancement(sujet_i, len(sujet_list_to_compute), steps=[25, 50, 75])
 
                 os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-                _tf_stretch_cond = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
-
-                if sujet_i == 0:
-                    tf_stretch_cond = _tf_stretch_cond
-                else:     
-                    tf_stretch_cond = np.concatenate((tf_stretch_cond, _tf_stretch_cond), axis=0)
-
-                del _tf_stretch_cond
+                tf_stretch_cond[sujet_i,:,:] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:], axis=0)
 
             #### verif tf
             if debug:
@@ -207,13 +198,13 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
             print(f'COMPUTE {cond} {odor_i}', flush=True)
 
             #### define ncycle
-            n_cycle_baselines = tf_stretch_baselines.shape[0]
-            n_cycle_cond = tf_stretch_cond.shape[0]
+            n_sujet_baselines = tf_stretch_baselines.shape[0]
+            n_sujet_cond = tf_stretch_cond.shape[0]
 
             #### space allocation
             _min, _max = np.zeros((nfrex)), np.zeros((nfrex))
             pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
-            tf_shuffle = np.zeros((n_cycle_cond, nfrex, stretch_point_TF))
+            tf_shuffle = np.zeros((n_sujet_cond, nfrex, stretch_point_TF))
 
             #surrogates_i = 0
             for surrogates_i in range(n_surrogates_tf):
@@ -223,9 +214,9 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
                 print_advancement(surrogates_i, n_surrogates_tf, steps=[25, 50, 75])
 
                 #### random selection
-                draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
-                sel_baseline = np.random.choice(n_cycle_baselines, size=(draw_indicator == 1).sum(), replace=False)
-                sel_cond = np.random.choice(n_cycle_cond, size=(draw_indicator == 0).sum(), replace=False)
+                draw_indicator = np.random.randint(low=0, high=2, size=n_sujet_cond)
+                sel_baseline = np.random.choice(n_sujet_baselines, size=(draw_indicator == 1).sum(), replace=False)
+                sel_cond = np.random.choice(n_sujet_cond, size=(draw_indicator == 0).sum(), replace=False)
 
                 #### extract max min
                 tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[sel_baseline, :, :]
@@ -278,7 +269,7 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
 
 
 
-
+    ######## INTER ########
     print(f'#### COMPUTE TF STATS INTER:{nchan} ####', flush=True)
 
     odor_to_compute = [odor_i for odor_i in odor_list if odor_i != 'o']
@@ -289,18 +280,13 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
         ######## FOR FR_CV BASELINES ########
         odor_i = 'o'
 
+        tf_stretch_baselines = np.zeros((len(sujet_list_to_compute), nfrex, stretch_point_TF))
+
         #sujet_i, sujet = 0, sujet_list_to_compute[0]
         for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
             os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-            _tf_stretch_baselines = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
-
-            if sujet_i == 0:
-                tf_stretch_baselines = _tf_stretch_baselines
-            else:     
-                tf_stretch_baselines = np.concatenate((tf_stretch_baselines, _tf_stretch_baselines), axis=0)
-
-            del _tf_stretch_baselines
+            tf_stretch_baselines[sujet_i, :, :] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:], axis=0)
 
         ######## FOR OTHER COND ########
         
@@ -311,18 +297,13 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
                 print(f'{cond} {odor_i} ALREADY COMPUTED', flush=True)
                 continue
 
+            tf_stretch_cond = np.zeros((len(sujet_list_to_compute), nfrex, stretch_point_TF))
+
             #sujet_i, sujet = 0, sujet_list_to_compute[0]
             for sujet_i, sujet in enumerate(sujet_list_to_compute):
 
                 os.chdir(os.path.join(path_precompute, sujet, 'TF'))
-                _tf_stretch_cond = np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:]
-
-                if sujet_i == 0:
-                    tf_stretch_cond = _tf_stretch_cond
-                else:     
-                    tf_stretch_cond = np.concatenate((tf_stretch_cond, _tf_stretch_cond), axis=0)
-
-                del _tf_stretch_cond
+                tf_stretch_cond[sujet_i,:,:] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor_i}.npy')[nchan,:,:,:], axis=0)
 
             #### verif tf
             if debug:
@@ -338,13 +319,13 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
             pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
 
             #### define ncycle
-            n_cycle_baselines = tf_stretch_baselines.shape[0]
-            n_cycle_cond = tf_stretch_cond.shape[0]
+            n_sujet_baselines = tf_stretch_baselines.shape[0]
+            n_sujet_cond = tf_stretch_cond.shape[0]
 
             #### space allocation
             _min, _max = np.zeros((nfrex)), np.zeros((nfrex))
             pixel_based_distrib = np.zeros((nfrex, n_surrogates_tf, 2), dtype=np.float32)
-            tf_shuffle = np.zeros((n_cycle_cond, nfrex, stretch_point_TF))
+            tf_shuffle = np.zeros((n_sujet_cond, nfrex, stretch_point_TF))
             
             #surrogates_i = 0
             for surrogates_i in range(n_surrogates_tf):
@@ -354,9 +335,9 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
                 print_advancement(surrogates_i, n_surrogates_tf, steps=[25, 50, 75])
 
                 #### random selection
-                draw_indicator = np.random.randint(low=0, high=2, size=n_cycle_cond)
-                sel_baseline = np.random.choice(n_cycle_baselines, size=(draw_indicator == 1).sum(), replace=False)
-                sel_cond = np.random.choice(n_cycle_cond, size=(draw_indicator == 0).sum(), replace=False)
+                draw_indicator = np.random.randint(low=0, high=2, size=n_sujet_cond)
+                sel_baseline = np.random.choice(n_sujet_baselines, size=(draw_indicator == 1).sum(), replace=False)
+                sel_cond = np.random.choice(n_sujet_cond, size=(draw_indicator == 0).sum(), replace=False)
 
                 #### extract max min
                 tf_shuffle[:len(sel_baseline),:,:] = tf_stretch_baselines[sel_baseline, :, :]
@@ -402,7 +383,7 @@ def precompute_tf_STATS(nchan, sujet_list_to_compute):
         #### remove baseline
         del tf_stretch_baselines
 
-
+    print('done')
 
 
 

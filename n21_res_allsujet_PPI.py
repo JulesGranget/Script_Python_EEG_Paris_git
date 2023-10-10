@@ -24,13 +24,13 @@ debug = False
 
 
 
+################################
+######## PERMUTATION ########
+################################
 
 
 
-
-
-
-def compute_topoplot_stats_allsujet(xr_data):
+def compute_topoplot_stats_allsujet_perm(xr_data):
 
     mask_params = dict(markersize=15, markerfacecolor='y')
 
@@ -45,7 +45,7 @@ def compute_topoplot_stats_allsujet(xr_data):
     times = xr_data['time'].values
 
     ######## INTRA ########
-    #### topoplot
+    #### scale
     min = np.array([])
     max = np.array([])
 
@@ -68,7 +68,9 @@ def compute_topoplot_stats_allsujet(xr_data):
 
     min = min.min()
     max = max.max()
+    vlim = np.array([max, min]).max()
 
+    #### plot
     fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(15,15))
 
     for odor_i, odor in enumerate(['o', '+', '-']):
@@ -116,19 +118,19 @@ def compute_topoplot_stats_allsujet(xr_data):
             ax.set_title(f"{cond} {odor}")
 
             mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(min, max))
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
 
     plt.tight_layout()
 
-    plt.suptitle(f'ALLSUJET INTRA {np.round(min,4)}:{np.round(max,4)}')
+    plt.suptitle(f'ALLSUJET INTRA (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}')
 
     os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
-    fig.savefig(f"intra_allsujet_allchan_perm.jpeg")
+    fig.savefig(f"perm_intra_allsujet.jpeg")
     
     # plt.show()
 
     ######## INTER ########
-    #### topoplot
+    #### scale
     min = np.array([])
     max = np.array([])
 
@@ -151,7 +153,9 @@ def compute_topoplot_stats_allsujet(xr_data):
 
     min = min.min()
     max = max.max()
+    vlim = np.array([max, min]).max()
 
+    #### plot
     fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,15))
 
     for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
@@ -199,14 +203,14 @@ def compute_topoplot_stats_allsujet(xr_data):
             ax.set_title(f"{cond} {odor}")
 
             mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(min, max))
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
 
     plt.tight_layout()
 
-    plt.suptitle(f'ALLSUJET INTER {np.round(min,4)}:{np.round(max,4)}')
+    plt.suptitle(f'ALLSUJET INTER (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}')
 
     os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
-    fig.savefig(f"inter_allsujet_allchan_perm.jpeg")
+    fig.savefig(f"perm_inter_allsujet.jpeg")
 
     # plt.show()
 
@@ -216,7 +220,7 @@ def compute_topoplot_stats_allsujet(xr_data):
 
 
 
-def compute_topoplot_stats_repnorep(xr_data):
+def compute_topoplot_stats_repnorep_perm(xr_data):
 
     mask_params = dict(markersize=15, markerfacecolor='y')
 
@@ -240,37 +244,56 @@ def compute_topoplot_stats_repnorep(xr_data):
             xr_data_sel = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
 
         ######## INTRA ########
-        #### topoplot
+        #### scale
         min = np.array([])
         max = np.array([])
 
-        for sujet_sel_vlim in ['rep', 'no_rep']:
+        # for sujet_sel_vlim in ['rep', 'no_rep']:
 
-            if sujet_sel_vlim == 'rep':
-                xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
-            elif sujet_sel_vlim == 'no_rep':
-                xr_data_vlim = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+        #     if sujet_sel_vlim == 'rep':
+        #         xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
+        #     elif sujet_sel_vlim == 'no_rep':
+        #         xr_data_vlim = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
 
-            for odor_i, odor in enumerate(['o', '+', '-']):
+        #     for odor_i, odor in enumerate(['o', '+', '-']):
 
-                data_baseline = xr_data_vlim.loc[:, 'FR_CV_1', odor, :, :].values
+        #         data_baseline = xr_data_vlim.loc[:, 'FR_CV_1', odor, :, :].values
 
-                for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+        #         for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
 
-                    data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
+        #             data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
 
-                    data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-                    data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+        #             data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+        #             data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
 
-                    data_perm = data_cond_red - data_baseline_red 
-                    data_perm_topo = data_perm.mean(axis=0)
+        #             data_perm = data_cond_red - data_baseline_red 
+        #             data_perm_topo = data_perm.mean(axis=0)
 
-                    min = np.append(min, data_perm_topo.min())
-                    max = np.append(max, data_perm_topo.max())
+        #             min = np.append(min, data_perm_topo.min())
+        #             max = np.append(max, data_perm_topo.max())
+
+        for odor_i, odor in enumerate(['o', '+', '-']):
+
+            data_baseline = xr_data_sel.loc[:, 'FR_CV_1', odor, :, :].values
+
+            for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+
+                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
+
+                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+                data_perm = data_cond_red - data_baseline_red 
+                data_perm_topo = data_perm.mean(axis=0)
+
+                min = np.append(min, data_perm_topo.min())
+                max = np.append(max, data_perm_topo.max())
 
         min = min.min()
         max = max.max()
+        vlim = np.array([max, min]).max()
 
+        #### plot
         fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(15,15))
 
         for odor_i, odor in enumerate(['o', '+', '-']):
@@ -318,49 +341,68 @@ def compute_topoplot_stats_repnorep(xr_data):
                 ax.set_title(f"{cond} {odor}")
 
                 mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                mask=mask_signi, mask_params=mask_params, vlim=(min, max))
+                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
 
         plt.tight_layout()
 
-        plt.suptitle(f"{sujet_sel} INTRA {np.round(min,4)}:{np.round(max,4)}")
+        plt.suptitle(f"{sujet_sel} INTRA (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}")
 
         os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
-        fig.savefig(f"intra_{sujet_sel}_allchan_perm.jpeg")
+        fig.savefig(f"perm_intra_{sujet_sel}.jpeg")
         
         # plt.show()
 
         ######## INTER ########
-        #### topoplot
+        #### scale
         min = np.array([])
         max = np.array([])
 
-        for sujet_sel_vlim in ['rep', 'no_rep']:
+        # for sujet_sel_vlim in ['rep', 'no_rep']:
 
-            if sujet_sel_vlim == 'rep':
-                xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
-            elif sujet_sel_vlim == 'no_rep':
-                xr_data_vlim = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+        #     if sujet_sel_vlim == 'rep':
+        #         xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
+        #     elif sujet_sel_vlim == 'no_rep':
+        #         xr_data_vlim = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
 
-            for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+        #     for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
 
-                data_baseline = xr_data_vlim.loc[:, cond, 'o', :, :].values
+        #         data_baseline = xr_data_vlim.loc[:, cond, 'o', :, :].values
 
-                for odor_i, odor in enumerate(['+', '-']):
+        #         for odor_i, odor in enumerate(['+', '-']):
 
-                    data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
+        #             data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
 
-                    data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-                    data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+        #             data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+        #             data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
 
-                    data_perm = data_cond_red - data_baseline_red 
-                    data_perm_topo = data_perm.mean(axis=0)
+        #             data_perm = data_cond_red - data_baseline_red 
+        #             data_perm_topo = data_perm.mean(axis=0)
 
-                    min = np.append(min, data_perm_topo.min())
-                    max = np.append(max, data_perm_topo.max())
+        #             min = np.append(min, data_perm_topo.min())
+        #             max = np.append(max, data_perm_topo.max())
+
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            data_baseline = xr_data_sel.loc[:, cond, 'o', :, :].values
+
+            for odor_i, odor in enumerate(['+', '-']):
+
+                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
+
+                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+                data_perm = data_cond_red - data_baseline_red 
+                data_perm_topo = data_perm.mean(axis=0)
+
+                min = np.append(min, data_perm_topo.min())
+                max = np.append(max, data_perm_topo.max())
 
         min = min.min()
         max = max.max()
+        vlim = np.array([max, min]).max()
 
+        #### plot
         fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,15))
 
         for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
@@ -408,17 +450,612 @@ def compute_topoplot_stats_repnorep(xr_data):
                 ax.set_title(f"{cond} {odor}")
 
                 mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                mask=mask_signi, mask_params=mask_params, vlim=(min, max))
+                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
 
         plt.tight_layout()
 
-        plt.suptitle(f"{sujet_sel} INTER {np.round(min,4)}:{np.round(max,4)}")
+        plt.suptitle(f"{sujet_sel} INTER (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}")
 
         os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
-        fig.savefig(f"inter_{sujet_sel}_allchan_perm.jpeg")
+        fig.savefig(f"perm_inter_{sujet_sel}.jpeg")
 
         # plt.show()
 
+
+
+def compute_topoplot_stats_repnorep_diff_perm(xr_data):
+
+    mask_params = dict(markersize=15, markerfacecolor='y')
+
+    sujet_no_respond_erp_rev = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_no_respond_erp])
+
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mat_adjacency = mne.channels.find_ch_adjacency(info, 'eeg')[0]
+
+    times = xr_data['time'].values
+
+    #### sel data
+    xr_data_rep = xr_data.loc[sujet_best_list_balanced_rev, :, :, :, :]
+    xr_data_norep = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+
+    #### scale
+    min = np.array([])
+    max = np.array([])
+
+    for odor_i, odor in enumerate(['o', '+', '-']):
+
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            data_baseline = xr_data_rep.loc[:, cond, odor, :, :].values
+            data_cond = xr_data_norep.loc[:, cond, odor, :, :].values
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            min = np.append(min, data_topo.min())
+            max = np.append(max, data_topo.max())
+
+    min = min.min()
+    max = max.max()
+    vlim = np.array([max, min]).max()
+
+    #### plot
+    fig, axs = plt.subplots(nrows=3, ncols=4, figsize=(15,15))
+
+    for odor_i, odor in enumerate(['o', '+', '-']):
+
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            print('intra', odor, cond)
+
+            data_baseline = xr_data_rep.loc[:, cond, odor, :, :].values
+            data_cond = xr_data_norep.loc[:, cond, odor, :, :].values
+
+            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            #chan_i, chan = 0, chan_list_eeg[0]
+            for chan_i, chan in enumerate(chan_list_eeg):
+
+                data_baseline_chan = data_baseline[:, chan_i, :]
+                data_cond_chan = data_cond[:, chan_i, :] 
+
+                T_obs, clusters, clusters_p_values, H0 = permutation_cluster_test(
+                    [data_baseline_chan, data_cond_chan],
+                    n_permutations=1000,
+                    threshold=None,
+                    tail=0,
+                    n_jobs=4,
+                    out_type="mask",
+                    verbose=False
+                )
+
+                if (clusters_p_values < 0.05).any():
+                    
+                    mask_signi[chan_i] = True
+
+            ax = axs[odor_i, cond_i]
+
+            ax.set_title(f"{cond} {odor}")
+
+            mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+
+    # plt.tight_layout()
+
+    plt.suptitle(f"(norep - rep) {np.round(-vlim,2)}:{np.round(vlim,2)}")
+
+    os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
+    fig.savefig(f"perm_repnorep.jpeg")
+    
+    # plt.show()
+
+
+
+
+
+
+########################
+######## MINMAX ########
+########################
+
+
+
+def compute_topoplot_stats_allsujet_minmax(xr_data):
+
+    mask_params = dict(markersize=15, markerfacecolor='y')
+
+    sujet_no_respond_erp_rev = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_no_respond_erp])
+
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mat_adjacency = mne.channels.find_ch_adjacency(info, 'eeg')[0]
+
+    times = xr_data['time'].values
+
+    ######## INTRA ########
+    #### scale
+    min = np.array([])
+    max = np.array([])
+
+    for odor_i, odor in enumerate(['o', '+', '-']):
+
+        data_baseline = xr_data.loc[:, 'FR_CV_1', odor, :, :].values
+
+        for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+
+            data_cond = xr_data.loc[:, cond, odor, :, :].values
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            min = np.append(min, data_topo.min())
+            max = np.append(max, data_topo.max())
+
+    min = min.min()
+    max = max.max()
+    vlim = np.array([max, min]).max()
+
+    #### plot
+    fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(15,15))
+
+    for odor_i, odor in enumerate(['o', '+', '-']):
+
+        data_baseline = xr_data.loc[:, 'FR_CV_1', odor, :, :].values
+
+        for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+
+            print('intra', odor, cond)
+
+            data_cond = xr_data.loc[:, cond, odor, :, :].values
+
+            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            #chan_i, chan = 0, chan_list_eeg[0]
+            for chan_i, chan in enumerate(chan_list_eeg):
+
+                data_baseline_chan = data_baseline[:, chan_i, :]
+                data_cond_chan = data_cond[:, chan_i, :] 
+
+                data_baseline_red = data_baseline_chan.max(axis=1) - data_baseline_chan.min(axis=1) 
+                data_cond_red = data_cond_chan.max(axis=1) - data_cond_chan.min(axis=1)
+
+                pval = pg.ttest(data_baseline_red, data_cond_red, paired=True, alternative='two-sided', correction=None, confidence=0.95)['p-val'].values[0]
+
+                if pval < 0.05:
+                    
+                    mask_signi[chan_i] = True
+
+            ax = axs[odor_i, cond_i]
+
+            ax.set_title(f"{cond} {odor}")
+
+            mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+
+    plt.tight_layout()
+
+    plt.suptitle(f'minmax ALLSUJET INTRA (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}')
+
+    os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
+    fig.savefig(f"minmax_intra_allsujet.jpeg")
+    
+    # plt.show()
+
+    ######## INTER ########
+    #### scale
+    min = np.array([])
+    max = np.array([])
+
+    for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+        data_baseline = xr_data.loc[:, cond, 'o', :, :].values
+
+        for odor_i, odor in enumerate(['+', '-']):
+
+            data_cond = xr_data.loc[:, cond, odor, :, :].values
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            min = np.append(min, data_topo.min())
+            max = np.append(max, data_topo.max())
+
+    min = min.min()
+    max = max.max()
+    vlim = np.array([max, min]).max()
+
+    #### plot
+    fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,15))
+
+    for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+        data_baseline = xr_data.loc[:, cond, 'o', :, :].values
+
+        for odor_i, odor in enumerate(['+', '-']):
+
+            print('inter', odor, cond)
+
+            data_cond = xr_data.loc[:, cond, odor, :, :].values
+
+            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            #chan_i, chan = 0, chan_list_eeg[0]
+            for chan_i, chan in enumerate(chan_list_eeg):
+
+                data_baseline_chan = data_baseline[:, chan_i, :]
+                data_cond_chan = data_cond[:, chan_i, :] 
+
+                data_baseline_red = data_baseline_chan.max(axis=1) - data_baseline_chan.min(axis=1) 
+                data_cond_red = data_cond_chan.max(axis=1) - data_cond_chan.min(axis=1) 
+
+                pval = pg.ttest(data_baseline_red, data_cond_red, paired=True, alternative='two-sided', correction=None, confidence=0.95)['p-val'].values[0]
+
+                if pval < 0.05:
+                        
+                    mask_signi[chan_i] = True
+            
+            ax = axs[odor_i, cond_i]
+
+            ax.set_title(f"{cond} {odor}")
+
+            mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+
+    plt.tight_layout()
+
+    plt.suptitle(f'minmax ALLSUJET INTER (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}')
+
+    os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
+    fig.savefig(f"minmax_inter_allsujet.jpeg")
+
+    # plt.show()
+
+
+
+
+
+
+
+def compute_topoplot_stats_repnorep_minmax(xr_data):
+
+    mask_params = dict(markersize=15, markerfacecolor='y')
+
+    sujet_no_respond_erp_rev = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_no_respond_erp])
+
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mat_adjacency = mne.channels.find_ch_adjacency(info, 'eeg')[0]
+
+    times = xr_data['time'].values
+
+    #sujet_sel = 'rep'
+    for sujet_sel in ['rep', 'no_rep']:
+
+        #### select data
+        if sujet_sel == 'rep':
+            xr_data_sel = xr_data.loc[sujet_best_list_rev, :, :, :, :]
+        elif sujet_sel == 'no_rep':
+            xr_data_sel = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+
+        ######## INTRA ########
+        #### scale
+        min = np.array([])
+        max = np.array([])
+
+        # for sujet_sel_vlim in ['rep', 'no_rep']:
+
+        #     if sujet_sel_vlim == 'rep':
+        #         xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
+        #     elif sujet_sel_vlim == 'no_rep':
+        #         xr_data_vlim = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+
+        #     for odor_i, odor in enumerate(['o', '+', '-']):
+
+        #         data_baseline = xr_data_vlim.loc[:, 'FR_CV_1', odor, :, :].values
+
+        #         for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+
+        #             data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
+
+        #             data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+        #             data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+        #             data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+        #             min = np.append(min, data_topo.min())
+        #             max = np.append(max, data_topo.max())
+
+        for odor_i, odor in enumerate(['o', '+', '-']):
+
+            data_baseline = xr_data_sel.loc[:, 'FR_CV_1', odor, :, :].values
+
+            for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+
+                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
+
+                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+                data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+                min = np.append(min, data_topo.min())
+                max = np.append(max, data_topo.max())
+
+        min = min.min()
+        max = max.max()
+        vlim = np.array([max, min]).max()
+
+        #### plot
+        fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(15,15))
+
+        for odor_i, odor in enumerate(['o', '+', '-']):
+
+            data_baseline = xr_data_sel.loc[:, 'FR_CV_1', odor, :, :].values
+
+            for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
+
+                print('intra', odor, cond)
+
+                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
+
+                mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
+
+                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+                data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+                #chan_i, chan = 0, chan_list_eeg[0]
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    data_baseline_chan = data_baseline[:, chan_i, :]
+                    data_cond_chan = data_cond[:, chan_i, :] 
+
+                    data_baseline_red = data_baseline_chan.max(axis=1) - data_baseline_chan.min(axis=1) 
+                    data_cond_red = data_cond_chan.max(axis=1) - data_cond_chan.min(axis=1) 
+
+                    pval = pg.ttest(data_baseline_red, data_cond_red, paired=True, alternative='two-sided', correction=None, confidence=0.95)['p-val'].values[0]
+
+                    if pval < 0.05:
+                        
+                        mask_signi[chan_i] = True
+
+                ax = axs[odor_i, cond_i]
+
+                ax.set_title(f"{cond} {odor}")
+
+                mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+
+        plt.tight_layout()
+
+        plt.suptitle(f"minmax {sujet_sel} INTRA (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}")
+
+        os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
+        fig.savefig(f"minmax_intra_{sujet_sel}.jpeg")
+        
+        # plt.show()
+
+        ######## INTER ########
+        #### scale
+        min = np.array([])
+        max = np.array([])
+
+        # for sujet_sel_vlim in ['rep', 'no_rep']:
+
+        #     if sujet_sel_vlim == 'rep':
+        #         xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
+        #     elif sujet_sel_vlim == 'no_rep':
+        #         xr_data_vlim = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+
+        #     for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+        #         data_baseline = xr_data_vlim.loc[:, cond, 'o', :, :].values
+
+        #         for odor_i, odor in enumerate(['+', '-']):
+
+        #             data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
+
+        #             data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+        #             data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+        #             data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0) 
+
+        #             min = np.append(min, data_topo.min())
+        #             max = np.append(max, data_topo.max())
+            
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            data_baseline = xr_data_sel.loc[:, cond, 'o', :, :].values
+
+            for odor_i, odor in enumerate(['+', '-']):
+
+                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
+
+                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+                data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0) 
+
+                min = np.append(min, data_topo.min())
+                max = np.append(max, data_topo.max())
+
+        min = min.min()
+        max = max.max()
+        vlim = np.array([max, min]).max()
+
+        #### plot
+        fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,15))
+
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            data_baseline = xr_data_sel.loc[:, cond, 'o', :, :].values
+
+            for odor_i, odor in enumerate(['+', '-']):
+
+                print('inter', odor, cond)
+
+                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
+
+                mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
+
+                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+                data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0) 
+
+                #chan_i, chan = 0, chan_list_eeg[0]
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    data_baseline_chan = data_baseline[:, chan_i, :]
+                    data_cond_chan = data_cond[:, chan_i, :] 
+
+                    data_baseline_red = data_baseline_chan.max(axis=1) - data_baseline_chan.min(axis=1) 
+                    data_cond_red = data_cond_chan.max(axis=1) - data_cond_chan.min(axis=1) 
+
+                    pval = pg.ttest(data_baseline_red, data_cond_red, paired=True, alternative='two-sided', correction=None, confidence=0.95)['p-val'].values[0]
+
+                    if pval < 0.05:
+                            
+                        mask_signi[chan_i] = True
+                
+                ax = axs[odor_i, cond_i]
+
+                ax.set_title(f"{cond} {odor}")
+
+                mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+
+        plt.tight_layout()
+
+        plt.suptitle(f"minmax {sujet_sel} INTER (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}")
+
+        os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
+        fig.savefig(f"minmax_inter_{sujet_sel}.jpeg")
+
+        # plt.show()
+
+
+
+def compute_topoplot_stats_repnorep_diff_minmax(xr_data):
+
+    mask_params = dict(markersize=15, markerfacecolor='y')
+
+    sujet_no_respond_erp_rev = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_no_respond_erp])
+
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mat_adjacency = mne.channels.find_ch_adjacency(info, 'eeg')[0]
+
+    times = xr_data['time'].values
+
+    #### sel data
+    xr_data_rep = xr_data.loc[sujet_best_list_balanced_rev, :, :, :, :]
+    xr_data_norep = xr_data.loc[sujet_no_respond_erp_rev, :, :, :, :]
+
+    #### scale
+    min = np.array([])
+    max = np.array([])
+
+    for odor_i, odor in enumerate(['o', '+', '-']):
+
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            data_baseline = xr_data_rep.loc[:, cond, odor, :, :].values
+            data_cond = xr_data_norep.loc[:, cond, odor, :, :].values
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            min = np.append(min, data_topo.min())
+            max = np.append(max, data_topo.max())
+
+    min = min.min()
+    max = max.max()
+    vlim = np.array([max, min]).max()
+
+    #### plot
+    fig, axs = plt.subplots(nrows=3, ncols=4, figsize=(15,15))
+
+    for odor_i, odor in enumerate(['o', '+', '-']):
+
+        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
+
+            print('intra', odor, cond)
+
+            data_baseline = xr_data_rep.loc[:, cond, odor, :, :].values
+            data_cond = xr_data_norep.loc[:, cond, odor, :, :].values
+
+            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
+
+            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
+            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
+
+            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
+
+            #chan_i, chan = 0, chan_list_eeg[0]
+            for chan_i, chan in enumerate(chan_list_eeg):
+
+                data_baseline_chan = data_baseline[:, chan_i, :]
+                data_cond_chan = data_cond[:, chan_i, :] 
+
+                data_baseline_red = data_baseline_chan.max(axis=1) - data_baseline_chan.min(axis=1) 
+                data_cond_red = data_cond_chan.max(axis=1) - data_cond_chan.min(axis=1) 
+
+                pval = pg.ttest(data_baseline_red, data_cond_red, paired=True, alternative='two-sided', correction=None, confidence=0.95)['p-val'].values[0]
+
+
+                if pval < 0.05:
+                    
+                    mask_signi[chan_i] = True
+
+            ax = axs[odor_i, cond_i]
+
+            ax.set_title(f"{cond} {odor}")
+
+            mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+
+    # plt.tight_layout()
+
+    plt.suptitle(f"minmax norep - rep {np.round(-vlim,2)}:{np.round(vlim,2)}")
+
+    os.chdir(os.path.join(path_results, 'allplot', 'erp', 'topoplot_summary_stats'))
+    fig.savefig(f"minmax_repnorep.jpeg")
+    
+    # plt.show()
 
 
 
@@ -476,8 +1113,13 @@ if __name__ == '__main__':
     plot_slope_versus_discomfort(xr_data, xr_lm_data)
 
     #### stats and save topoplot
-    compute_topoplot_stats_allsujet(xr_data)
-    compute_topoplot_stats_repnorep(xr_data)
+    compute_topoplot_stats_allsujet_perm(xr_data)
+    compute_topoplot_stats_repnorep_perm(xr_data)
+    compute_topoplot_stats_repnorep_diff_perm(xr_data)
+
+    compute_topoplot_stats_allsujet_minmax(xr_data)
+    compute_topoplot_stats_repnorep_minmax(xr_data)
+    compute_topoplot_stats_repnorep_diff_minmax(xr_data)
 
 
 
@@ -485,9 +1127,43 @@ if __name__ == '__main__':
 
 
 
-################################
-######## EXECUTE ########
-################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################
+######## TEST ########
+########################
 
 
 
@@ -528,6 +1204,21 @@ if __name__ == '__main__':
         plt.legend()
         plt.show()
 
+        for sujet_i in range(data_cond.shape[0]):
+
+            plt.plot(data_cond[sujet_i, :], alpha=0.2, color='m')
+            plt.plot(data_baseline[sujet_i, :], alpha=0.2, color='c')
+
+        plt.plot(np.mean(data_cond, axis=0), label='cond', color='r')
+        plt.plot(np.mean(data_baseline, axis=0), label='cond', color='b')
+        plt.show()
+
+        for sujet_i in range(data_cond.shape[0]):
+
+            plt.hist(data_cond[sujet_i, :], alpha=0.2, bins=50)
+
+        plt.show()
+
         #### stats computation
         clusters_cond = {}
         clusters_p_values_cond = {}
@@ -539,6 +1230,31 @@ if __name__ == '__main__':
             data_cond = xr_data.loc[:, cond, '-', 'Cz', :].values
 
             data_perm = data_baseline - data_cond
+
+            # from functools import partial
+            # from mne.stats import ttest_1samp_no_p
+
+            sigma = 1e-3
+            n_conditions = 2
+            n_observations = data_cond.shape[0]
+            pval = 0.05  # arbitrary
+            dfn = n_conditions - 1  # degrees of freedom numerator
+            dfd = n_observations - 2  # degrees of freedom denominator
+            thresh = scipy.stats.f.ppf(1 - pval, dfn=dfn, dfd=dfd)  # F distribution
+            threshold_tfce = dict(start=thresh/2, step=0.2)
+
+            # stat_fun_hat = partial(ttest_1samp_no_p, sigma=sigma)
+
+            # T_obs, clusters, clusters_p_values, H0 = permutation_cluster_1samp_test(
+            #     data_perm,
+            #     n_permutations=1000,
+            #     threshold=threshold_tfce,
+            #     tail=0,
+            #     n_jobs=4,
+            #     out_type="mask",
+            #     stat_fun=stat_fun_hat,
+            #     verbose=None
+            # )
 
             T_obs, clusters, clusters_p_values, H0 = permutation_cluster_1samp_test(
                 data_perm,
