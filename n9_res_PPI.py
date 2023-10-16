@@ -1032,8 +1032,8 @@ if __name__ == '__main__':
 
     cond_erp = ['VS', 'MECA', 'CO2']
 
-    #sujet = sujet_list_erp[0]
-    for sujet in sujet_list_erp:
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
 
         print(f'#### {sujet} ####', flush=True)
         print(f'COMPUTE', flush=True)
@@ -1054,8 +1054,8 @@ if __name__ == '__main__':
 
     xr_itl = get_data_itl()
 
-    #sujet = sujet_list_erp[0]
-    for sujet in sujet_list_erp:
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
 
         print(sujet)
 

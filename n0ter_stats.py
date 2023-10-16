@@ -483,7 +483,7 @@ def get_auto_stats_df(df, predictor, outcome, subject=None, design='within', tra
     post_hoc['pre_test_pval'] = np.array([pval] * post_hoc.shape[0])
     post_hoc['Contrast'] = np.array([predictor] * post_hoc.shape[0])
 
-    df_post_hoc = post_hoc.reindex(columns=['pre_test', 'pre_test_pval', 'Contrast', 'A', 'B', 'p-unc'])
+    df_post_hoc = post_hoc.reindex(columns=['pre_test', 'pre_test_pval', 'Contrast', 'A', 'B', 'p-unc', 'p-corr', 'p-adjust'])
 
     df_post_hoc = df_post_hoc.rename(columns={'p-unc': 'p_unc'})
 
@@ -667,5 +667,105 @@ def get_stats_df(df, predictor, outcome, subject=None, design='within'):
     pval = round(results['p'], 4)
 
     return pval
+
+
+
+def pg_compute_pre_full_res(df, predictor, outcome, test, subject=None, show = False):
+    
+    pval_labels = {'t-test_ind':'p-val','t-test_paired':'p-val','anova':'p-unc','rm_anova':'p-unc','Mann-Whitney':'p-val','Wilcoxon':'p-val', 'Kruskal':'p-unc', 'friedman':'p-unc'}
+    esize_labels = {'t-test_ind':'cohen-d','t-test_paired':'cohen-d','anova':'np2','rm_anova':'np2','Mann-Whitney':'CLES','Wilcoxon':'CLES', 'Kruskal':None, 'friedman':None}
+    
+    if test == 't-test_ind':
+        groups = list(set(df[predictor]))
+        pre = df[df[predictor] == groups[0]][outcome]
+        post = df[df[predictor] == groups[1]][outcome]
+        res = pg.ttest(pre, post, paired=False)
+        
+    elif test == 't-test_paired':
+        groups = list(set(df[predictor]))
+        pre = df[df[predictor] == groups[0]][outcome]
+        post = df[df[predictor] == groups[1]][outcome]
+        res = pg.ttest(pre, post, paired=True)
+        
+    elif test == 'anova':
+        res = pg.anova(dv=outcome, between=predictor, data=df, detailed=False, effsize = 'np2')
+    
+    elif test == 'rm_anova':
+        res = pg.rm_anova(dv=outcome, within=predictor, data=df, detailed=False, effsize = 'np2', subject = subject)
+        
+    elif test == 'Mann-Whitney':
+        groups = list(set(df[predictor]))
+        x = df[df[predictor] == groups[0]][outcome]
+        y = df[df[predictor] == groups[1]][outcome]
+        res = pg.mwu(x, y)
+        
+    elif test == 'Wilcoxon':
+        groups = list(set(df[predictor]))
+        x = df[df[predictor] == groups[0]][outcome]
+        y = df[df[predictor] == groups[1]][outcome]
+        res = pg.wilcoxon(x, y)
+        
+    elif test == 'Kruskal':
+        res = pg.kruskal(data=df, dv=outcome, between=predictor)
+        
+    elif test == 'friedman':
+        res = pg.friedman(data=df, dv=outcome, within=predictor, subject=subject)
+    
+    pval = res[pval_labels[test]].values[0]
+    es_label = esize_labels[test]
+    if es_label is None:
+        es = None
+    else:
+        es = res[es_label].values[0]
+    
+    es_interp = es_interpretation(es_label, es)
+    results = {'p':pval, 'es':es, 'es_label':es_label, 'es_interp':es_interp}
+      
+    return res
+
+
+def get_df_stats_pre(df, predictor, outcome, subject=None, design='within', transform=False, verbose=True):
+
+    if isinstance(predictor, str):
+
+        parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
+
+        if transform:
+            if not parametricity_pre_transfo:
+                df = transform_data(df, outcome)
+                parametricity_post_transfo = parametric(df, predictor, outcome, subject)
+                parametricity = parametricity_post_transfo
+                if verbose:
+                    if parametricity_post_transfo:
+                        print('Successfull transformation')
+                    else:
+                        print('Un-successfull transformation')
+            else:
+                parametricity = parametricity_pre_transfo
+        else:
+            parametricity = parametricity_pre_transfo
+
+        tests = guidelines(df, predictor, outcome, design, parametricity)
+
+        pre_test = tests['pre']
+        post_test = tests['post']
+        results = pg_compute_pre_full_res(df, predictor, outcome, pre_test, subject)
+        # pval = round(results['p'], 4)
+
+        if not post_test is None:
+            post_hoc = pg_compute_post_hoc(df, predictor, outcome, post_test, subject)
+
+    results = results.reset_index()
+    results = results.rename(columns={'index' : 'test'})
+    results = results[['test', 'alternative', 'p-val']]
+    results['outcome'] = outcome
+
+    predictor_group = df[predictor].unique()
+
+    for predictor_i in predictor_group:
+
+        results[predictor_i] = df.query(f"{predictor} == '{predictor_i}'")[outcome].mean()
+
+    return results
 
 

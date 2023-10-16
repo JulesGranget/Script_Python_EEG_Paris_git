@@ -25,51 +25,26 @@ perso_repo_computation = False
 
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
-sujet_list = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
-'14MD','15LG','16GM','17JR','19TM','20TY','21ZV','23LF','24TJ','25DF','26MN','28NT','29SC',
-'30AR','31HJ','32CM','33MA'])
+sujet_list =                    np.array(['01PD','03VN','05LV','06EF','07PB','08DM','09TA','10BH',
+                            '11FA','12BD','13FP','14MD','15LG','16GM','17JR','19TM','20TY','21ZV',
+                            '23LF','24TJ','26MN','28NT','29SC','30AR','31HJ','32CM','33MA'])
 
-# 02MJ signal problems
-# 18SE signal problems
-# 22DI signal problems
-# 27BD signal problems
+sujet_list_rev =                np.array(['PD01','VN03','LV05','EF06','PB07','DM08','TA09','BH10',
+                            'FA11','BD12','FP13','MD14','LG15','GM16','JR17','TM19','TY20','ZV21',
+                            'LF23','TJ24','MN26','NT28','SC29','AR30','HJ31','CM32','MA33'])
 
-sujet_best_list = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
-                            'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03','ZV21'])
-sujet_best_list_rev = np.array(['12BD', '32CM', '11FA', '16GM', '31HJ', '17JR', '33MA',
-                            '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '03VN','21ZV'])
+# ['02MJ', '18SE', '22DI', '27BD'] signal problems
+# ['04GB', '25DF'] dypnea induction failed
 
-sujet_best_list_balanced = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'MA33',
-                            'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'ZV21'])
-sujet_best_list_balanced_rev = np.array(['12BD', '32CM', '11FA', '16GM', '31HJ', '33MA',
-                            '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '21ZV'])
+sujet_best_list =               np.array(['BD12','CM32','FA11','GM16','HJ31','JR17','MA33','MN26',
+                            'PD01','SC29','TA09','TJ24','TM19','VN03','ZV21'])
+sujet_best_list_rev =           np.array(['12BD','32CM','11FA','16GM','31HJ','17JR','33MA','26MN',
+                            '01PD','29SC','09TA','24TJ','19TM','03VN','21ZV'])
 
-sujet_no_respond = np.array(['GB04', 'LV05', 'EF06', 'PB07', 'DM08', 'BH10', 'FP13', 
-                             'MD14', 'LG15', 'TY20', 'LF23', 'DF25', 'NT28', 'AR30'])
-sujet_no_respond_rev = np.array(['04GB', '05LV', '06EF', '07PB', '08DM', '10BH', '13FP', 
-                             '14MD', '15LG', '20TY', '23LF', '25DF', '28NT', '30AR'])
-
-sujet_list_balanced = np.array(['01PD','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD','13FP',
-'14MD','15LG','16GM','17JR','19TM','20TY','21ZV','23LF','24TJ','25DF','26MN','28NT','29SC','30AR','31HJ',
-'32CM','33MA'])
-sujet_list_balanced_rev = np.array(['PD01','GB04','LV05','EF06','PB07','DM08','TA09','BH10','FA11','BD12','FP13',
-'MD14','LG15','GM16','JR17','TM19','TY20','ZV21','LF23','TJ24','DF25','MN26','NT28','SC29','AR30','HJ31',
-'CM32','MA33'])
-
-sujet_list_erp = np.array(['01PD','03VN','04GB','05LV','06EF','07PB','08DM','09TA','10BH','11FA','12BD',
-'14MD','15LG','16GM','17JR','19TM','20TY','21ZV','23LF','24TJ','25DF','26MN','28NT','29SC',
-'30AR','31HJ','32CM','33MA'])
-sujet_list_erp_rev = np.array(['PD01','VN03','GB04','LV05','EF06','PB07','DM08','TA09','BH10','FA11','BD12',
-'MD14','LG15','GM16','JR17','TM19','TY20','ZV21','LF23','TJ24','DF25','MN26','NT28','SC29',
-'AR30','HJ31','CM32','MA33'])
-
-# 13FP to much noise
-
-sujet_best_list_erp = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
-                                'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03','ZV21'])
-
-sujet_no_respond_erp = np.array(['GB04', 'LV05', 'EF06', 'PB07', 'DM08', 'BH10', 'MD14',
-                                'LG15', 'TY20', 'LF23', 'DF25', 'NT28', 'AR30'])
+sujet_no_respond =              np.array(['LV05','EF06','PB07','DM08','BH10','FP13','MD14','LG15',
+                            'TY20','LF23','NT28','AR30'])
+sujet_no_respond_rev =          np.array(['05LV','06EF','07PB','08DM','10BH','13FP','14MD','15LG',
+                            '20TY','23LF','28NT','30AR'])
 
 
 sujet_list_hyperventilation = ['20TY']
@@ -325,14 +300,14 @@ prep_step_hf = {
 
 
 
-PPI_time_vec = [-3, 1] #seconds
+PPI_time_vec = [-2.5, 1] #seconds
 ERP_time_vec = [-2.5, 2.5]
 mean_respi_ERP_time_vec = [-3,3]
 PPI_lm_time = [-2.5, 0]
 
 allplot_erp_ylim = (-0.3, 0.3)
 
-ERP_n_surrogate = 500
+ERP_n_surrogate = 1000
 
 
 
@@ -402,6 +377,8 @@ n_surrogates_tf = 500
 tf_percentile_sel_stats_dw = 5 
 tf_percentile_sel_stats_up = 95 
 tf_stats_percentile_cluster = 95
+tf_stats_percentile_cluster_manual_perm = 80
+erp_time_cluster_thresh = 50 #ms
 norm_method = 'rscore'# 'zscore', 'dB'
 exclude_frex_range = [48, 52]
 

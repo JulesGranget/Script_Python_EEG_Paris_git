@@ -456,18 +456,6 @@ def compute_TF_allsujet():
         if tf_mode == 'ITPC':
             continue
 
-        sujet_best_list = np.array(['BD12', 'CM32', 'FA11', 'GM16', 'HJ31', 'JR17', 'MA33',
-                            'MN26', 'PD01', 'SC29', 'TA09', 'TJ24', 'TM19', 'VN03','ZV21'])
-        sujet_best_list_rev = np.array(['12BD', '32CM', '11FA', '16GM', '31HJ', '17JR', '33MA',
-                                    '26MN', '01PD', '29SC', '09TA', '24TJ', '19TM', '03VN','21ZV'])
-
-        # sujet_best_list_rev = []
-        # for sujet in sujet_best_list:
-        #     sujet_best_list_rev.append(f'{sujet[2:]}{sujet[:2]}')
-
-        # sujet_best_list = sujet_best_list_rev.copy()
-        sujet_no_best_list = [sujet for sujet in sujet_list if sujet not in sujet_best_list_rev]
-
         print('COMPUTE', flush=True)
 
         if os.path.exists(os.path.join(path_precompute, 'allsujet', tf_mode, f'allsujet_{tf_mode}.nc')):
@@ -507,11 +495,11 @@ def compute_TF_allsujet():
                     if sujet_group == 'allsujet':  
                         data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median, axis=0)
                     if sujet_group == 'rep':
-                        sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_best_list_rev]
-                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sujet_sel,:], axis=0)
+                        sel = np.array([np.where(sujet_list == sujet)[0][0] for sujet in sujet_best_list_rev])
+                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sel,:], axis=0)
                     if sujet_group == 'no_rep':  
-                        sujet_sel = [sujet_i for sujet_i, sujet in enumerate(sujet_list) if sujet in sujet_no_best_list]
-                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median, axis=0)
+                        sel = np.array([np.where(sujet_list == sujet)[0][0] for sujet in sujet_no_respond_rev])
+                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sel,:], axis=0)
 
                 if debug:
 
@@ -534,6 +522,11 @@ def compute_TF_allsujet():
             os.remove(f'allsujet_tf_reduction.dat')
 
     print('done', flush=True)
+
+
+
+
+
 
 
 def compilation_compute_TF_ITPC():
@@ -731,7 +724,8 @@ if __name__ == '__main__':
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [nchan, nchan_name, band_prep], 15)
 
     #### TF & ITPC
-    execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compute_TF_allsujet', [], 15)
+    compute_TF_allsujet()
+    # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compute_TF_allsujet', [], 15)
 
     compilation_compute_TF_ITPC()
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_TF_ITPC', [nchan, nchan_name, band_prep], 15)
