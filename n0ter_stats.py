@@ -769,3 +769,127 @@ def get_df_stats_pre(df, predictor, outcome, subject=None, design='within', tran
     return results
 
 
+
+
+def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='within', transform=False, verbose=True):
+
+    if isinstance(predictor, str):
+
+        parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
+        
+        if transform:
+            if not parametricity_pre_transfo:
+                df = transform_data(df, outcome)
+                parametricity_post_transfo = parametric(df, predictor, outcome, subject)
+                parametricity = parametricity_post_transfo
+                if verbose:
+                    if parametricity_post_transfo:
+                        print('Successfull transformation')
+                    else:
+                        print('Un-successfull transformation')
+            else:
+                parametricity = parametricity_pre_transfo
+        else:
+            parametricity = parametricity_pre_transfo
+
+        tests = guidelines(df, predictor, outcome, design, parametricity)
+
+        pre_test = tests['pre']
+        post_test = tests['post']
+
+        pval_labels = {'t-test_ind':'p-val','t-test_paired':'p-val','anova':'p-unc','rm_anova':'p-unc','Mann-Whitney':'p-val','Wilcoxon':'p-val', 'Kruskal':'p-unc', 'friedman':'p-unc'}
+        esize_labels = {'t-test_ind':'cohen-d','t-test_paired':'cohen-d','anova':'np2','rm_anova':'np2','Mann-Whitney':'CLES','Wilcoxon':'CLES', 'Kruskal':None, 'friedman':None}
+
+        if pre_test == 't-test_ind':
+            groups = list(set(df[predictor]))
+            pre = df[df[predictor] == groups[0]][outcome]
+            post = df[df[predictor] == groups[1]][outcome]
+            res = pg.ttest(pre, post, paired=False)
+
+            stat_test = f"T_{np.round(res['T'].values[0], 5)}"
+            alternative = res['alternative'].values[0]
+            pval = np.round(res['p-val'].values[0], 5)
+            cohen_d = np.round(res['cohen-d'].values[0], 5)
+            
+        elif pre_test == 't-test_paired':
+            groups = list(set(df[predictor]))
+            pre = df[df[predictor] == groups[0]][outcome]
+            post = df[df[predictor] == groups[1]][outcome]
+            res = pg.ttest(pre, post, paired=True)
+
+            stat_test = f"T_{np.round(res['T'].values[0], 5)}"
+            alternative = res['alternative'].values[0]
+            pval = np.round(res['p-val'].values[0], 5)
+            cohen_d = np.round(res['cohen-d'].values[0], 5)
+            
+        elif pre_test == 'anova':
+            res = pg.anova(dv=outcome, between=predictor, data=df, detailed=False, effsize = 'np2')
+
+            stat_test = f"F_{np.round(res['F'].values[0], 5)}"
+            alternative = None
+            pval = np.round(res['p-unc'].values[0], 5)
+            cohen_d = None
+
+        elif pre_test == 'rm_anova':
+            res = pg.rm_anova(dv=outcome, within=predictor, data=df, detailed=False, effsize = 'np2', subject = subject)
+
+            stat_test = f"F_{np.round(res['F'].values[0], 5)}"
+            alternative = None
+            pval = np.round(res['p-unc'].values[0], 5)
+            cohen_d = None
+            
+        elif pre_test == 'Mann-Whitney':
+            groups = list(set(df[predictor]))
+            x = df[df[predictor] == groups[0]][outcome]
+            y = df[df[predictor] == groups[1]][outcome]
+            res = pg.mwu(x, y)
+
+            stat_test = f"U_{np.round(res['U-val'].values[0], 5)}"
+            alternative = res['alternative'].values[0]
+            pval = np.round(res['p-val'].values[0], 5)
+            cohen_d = None
+            
+        elif pre_test == 'Wilcoxon':
+            groups = list(set(df[predictor]))
+            x = df[df[predictor] == groups[0]][outcome]
+            y = df[df[predictor] == groups[1]][outcome]
+            res = pg.wilcoxon(x, y)
+
+            stat_test = f"W_{np.round(res['W-val'].values[0], 5)}"
+            alternative = res['alternative'].values[0]
+            pval = np.round(res['p-val'].values[0], 5)
+            cohen_d = None
+            
+        elif pre_test == 'Kruskal':
+            res = pg.kruskal(data=df, dv=outcome, between=predictor)
+
+            stat_test = f"H_{np.round(res['H'].values[0], 5)}"
+            alternative = None
+            pval = np.round(res['p-unc'].values[0], 5)
+            cohen_d = None
+            
+        elif pre_test == 'friedman':
+            res = pg.friedman(data=df, dv=outcome, within=predictor, subject=subject)
+
+            stat_test = f"W_{np.round(res['W'].values[0], 5)}"
+            alternative = None
+            pval = np.round(res['p-unc'].values[0], 5)
+            cohen_d = None
+
+        if post_test != None:
+            post_hoc = pg_compute_post_hoc(df, predictor, outcome, post_test, subject)
+
+            post_hoc['stat_test'] = np.array([stat_test] * post_hoc.shape[0])
+            post_hoc['alternative'] = np.array([alternative] * post_hoc.shape[0])
+            post_hoc['pval'] = np.array([pval] * post_hoc.shape[0])
+            post_hoc['cohen_d'] = np.array([cohen_d] * post_hoc.shape[0])
+
+            df_post_hoc = post_hoc.reindex(columns=['stat_test', 'alternative', 'pval', 'cohen_d', 'Contrast', 'A', 'B', 'p-unc', 'p-corr', 'p-adjust'])
+
+            df_res = df_post_hoc.rename(columns={'p-unc': 'p_unc'})
+
+        else:
+            df_res = pd.DataFrame({'stat_test' : [stat_test], 'alternative' : [alternative], 'pval' : [pval], 'cohen_d' : cohen_d})
+
+    return df_res
+
