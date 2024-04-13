@@ -235,6 +235,7 @@ def pg_compute_post_hoc(df, predictor, outcome, test, subject=None):
      
     return res
 
+
 def auto_annotated_stats(df, predictor, outcome, test):
     
     x = predictor
@@ -313,7 +314,7 @@ def transform_data(df, outcome):
 
 
 
-def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', mode = 'box', transform=False, verbose=True, order = None):
+def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', mode='box', transform=False, verbose=True, order=None, extra_title=None):
     
     """
     Automatically compute statistical tests chosen based on normality & homoscedasticity of data and plot it
@@ -334,11 +335,12 @@ def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', m
     - ax : subplot
     
     """
-
-    if ax is None:
-        fig, ax = plt.subplots()
     
     if isinstance(predictor, str):
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
         N = df[predictor].value_counts()[0]
         groups = list(df[predictor].unique())
         ngroups = len(groups)
@@ -408,6 +410,7 @@ def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', m
             else:
                 ax.set_title(f'Effect of {predictor} on {outcome} : {pval_stars(pval)} \n  N = {n_subjects} subjects * {ngroups} groups (*{int(N/n_subjects)} trial/group) \n {pre_test} : p-{pval}, {es_label} : {es} ({es_inter})')
 
+        return ax
     
     elif isinstance(predictor, list):
         
@@ -440,11 +443,18 @@ def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', m
             x = predictor[1]
             hue = predictor[0]
         
-        sns.pointplot(data = df , x = x, y = outcome, hue = hue, ax=ax)
-        title = f'Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}'
-        ax.set_title(title)
+        # sns.pointplot(data = df , x = x, y = outcome, hue = hue, ax=ax, dodge=True)
+        if extra_title != None:
+            title = f'{extra_title} \n Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}'
+        else:
+            title = f'Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}'
         
-    return ax
+        sns.catplot(data=df, kind='bar', x=x, y=outcome, hue=hue, order=order).set(title=title)
+        # plt.title(f'Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}')        # title = f'Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}'
+        # ax.set_title(title)
+        # ax.set_title(f'Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}')        # title = f'Effect of {predictor[0]} * {predictor[1]} on {outcome} : {pstars} \n {test_type} : pcorr-{pval}, {es_label} : {es} ({es_inter}) \n p-{predictor[0]}-{ppred_0} , p-{predictor[1]}-{ppred_1}'
+        
+        return ax
 
 
 
@@ -770,7 +780,6 @@ def get_df_stats_pre(df, predictor, outcome, subject=None, design='within', tran
 
 
 
-
 def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='within', transform=False, verbose=True):
 
     if isinstance(predictor, str):
@@ -797,8 +806,8 @@ def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='wi
         pre_test = tests['pre']
         post_test = tests['post']
 
-        pval_labels = {'t-test_ind':'p-val','t-test_paired':'p-val','anova':'p-unc','rm_anova':'p-unc','Mann-Whitney':'p-val','Wilcoxon':'p-val', 'Kruskal':'p-unc', 'friedman':'p-unc'}
-        esize_labels = {'t-test_ind':'cohen-d','t-test_paired':'cohen-d','anova':'np2','rm_anova':'np2','Mann-Whitney':'CLES','Wilcoxon':'CLES', 'Kruskal':None, 'friedman':None}
+        # pval_labels = {'t-test_ind':'p-val','t-test_paired':'p-val','anova':'p-unc','rm_anova':'p-unc','Mann-Whitney':'p-val','Wilcoxon':'p-val', 'Kruskal':'p-unc', 'friedman':'p-unc'}
+        # esize_labels = {'t-test_ind':'cohen-d','t-test_paired':'cohen-d','anova':'np2','rm_anova':'np2','Mann-Whitney':'CLES','Wilcoxon':'CLES', 'Kruskal':None, 'friedman':None}
 
         if pre_test == 't-test_ind':
             groups = list(set(df[predictor]))
@@ -879,17 +888,57 @@ def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='wi
         if post_test != None:
             post_hoc = pg_compute_post_hoc(df, predictor, outcome, post_test, subject)
 
+            post_hoc['pre_test_name'] = np.array([pre_test] * post_hoc.shape[0])
             post_hoc['stat_test'] = np.array([stat_test] * post_hoc.shape[0])
             post_hoc['alternative'] = np.array([alternative] * post_hoc.shape[0])
             post_hoc['pval'] = np.array([pval] * post_hoc.shape[0])
             post_hoc['cohen_d'] = np.array([cohen_d] * post_hoc.shape[0])
+            post_hoc['post_test_name'] = np.array([post_test] * post_hoc.shape[0])
 
-            df_post_hoc = post_hoc.reindex(columns=['stat_test', 'alternative', 'pval', 'cohen_d', 'Contrast', 'A', 'B', 'p-unc', 'p-corr', 'p-adjust'])
+            df_post_hoc = post_hoc.reindex(columns=['pre_test_name', 'stat_test', 'alternative', 'pval', 'cohen_d', 'Contrast', 'post_test_name', 'A', 'B', 'p-unc', 'p-corr', 'p-adjust'])
 
             df_res = df_post_hoc.rename(columns={'p-unc': 'p_unc'})
 
         else:
-            df_res = pd.DataFrame({'stat_test' : [stat_test], 'alternative' : [alternative], 'pval' : [pval], 'cohen_d' : cohen_d})
+            df_res = pd.DataFrame({'pre_test_name' : [pre_test], 'stat_test' : [stat_test], 'alternative' : [alternative], 'pval' : [pval], 'cohen_d' : cohen_d})
+
+    elif isinstance(predictor, list):
+
+        parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
+        
+        if transform:
+            if not parametricity_pre_transfo:
+                df = transform_data(df, outcome)
+                parametricity_post_transfo = parametric(df, predictor, outcome, subject)
+                parametricity = parametricity_post_transfo
+                if verbose:
+                    if parametricity_post_transfo:
+                        print('Successfull transformation')
+                    else:
+                        print('Un-successfull transformation')
+            else:
+                parametricity = parametricity_pre_transfo
+        else:
+            parametricity = parametricity_pre_transfo
+
+        tests = guidelines(df, predictor, outcome, design, parametricity)
+
+        pre_test = tests['pre']
+        post_test = tests['post']
+
+        if design == 'within':
+            test_type = 'two_way_rm_anova'
+            test = pg.rm_anova(data=df, dv=outcome, within = predictor, subject = subject, effsize = 'np2').set_index('Source').round(3)
+            pval = test.loc[f'{predictor[0]} * {predictor[1]}','p-GG-corr']
+            
+        elif design == 'between':
+            test_type = 'two_way_anova'
+            test = pg.anova(data=df, dv=outcome, between = predictor).set_index('Source').round(3)
+            pval = test.loc[f'{predictor[0]} * {predictor[1]}','p-unc']
+
+        df_res = test.reset_index(drop=False)
+        df_res['test_name'] = np.array([test_type] * df_res.shape[0])
+        column_to_move = df_res.pop("test_name")
+        df_res.insert(0, "test_name", column_to_move)
 
     return df_res
-

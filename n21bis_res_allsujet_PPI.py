@@ -116,7 +116,7 @@ def compute_ERP():
 
                 erp_data = {}
 
-                #cond = 'MECA'
+                #cond = 'FR_CV_1'
                 for cond in conditions:
 
                     erp_data[cond] = {}
@@ -126,10 +126,34 @@ def compute_ERP():
 
                         #### load
                         data = load_data_sujet(sujet, cond, odor)
+                        respi = data[-3,:] 
                         data = data[:len(chan_list_eeg),:]
 
                         respfeatures_i = respfeatures[cond][odor]
                         inspi_starts = respfeatures_i.query(f"select == 1")['inspi_index'].values
+
+                        if debug:
+
+                            plt.plot(respi)
+                            plt.vlines(inspi_starts, ymin=respi.min(), ymax=respi.max(), color='r')
+                            plt.show()
+
+                            data_stretch_respi = np.zeros((inspi_starts.shape[0], int(stretch_point_PPI)))
+
+                            x = respi
+                            x = iirfilt(x, srate, lowcut=None, highcut=45, order=4, ftype='butter', verbose=False, show=False, axis=0)
+
+                            x_mean, x_std = x.mean(), x.std()
+
+                            for start_i, start_time in enumerate(inspi_starts):
+
+                                t_start = int(start_time + t_start_PPI*srate)
+                                t_stop = int(start_time + t_stop_PPI*srate)
+
+                                data_stretch_respi[start_i, :] = (x[t_start: t_stop] - x_mean) / x_std
+
+                            plt.plot(data_stretch_respi.mean(axis=0))
+                            plt.show()
 
                         #### chunk
                         stretch_point_PPI = int(np.abs(t_start_PPI)*srate + t_stop_PPI*srate)
@@ -3528,7 +3552,7 @@ def get_cluster_stats(xr_data):
 
 
 
-
+# data_baseline, data_cond = data_baseline_chan, data_cond_chan
 def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
 
     n_trials_baselines = data_baseline.shape[0]

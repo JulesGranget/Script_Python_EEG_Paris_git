@@ -1580,7 +1580,7 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
 
 
     #### initiate metrics names
-    res_list = ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_LF', 'HRV_HF', 'HRV_LFHF', 'HRV_SD1', 'HRV_SD2', 'HRV_S']
+    res_list = ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_LF', 'HRV_HF', 'HRV_LFHF', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_rCOV', 'HRV_MAD', 'HRV_MEDIAN']
 
     #### RRI
     RRI, RRI_resample, IFR = get_RRI_IFR(ecg_i, ecg_cR, srate, srate_resample_hrv)
@@ -1592,13 +1592,13 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
     AUC_LF, AUC_HF, LF_HF_ratio, hzPxx, Pxx = get_PSD_LF_HF(RRI_resample, srate_resample_hrv, nwind_hrv, nfft_hrv, noverlap_hrv, win_hrv, VLF, LF, HF)
 
     #### descriptors
-    MeanNN, SDNN, RMSSD, NN50, pNN50, COV = get_stats_descriptors(RRI)
+    MeanNN, SDNN, RMSSD, NN50, pNN50, COV, mad, median = get_stats_descriptors(RRI)
 
     #### poincarré
     SD1, SD2, Tot_HRV = get_poincarre(RRI)
 
     #### df
-    res_tmp = [HRV_MeanNN*1e3, SDNN*1e3, RMSSD, pNN50*100, AUC_LF/10, AUC_HF/10, LF_HF_ratio, SD1*1e3, SD2*1e3, Tot_HRV*1e6]
+    res_tmp = [HRV_MeanNN*1e3, SDNN*1e3, RMSSD, pNN50*100, AUC_LF/10, AUC_HF/10, LF_HF_ratio, SD1*1e3, SD2*1e3, Tot_HRV*1e6, COV, mad*1e3, median*1e3]
     data_df = {}
     for i, dv in enumerate(res_list):
         data_df[dv] = [res_tmp[i]]
@@ -1632,18 +1632,18 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
 def get_hrv_metrics_win(RRI):
 
     #### initiate metrics names
-    res_list = ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_COV']
+    res_list = ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_COV', 'HRV_MAD', 'HRV_MEDIAN']
 
     HRV_MeanNN = np.mean(RRI)
     
     #### descriptors
-    MeanNN, SDNN, RMSSD, NN50, pNN50, COV = get_stats_descriptors(RRI)
+    MeanNN, SDNN, RMSSD, NN50, pNN50, COV, mad, median = get_stats_descriptors(RRI)
 
     #### poincarré
     SD1, SD2, Tot_HRV = get_poincarre(RRI)
 
     #### df
-    res_tmp = [HRV_MeanNN*1e3, SDNN*1e3, RMSSD, pNN50*100, SD1*1e3, SD2*1e3, Tot_HRV*1e6, COV]
+    res_tmp = [HRV_MeanNN*1e3, SDNN*1e3, RMSSD, pNN50*100, SD1*1e3, SD2*1e3, Tot_HRV*1e6, COV, mad*1e3, median*1e3]
     data_df = {}
     for i, dv in enumerate(res_list):
         data_df[dv] = [res_tmp[i]]
@@ -1700,7 +1700,9 @@ def get_stats_descriptors(RRI) :
     mad = np.median( np.abs(RRI-np.median(RRI)) )
     COV = mad / np.median(RRI)
 
-    return MeanNN, SDNN, RMSSD, NN50, pNN50, COV
+    median = np.median(RRI)
+
+    return MeanNN, SDNN, RMSSD, NN50, pNN50, COV, mad, median
 
 
 def get_poincarre(RRI):
@@ -1744,7 +1746,7 @@ def get_hrv_metrics_homemade(cR_time, prms_hrv, analysis_time='5min'):
         plt.show()
     
     #### descriptors
-    MeanNN, SDNN, RMSSD, NN50, pNN50, COV = get_stats_descriptors(RRI)
+    MeanNN, SDNN, RMSSD, NN50, pNN50, COV, mad, median = get_stats_descriptors(RRI)
 
     #### poincarré
     SD1, SD2, Tot_HRV = get_poincarre(RRI)
@@ -1765,7 +1767,7 @@ def get_hrv_metrics_homemade(cR_time, prms_hrv, analysis_time='5min'):
 
     #### df
     res_tmp = {'HRV_MeanNN' : MeanNN*1e3, 'HRV_SDNN' : SDNN*1e3, 'HRV_RMSSD' : RMSSD, 'HRV_pNN50' : pNN50*100, 'HRV_LF' : AUC_LF/10, 'HRV_HF' : AUC_HF/10, 
-               'HRV_LFHF' : LF_HF_ratio, 'HRV_SD1' : SD1*1e3, 'HRV_SD2' : SD2*1e3, 'HRV_S' : Tot_HRV*1e6, 'HRV_COV' : COV}
+               'HRV_LFHF' : LF_HF_ratio, 'HRV_SD1' : SD1*1e3, 'HRV_SD2' : SD2*1e3, 'HRV_S' : Tot_HRV*1e6, 'HRV_COV' : COV, 'HRV_MAD' : mad, 'HRV_MEDIAN' : median}
     
     data_df = {}
     for i, dv in enumerate(prms_hrv['metric_list']):

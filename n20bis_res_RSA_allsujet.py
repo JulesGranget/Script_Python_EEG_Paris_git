@@ -95,7 +95,7 @@ def get_df_stats(xr_data):
         df_max = xr_data.max('time').to_dataframe(name='val').reset_index(drop=False)
 
         df_minmax = df_min.copy()
-        df_minmax['val'] = np.abs(df_min['val'].values) + np.abs(df_max['val'].values)
+        df_minmax['val'] = np.abs(df_max['val'].values - df_min['val'].values)
 
         #### plot
         os.chdir(os.path.join(path_results, 'allplot', 'RSA'))
@@ -576,6 +576,9 @@ def plot_RSA_diff(xr_data, cluster_stats, cluster_stats_rep_norep, df_stats_all)
         plt.close('all')
         gc.collect()
 
+
+
+
     ######## SUMMARY NCHAN INTER ########
 
     print('PLOT SUMMARY RSA INTER')
@@ -770,9 +773,65 @@ def plot_RSA_diff(xr_data, cluster_stats, cluster_stats_rep_norep, df_stats_all)
     plt.close('all')
     gc.collect()
 
+    ######## HISTOGRAM GROUP ########
 
+    #group = sujet_group[0]
+    for group in sujet_group:
 
+        #### generate df
+        if group == 'allsujet':
+            xr_data_sel = xr_data.loc[:, :, :, :]
+        elif group == 'rep':
+            xr_data_sel = xr_data.loc[sujet_best_list_rev, :, :, :]
+        elif group == 'non_rep':
+            xr_data_sel = xr_data.loc[sujet_no_respond_rev, :, :, :]
 
+        df_min = xr_data_sel.min('time').to_dataframe(name='val').reset_index(drop=False)
+        df_max = xr_data_sel.max('time').to_dataframe(name='val').reset_index(drop=False)
+
+        df_minmax = df_min.copy()
+        df_minmax['val'] = np.abs(df_max['val'].values - df_min['val'].values)
+
+        sns.catplot(data=df_minmax, kind='bar', x="cond", y="val", hue="odor").set(title=f'RSA {group}')
+        sns.set(rc={'figure.figsize':(10,7)})
+        # plt.show()
+
+        #### save
+        plt.savefig(f'hist_{group}.jpeg', dpi=150)
+
+        plt.close('all')
+        gc.collect()
+
+    ######## HISTOGRAM REPNOREP ########
+
+    df_min = xr_data.min('time').to_dataframe(name='val').reset_index(drop=False)
+    df_max = xr_data.max('time').to_dataframe(name='val').reset_index(drop=False)
+
+    df_minmax = df_min.copy()
+    df_minmax['val'] = np.abs(df_max['val'].values - df_min['val'].values)
+
+    sel_list_append = []
+
+    for row_i in range(df_minmax.shape[0]):
+
+        if df_minmax.iloc[row_i]['sujet'] in sujet_best_list_rev:
+            sel_list_append.append('YES')
+        else:
+            sel_list_append.append('NO')
+
+    df_minmax['select_best'] = sel_list_append
+
+    for odor in odor_list:
+
+        sns.catplot(data=df_minmax.query(f"odor == '{odor}'"), kind='bar', x="cond", y="val", hue="select_best").set(title=f'repnorep {odor}')
+        sns.set(rc={'figure.figsize':(10,7)})
+        # plt.show()
+
+        #### save
+        plt.savefig(f'hist_repnorep_{odor}.jpeg', dpi=150)
+
+        plt.close('all')
+        gc.collect()
 
 
 ################################

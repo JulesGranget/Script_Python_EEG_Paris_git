@@ -79,6 +79,12 @@ chan_list_eeg = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9'
 chan_list_eeg_fc = ['Fp1', 'Fp2', 'F3', 'F4', 'F7', 'F8','Fz', 'FC1', 'FC2', 'FC5', 'FC6', 'FT9', 'FT10', 'Cz', 'C3', 'C4',
                     'CP1', 'CP2', 'CP5', 'CP6', 'Pz', 'P3', 'P4', 'P7', 'P8', 'T7', 'T8', 'TP9', 'TP10', 'Oz', 'O1', 'O2']
 
+chan_list_lobes = {'all' : chan_list_eeg,
+                    'frontal' : ['Fp1', 'Fz', 'F3', 'F7', 'F4', 'F8', 'Fp2', 'FC5', 'FC1', 'FC6', 'FC2'], 
+                   'parietal': ['C3', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'P4', 'P8', 'CP6', 'CP2', 'Cz', 'C4'],
+                   'temporal' : ['FT9', 'T7', 'TP9', 'TP10', 'T8', 'FT10'],
+                   'occipital' : ['O1', 'Oz', 'O2']}
+
 
 
 ################################
@@ -116,15 +122,31 @@ PC_ID = socket.gethostname()
 
 if PC_ID == 'LAPTOP-EI7OSP7K':
 
-    PC_working = 'Jules_VPN'
-    if perso_repo_computation:
-        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
-    else:    
-        path_main_workdir = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
-    path_general = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
-    path_memmap = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
-    n_core = 4
+    filaire = True
 
+    if filaire:
+
+        PC_working = 'Jules_VPN'
+        if perso_repo_computation:
+            path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
+        else:    
+            path_main_workdir = 'N:\\cmo\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
+        path_general = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
+        path_memmap = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
+        n_core = 4
+
+    else:
+
+        PC_working = 'Jules_VPN'
+        if perso_repo_computation:
+            path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
+        else:    
+            path_main_workdir = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
+        path_general = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
+        path_memmap = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
+        n_core = 4
+
+    
 
 elif PC_ID == 'DESKTOP-3IJUK7R':
 

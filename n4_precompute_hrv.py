@@ -67,7 +67,7 @@ if __name__ == '__main__':
     band_prep = 'wb'
 
     prms_hrv = {
-    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_HF', 'HRV_LF', 'HRV_LFHF', 'HRV_COV'],
+    'metric_list' : ['HRV_MeanNN', 'HRV_SDNN', 'HRV_RMSSD', 'HRV_pNN50', 'HRV_SD1', 'HRV_SD2', 'HRV_S', 'HRV_HF', 'HRV_LF', 'HRV_LFHF', 'HRV_COV', 'HRV_MAD', 'HRV_MEDIAN'],
     'srate' : srate,
     'srate_resample_hrv' : 10,
     'nwind_hrv' : int( 128*srate_resample_hrv ),
@@ -207,6 +207,7 @@ if __name__ == '__main__':
 
 
     ### compute & save
+    #analysis_time = '3min'
     for analysis_time in ['5min', '3min']:
 
         #sujet = sujet_list[0]

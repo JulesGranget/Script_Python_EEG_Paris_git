@@ -125,7 +125,7 @@ def compute_topoplot_stats_allsujet_perm(xr_data, perm_type):
             ax.set_title(f"{cond} {odor}")
 
             mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
 
     plt.tight_layout()
 
@@ -221,7 +221,7 @@ def compute_topoplot_stats_allsujet_perm(xr_data, perm_type):
             ax.set_title(f"{cond} {odor}")
 
             mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
 
     plt.tight_layout()
 
@@ -370,7 +370,7 @@ def compute_topoplot_stats_repnorep_perm(xr_data, perm_type):
                 ax.set_title(f"{cond} {odor}")
 
                 mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
 
         plt.tight_layout()
 
@@ -490,7 +490,7 @@ def compute_topoplot_stats_repnorep_perm(xr_data, perm_type):
                 ax.set_title(f"{cond} {odor}")
 
                 mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
+                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
 
         plt.tight_layout()
 
@@ -1096,9 +1096,6 @@ def compute_topoplot_stats_repnorep_diff_minmax(xr_data):
 
 
 
-
-
-
 ################################
 ######## EXECUTE ########
 ################################
@@ -1131,7 +1128,7 @@ if __name__ == '__main__':
 
     plot_ERP_response_profile(xr_data, xr_data_sem)
 
-    plot_ERP_diff(xr_data, df_stats_interintra, cluster_stats, cluster_stats_type)
+    plot_ERP_diff(xr_data, df_stats_interintra, cluster_stats, cluster_stats_type) # used for analysis
 
     plot_ERP_rep_norep(xr_data, cluster_stats_rep_norep, cluster_stats_type)
 
@@ -1159,7 +1156,4 @@ if __name__ == '__main__':
         compute_topoplot_stats_allsujet_perm(xr_data, perm_type)
         compute_topoplot_stats_repnorep_perm(xr_data, perm_type)
         compute_topoplot_stats_repnorep_diff_perm(xr_data, perm_type)
-
-
-
 
