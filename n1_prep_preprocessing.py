@@ -1014,7 +1014,7 @@ def insert_noise(sig, srate, chan_artifacts, freq_min=30., margin_s=0.2, seed=No
 
 
 #raw = raw_preproc_wb 
-def remove_artifacts(raw, session_i, srate, trig, odor_code):
+def remove_artifacts(raw, session_i, srate, trig):
 
     data = raw.get_data()
 
@@ -1399,7 +1399,7 @@ if __name__== '__main__':
 
             raw_preproc_wb = remove_artifacts_everychan(raw_preproc_wb, srate, trig)
 
-            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig, odor_code)
+            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
             #compare_pre_post(raw_preproc_wb, raw_preproc_wb_clean, 'F4') # to verify
 
             if debug:

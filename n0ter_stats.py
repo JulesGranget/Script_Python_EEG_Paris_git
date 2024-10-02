@@ -1,3 +1,4 @@
+
 import numpy as np
 import pandas as pd
 import pingouin as pg
@@ -61,25 +62,25 @@ def guidelines(df, predictor, outcome, design, parametricity):
     if parametricity:
         if n_groups <= 2:
             if design == 'between':
-                tests = {'pre':'t-test_ind','post':None}
+                tests = {'pre':'t-test_ind','post':None, 'post_name_corrected':None}
             elif design == 'within':
-                tests = {'pre':'t-test_paired','post':None}
+                tests = {'pre':'t-test_paired','post':None, 'post_name_corrected':None}
         else:
             if design == 'between':
-                tests = {'pre':'anova','post':'pairwise_tukey'}
+                tests = {'pre':'anova','post':'pairwise_tukey', 'post_name_corrected':'pairwise_tukey'}
             elif design == 'within':
-                tests = {'pre':'rm_anova','post':'pairwise_ttests_paired_paramTrue'}
+                tests = {'pre':'rm_anova','post':'pairwise_tests_paired_paramTrue', 'post_name_corrected':'pairwise_ttests_paired'}
     else:
         if n_groups <= 2:
             if design == 'between':
-                tests = {'pre':'Mann-Whitney','post':None}
+                tests = {'pre':'Mann-Whitney','post':None, 'post_name_corrected':None}
             elif design == 'within':
-                tests = {'pre':'Wilcoxon','post':None}
+                tests = {'pre':'Wilcoxon','post':None, 'post_name_corrected':None}
         else:
             if design == 'between':
-                tests = {'pre':'Kruskal','post':'pairwise_ttests_ind_paramFalse'}
+                tests = {'pre':'Kruskal','post':'pairwise_tests_ind_paramFalse', 'post_name_corrected':'mwu'}
             elif design == 'within':
-                tests = {'pre':'friedman','post':'pairwise_ttests_paired_paramFalse'}
+                tests = {'pre':'friedman','post':'pairwise_tests_paired_paramFalse', 'post_name_corrected':'pairwise_wilcoxon_paired'}
                 
     return tests
 
@@ -165,22 +166,6 @@ def es_interpretation(es_label , es_value):
                 
     return interpretation
 
-def get_stats_tests():
-    
-    ttest_ind = ['parametric', 'indep', 2, 't-test_ind' , 'NA']
-    ttest_paired = ['parametric', 'paired', 2, 't-test_paired', 'NA']
-    anova = ['parametric', 'indep', '3 ou +', 'anova', 'pairwise_tukey']
-    rm_anova = ['parametric', 'paired', '3 ou +', 'rm_anova', 'pairwise_ttests_paired_paramTrue']
-    mwu = ['non parametric', 'indep', 2, 'Mann-Whitney',  'NA']
-    wilcox = ['non parametric', 'paired', 2, 'Wilcoxon', 'NA']
-    kruskal = ['non parametric', 'indep', '3 ou +', 'Kruskal','pairwise_ttests_ind_paramFalse']
-    friedman = ['non parametric', 'paired', '3 ou +', 'friedman', 'pairwise_ttests_paired_paramFalse']
-    
-    rows = [ttest_ind, ttest_paired, anova, rm_anova, mwu , wilcox, kruskal, friedman ]
-    
-    df=pd.DataFrame(rows , columns = ['parametricity','paired','samples','test','post_hoc'])
-    df = df.set_index(['parametricity','paired','samples'])
-    return df
 
 def homemade_post_hoc(df, predictor, outcome, design = 'within', subject = None, parametric = True):
     pairs = pg.pairwise_tests(data=df, dv = outcome, within = predictor, subject = subject, parametric = False).loc[:,['A','B']]
@@ -206,6 +191,7 @@ def homemade_post_hoc(df, predictor, outcome, design = 'within', subject = None,
     pairs['p-corr'] = pvals_corr
     return pairs
         
+#test = post_test
 def pg_compute_post_hoc(df, predictor, outcome, test, subject=None):
 
     if not subject is None:
@@ -217,19 +203,19 @@ def pg_compute_post_hoc(df, predictor, outcome, test, subject=None):
         res = pg.pairwise_tukey(data = df, dv=outcome, between=predictor)
         res['p-corr'] = pg.multicomp(res['p-tukey'])[1]
 
-    elif test == 'pairwise_ttests_paired_paramTrue':
-        res = pg.pairwise_tests(data = df, dv=outcome, within=predictor, subject=subject, parametric=True, padjust = 'holm')
+    elif test == 'pairwise_tests_paired_paramTrue':
+        res = pg.pairwise_tests(data = df, dv=outcome, within=predictor, subject=subject, parametric=True, padjust = 'holm', return_desc=True)
         # res = homemade_post_hoc(df = df, outcome=outcome, predictor=predictor, design = 'within', subject=subject, parametric=True)
         
-    elif test == 'pairwise_ttests_ind_paramFalse':
+    elif test == 'pairwise_tests_ind_paramFalse':
         if n_subjects >= 15:
-            res = pg.pairwise_tests(data = df, dv=outcome, between=predictor, parametric=True, padjust = 'holm')
+            res = pg.pairwise_tests(data = df, dv=outcome, between=predictor, parametric=False, padjust = 'holm', return_desc=True)
         else:
             res = permutation(df = df, outcome=outcome, predictor=predictor, design = 'between')
 
-    elif test == 'pairwise_ttests_paired_paramFalse':
+    elif test == 'pairwise_tests_paired_paramFalse':
         if n_subjects >= 15:
-            res = pg.pairwise_tests(data = df, dv=outcome, within=predictor, subject=subject, parametric=False, padjust = 'holm')
+            res = pg.pairwise_tests(data = df, dv=outcome, within=predictor, subject=subject, parametric=False, padjust = 'holm', return_desc=True)
         else:
             res = permutation(df = df, outcome=outcome, predictor=predictor, design = 'within')
      
@@ -314,7 +300,7 @@ def transform_data(df, outcome):
 
 
 
-def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', mode='box', transform=False, verbose=True, order=None, extra_title=None):
+def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', mode='box', transform=False, verbose=True, order=None, extra_title=None, estimator='mean'):
     
     """
     Automatically compute statistical tests chosen based on normality & homoscedasticity of data and plot it
@@ -381,7 +367,16 @@ def auto_stats(df, predictor, outcome, ax=None, subject=None, design='within', m
         else:
             order = order
 
-        estimators = pd.concat([df.groupby(predictor).mean()[outcome].reset_index(), df.groupby(predictor).std()[outcome].reset_index()[outcome].rename('sd')], axis = 1).round(2).set_index(predictor)
+        if estimator == 'mean':
+            estimators = pd.concat([df.groupby(predictor).mean(outcome)[outcome].reset_index(), df[[predictor, outcome]].groupby(predictor).std()[outcome].reset_index()[outcome].rename('sd')], axis = 1).round(2).set_index(predictor)
+        elif estimator == 'median':
+            df_mad = {predictor : [], outcome : []}
+            for _predictor in df[predictor].unique():
+                df_mad[predictor].append(_predictor)
+                df_mad[outcome].append(mad(df[[predictor, outcome]].query(f"{predictor} == '{_predictor}'")[outcome].values))
+            df_mad = pd.DataFrame(df_mad)[outcome].rename('sd')
+            estimators = pd.concat([df.groupby(predictor).median(outcome)[outcome].reset_index(), df_mad], axis = 1).round(2).set_index(predictor)
+        
         cis = [f'[{round(confidence_interval(x)[0],3)};{round(confidence_interval(x)[1],3)}]' for x in [df[df[predictor] == group][outcome] for group in groups]]
         ticks_estimators = [f"{cond} \n {estimators.loc[cond,outcome]} ({estimators.loc[cond,'sd']}) \n {ci} " for cond, ci in zip(order,cis)]
 
@@ -780,9 +775,15 @@ def get_df_stats_pre(df, predictor, outcome, subject=None, design='within', tran
 
 
 
-def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='within', transform=False, verbose=True):
+
+#df, predictor, outcome, subject, design, transform, verbose, estimator =  df_respi_paris, 'cond', 'VT', 'sujet', 'within', False, True, 'mean'
+def get_summary_stats(df, predictor, outcome, subject=None, design='within', transform=False, verbose=False):
+
+    #### one independant variable
 
     if isinstance(predictor, str):
+
+        #### transformation
 
         parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
         
@@ -801,140 +802,171 @@ def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='wi
         else:
             parametricity = parametricity_pre_transfo
 
+        #### test identification
+
         tests = guidelines(df, predictor, outcome, design, parametricity)
 
         pre_test = tests['pre']
         post_test = tests['post']
+        post_name_test = tests['post_name_corrected']
 
         # pval_labels = {'t-test_ind':'p-val','t-test_paired':'p-val','anova':'p-unc','rm_anova':'p-unc','Mann-Whitney':'p-val','Wilcoxon':'p-val', 'Kruskal':'p-unc', 'friedman':'p-unc'}
         # esize_labels = {'t-test_ind':'cohen-d','t-test_paired':'cohen-d','anova':'np2','rm_anova':'np2','Mann-Whitney':'CLES','Wilcoxon':'CLES', 'Kruskal':None, 'friedman':None}
 
-        if pre_test == 't-test_ind':
-            groups = list(set(df[predictor]))
-            pre = df[df[predictor] == groups[0]][outcome]
-            post = df[df[predictor] == groups[1]][outcome]
-            res = pg.ttest(pre, post, paired=False)
+        #### tests < 2 groups
 
-            stat_test = f"T_{np.round(res['T'].values[0], 5)}"
-            alternative = res['alternative'].values[0]
-            pval = np.round(res['p-val'].values[0], 5)
-            cohen_d = np.round(res['cohen-d'].values[0], 5)
+        groups = list(set(df[predictor]))
+
+        if len(groups) <= 2:
+            A_data = df[df[predictor] == groups[0]][outcome]
+            B_data = df[df[predictor] == groups[1]][outcome]
+
+            if pre_test == 't-test_ind':
+                res = pg.ttest(A_data, B_data, paired=False)
+
+                stat_test = f"T_{np.round(res['T'].values[0], 5)}"
+                alternative = res['alternative'].values[0]
+                pval = np.round(res['p-val'].values[0], 5)
+                cohen_d = np.round(res['cohen-d'].values[0], 5)
+
+            elif pre_test == 't-test_paired':
+                res = pg.ttest(A_data, B_data, paired=True)
+
+                stat_test = f"T_{np.round(res['T'].values[0], 5)}"
+                alternative = res['alternative'].values[0]
+                pval = np.round(res['p-val'].values[0], 5)
+                cohen_d = np.round(res['cohen-d'].values[0], 5)
+
+            elif pre_test == 'Mann-Whitney':
+                res = pg.mwu(A_data, B_data)
+
+                stat_test = f"U_{np.round(res['U-val'].values[0], 5)}"
+                alternative = res['alternative'].values[0]
+                pval = np.round(res['p-val'].values[0], 5)
+                cohen_d = None
+                
+            elif pre_test == 'Wilcoxon':
+                res = pg.wilcoxon(A_data, B_data)
+
+                stat_test = f"W_{np.round(res['W-val'].values[0], 5)}"
+                alternative = res['alternative'].values[0]
+                pval = np.round(res['p-val'].values[0], 5)
+                cohen_d = None
+
+            stats_descriptives = {'A' : [groups[0]], 'B' : [groups[1]], 
+                        'A_N' : [A_data.size], 'B_N' : [B_data.size],           
+                        'mean(A)' : [A_data.mean()], 'std(A)' : [A_data.std()], 'mean(B)' : [B_data.mean()], 'std(B)' : [B_data.std()],
+                        'median(A)' : [A_data.median()], 'mad(A)' : [stats.median_abs_deviation(A_data)], 'A_Q1' : [np.percentile(A_data, 25)], 'A_Q3' : [np.percentile(A_data, 75)], 
+                        'median(B)' : [B_data.median()], 'mad(B)' : [stats.median_abs_deviation(B_data)], 'B_Q1' : [np.percentile(B_data, 25)], 'B_Q3' : [np.percentile(B_data, 75)]}
             
-        elif pre_test == 't-test_paired':
-            groups = list(set(df[predictor]))
-            pre = df[df[predictor] == groups[0]][outcome]
-            post = df[df[predictor] == groups[1]][outcome]
-            res = pg.ttest(pre, post, paired=True)
+            res['predictor'] = predictor
+            res['outcome'] = outcome
+            res['pre_test_name'] = pre_test
+            res['stat_test'] = stat_test
+            res['alternative'] = alternative
+            res['pre_pval'] = pval
+            res['cohen_d'] = cohen_d
+            df_res = res.reindex(columns=['predictor', 'outcome', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval', 'cohen_d'])
+            df_res = pd.concat([df_res.reset_index(drop=True), pd.DataFrame(stats_descriptives)], axis=1)
 
-            stat_test = f"T_{np.round(res['T'].values[0], 5)}"
-            alternative = res['alternative'].values[0]
-            pval = np.round(res['p-val'].values[0], 5)
-            cohen_d = np.round(res['cohen-d'].values[0], 5)
-            
-        elif pre_test == 'anova':
-            res = pg.anova(dv=outcome, between=predictor, data=df, detailed=False, effsize = 'np2')
+        #### more than 2 groups
 
-            stat_test = f"F_{np.round(res['F'].values[0], 5)}"
-            alternative = None
-            pval = np.round(res['p-unc'].values[0], 5)
-            cohen_d = None
+        if len(groups) > 2:
 
-        elif pre_test == 'rm_anova':
-            res = pg.rm_anova(dv=outcome, within=predictor, data=df, detailed=False, effsize = 'np2', subject = subject)
+            #### pre tests
+            if pre_test == 'anova':
+                res = pg.anova(dv=outcome, between=predictor, data=df, detailed=False, effsize = 'np2')
 
-            stat_test = f"F_{np.round(res['F'].values[0], 5)}"
-            alternative = None
-            pval = np.round(res['p-unc'].values[0], 5)
-            cohen_d = None
-            
-        elif pre_test == 'Mann-Whitney':
-            groups = list(set(df[predictor]))
-            x = df[df[predictor] == groups[0]][outcome]
-            y = df[df[predictor] == groups[1]][outcome]
-            res = pg.mwu(x, y)
+                stat_test = f"F_{np.round(res['F'].values[0], 5)}"
+                alternative = None
+                pval = np.round(res['p-unc'].values[0], 5)
+                cohen_d = None
 
-            stat_test = f"U_{np.round(res['U-val'].values[0], 5)}"
-            alternative = res['alternative'].values[0]
-            pval = np.round(res['p-val'].values[0], 5)
-            cohen_d = None
-            
-        elif pre_test == 'Wilcoxon':
-            groups = list(set(df[predictor]))
-            x = df[df[predictor] == groups[0]][outcome]
-            y = df[df[predictor] == groups[1]][outcome]
-            res = pg.wilcoxon(x, y)
+            elif pre_test == 'rm_anova':
+                res = pg.rm_anova(dv=outcome, within=predictor, data=df, detailed=False, effsize = 'np2', subject = subject)
 
-            stat_test = f"W_{np.round(res['W-val'].values[0], 5)}"
-            alternative = res['alternative'].values[0]
-            pval = np.round(res['p-val'].values[0], 5)
-            cohen_d = None
-            
-        elif pre_test == 'Kruskal':
-            res = pg.kruskal(data=df, dv=outcome, between=predictor)
+                stat_test = f"F_{np.round(res['F'].values[0], 5)}"
+                alternative = None
+                pval = np.round(res['p-unc'].values[0], 5)
+                cohen_d = None
+                
+            elif pre_test == 'Kruskal':
+                res = pg.kruskal(data=df, dv=outcome, between=predictor)
 
-            stat_test = f"H_{np.round(res['H'].values[0], 5)}"
-            alternative = None
-            pval = np.round(res['p-unc'].values[0], 5)
-            cohen_d = None
-            
-        elif pre_test == 'friedman':
-            res = pg.friedman(data=df, dv=outcome, within=predictor, subject=subject)
+                stat_test = f"H_{np.round(res['H'].values[0], 5)}"
+                alternative = None
+                pval = np.round(res['p-unc'].values[0], 5)
+                cohen_d = None
+                
+            elif pre_test == 'friedman':
+                res = pg.friedman(data=df, dv=outcome, within=predictor, subject=subject)
 
-            stat_test = f"W_{np.round(res['W'].values[0], 5)}"
-            alternative = None
-            pval = np.round(res['p-unc'].values[0], 5)
-            cohen_d = None
+                stat_test = f"W_{np.round(res['W'].values[0], 5)}"
+                alternative = None
+                pval = np.round(res['p-unc'].values[0], 5)
+                cohen_d = None
 
-        if post_test != None:
+            #### post tests
             post_hoc = pg_compute_post_hoc(df, predictor, outcome, post_test, subject)
 
+            post_hoc['outcome'] = outcome
             post_hoc['pre_test_name'] = np.array([pre_test] * post_hoc.shape[0])
             post_hoc['stat_test'] = np.array([stat_test] * post_hoc.shape[0])
             post_hoc['alternative'] = np.array([alternative] * post_hoc.shape[0])
-            post_hoc['pval'] = np.array([pval] * post_hoc.shape[0])
+            post_hoc['pre_pval'] = np.array([pval] * post_hoc.shape[0])
             post_hoc['cohen_d'] = np.array([cohen_d] * post_hoc.shape[0])
-            post_hoc['post_test_name'] = np.array([post_test] * post_hoc.shape[0])
+            post_hoc['post_test_name'] = np.array([post_name_test] * post_hoc.shape[0])
 
-            df_post_hoc = post_hoc.reindex(columns=['pre_test_name', 'stat_test', 'alternative', 'pval', 'cohen_d', 'Contrast', 'post_test_name', 'A', 'B', 'p-unc', 'p-corr', 'p-adjust'])
+            post_hoc = post_hoc.rename(columns={'Contrast' : 'predictor'})
 
-            df_res = df_post_hoc.rename(columns={'p-unc': 'p_unc'})
+            df_post_hoc = post_hoc.reindex(columns=['predictor', 'outcome', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval', 'cohen_d', 'post_test_name', 'A', 'B', 'mean(A)', 'std(A)', 'mean(B)', 'std(B)', 'p-unc', 'p-corr', 'p-adjust'])
 
-        else:
-            df_res = pd.DataFrame({'pre_test_name' : [pre_test], 'stat_test' : [stat_test], 'alternative' : [alternative], 'pval' : [pval], 'cohen_d' : cohen_d})
+            _dict_median = {'median(A)' : [], 'median(B)' : [], 'mad(A)' : [], 'mad(B)' : [], 'A_Q1' : [], 'B_Q1' : [], 'A_Q3' : [], 'B_Q3' : [], 'A_N' : [], 'B_N' : []}
+
+            for row_i in range(df_post_hoc.shape[0]):
+                A_data, B_data = df[df[predictor] == df_post_hoc.iloc[row_i,:]['A']][outcome], df[df[predictor] == df_post_hoc.iloc[row_i,:]['B']][outcome]
+                A_median, B_median, A_mad, B_mad = A_data.median(), B_data.median(), stats.median_abs_deviation(A_data), stats.median_abs_deviation(B_data)
+                A_Q1, B_Q1, A_Q3, B_Q3 = np.percentile(A_data, 25), np.percentile(B_data, 25), np.percentile(A_data, 75), np.percentile(B_data, 75)
+                _dict_median['median(A)'].append(A_median), _dict_median['median(B)'].append(B_median), _dict_median['mad(A)'].append(A_mad), _dict_median['mad(B)'].append(B_mad)
+                _dict_median['A_Q1'].append(A_Q1), _dict_median['B_Q1'].append(B_Q1), _dict_median['A_Q3'].append(A_Q3), _dict_median['B_Q3'].append(B_Q3)
+                _dict_median['A_N'].append(A_data.size), _dict_median['B_N'].append(B_data.size)
+
+            df_median = pd.DataFrame(_dict_median)
+            df_post_hoc = pd.concat([df_post_hoc, df_median], axis=1)
+
+            df_post_hoc = df_post_hoc.reindex(columns=['predictor', 'outcome', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval','cohen_d', 'post_test_name', 'A', 'B', 
+                                                        'A_N', 'mean(A)', 'std(A)', 'B_N', 'mean(B)', 'std(B)',
+                                                        'median(A)', 'mad(A)', 'A_Q1', 'A_Q3', 'median(B)', 'mad(B)', 'B_Q1',  'B_Q3', 
+                                                        'p-unc', 'p-corr', 'p-adjust'])
+
+            df_res = df_post_hoc.rename(columns={'p-unc': 'post_p_unc', 'p-corr': 'post_p_corr', 'p-adjust': 'post_p_adjust'})
+            df_res = df_res.rename(columns={})
+            
+    #### several independant variable
 
     elif isinstance(predictor, list):
-
-        parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
-        
-        if transform:
-            if not parametricity_pre_transfo:
-                df = transform_data(df, outcome)
-                parametricity_post_transfo = parametric(df, predictor, outcome, subject)
-                parametricity = parametricity_post_transfo
-                if verbose:
-                    if parametricity_post_transfo:
-                        print('Successfull transformation')
-                    else:
-                        print('Un-successfull transformation')
-            else:
-                parametricity = parametricity_pre_transfo
-        else:
-            parametricity = parametricity_pre_transfo
-
-        tests = guidelines(df, predictor, outcome, design, parametricity)
-
-        pre_test = tests['pre']
-        post_test = tests['post']
 
         if design == 'within':
             test_type = 'two_way_rm_anova'
             test = pg.rm_anova(data=df, dv=outcome, within = predictor, subject = subject, effsize = 'np2').set_index('Source').round(3)
             pval = test.loc[f'{predictor[0]} * {predictor[1]}','p-GG-corr']
+            pstars = pval_stars(pval)
+            es_label = test.columns[-2]
+            es = test.loc[f'{predictor[0]} * {predictor[1]}','np2']
+            es_inter = es_interpretation(es_label=es_label, es_value=es)
+            ppred_0 = test.loc[f'{predictor[0]}', 'p-GG-corr']
+            ppred_1 = test.loc[f'{predictor[1]}', 'p-GG-corr']
             
         elif design == 'between':
             test_type = 'two_way_anova'
             test = pg.anova(data=df, dv=outcome, between = predictor).set_index('Source').round(3)
             pval = test.loc[f'{predictor[0]} * {predictor[1]}','p-unc']
+            pstars = pval_stars(pval)
+            es_label = test.columns[-1]
+            es = test.loc[f'{predictor[0]} * {predictor[1]}','np2']
+            es_inter = es_interpretation(es_label=es_label, es_value=es)
+            ppred_0 = test.loc[f'{predictor[0]}', 'p-unc']
+            ppred_1 = test.loc[f'{predictor[1]}', 'p-unc']
 
         df_res = test.reset_index(drop=False)
         df_res['test_name'] = np.array([test_type] * df_res.shape[0])
@@ -942,3 +974,4 @@ def get_auto_stats_df_allvalues(df, predictor, outcome, subject=None, design='wi
         df_res.insert(0, "test_name", column_to_move)
 
     return df_res
+

@@ -1182,7 +1182,7 @@ def Shannon_MI(a):
 
 def get_MVL(x):
     _phase = np.arange(0, x.shape[0])*2*np.pi/x.shape[0]
-    complex_vec = x*np.exp(1j*_phase)
+    complex_vec = x*np.exp(1j*_phase) # ici sous la forme du module * angle, r * phi
 
     MVL = np.abs(np.mean(complex_vec))
     

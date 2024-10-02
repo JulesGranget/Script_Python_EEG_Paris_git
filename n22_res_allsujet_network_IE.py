@@ -15,7 +15,7 @@ import cv2
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
 from n0ter_stats import *
-from n21bis_res_allsujet_PPI import *
+from n21bis_res_allsujet_ERP import *
 
 debug = False
 
@@ -315,7 +315,7 @@ def compute_topoplot_IE_network_SUM(xr_data):
 
     time_vec = xr_data.shape[-1]
 
-    #subgroup_type = 'allsujet'
+    #subgroup_type = 'no_rep'
     for subgroup_type in ['allsujet', 'rep', 'no_rep']:
 
         ######## INTRA ########
@@ -636,6 +636,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
         plt.savefig(f"ALLCHAN_ALLREGION_{subgroup_type}_{cond}_intra.jpeg")
 
         plt.close('all')
+
+        #### values for CO2
+        df_allchan_response_intra.query(f"cond == 'CO2' and region == 'all'")
 
         
 
@@ -1283,6 +1286,10 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
 
             plt.close('all')
 
+    #### value for CO2
+    df_allchan_response_repnorep.query(f"cond == 'CO2' and region == 'all'")
+    df_allchan_response_repnorep.query(f"cond == 'FR_CV_1' and region == 'all'")
+
 
 def network_TF_IE():
 
@@ -1895,6 +1902,8 @@ def network_TF_IE_power_extraction():
                 plt.close('all')
                 
                 # plt.show()
+
+
 
 
 
