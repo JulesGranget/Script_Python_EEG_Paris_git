@@ -18,6 +18,8 @@ import scipy.signal
 ######## GENERAL PARAMS ######## 
 ################################
 
+teleworking = False
+
 enable_big_execute = False
 perso_repo_computation = False
 
@@ -122,20 +124,7 @@ PC_ID = socket.gethostname()
 
 if PC_ID == 'LAPTOP-EI7OSP7K':
 
-    filaire = True
-
-    if filaire:
-
-        PC_working = 'Jules_VPN'
-        if perso_repo_computation:
-            path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
-        else:    
-            path_main_workdir = 'N:\\cmo\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
-        path_general = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
-        path_memmap = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
-        n_core = 4
-
-    else:
+    if teleworking:
 
         PC_working = 'Jules_VPN'
         if perso_repo_computation:
@@ -144,6 +133,17 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
             path_main_workdir = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
         path_general = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
         path_memmap = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
+        n_core = 4
+
+    else:
+
+        PC_working = 'Jules_VPN'
+        if perso_repo_computation:
+            path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
+        else:    
+            path_main_workdir = 'N:\\cmo\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
+        path_general = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
+        path_memmap = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
         n_core = 4
 
     

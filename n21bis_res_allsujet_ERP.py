@@ -1645,7 +1645,7 @@ def plot_ERP_diff(xr_data, cluster_stats, cluster_stats_type):
 
     time_vec = np.arange(t_start_ERP, t_stop_ERP, 1/srate)
 
-    mask_time_vec_zoomin = (time_vec >= 0) & (time_vec < 0.5) 
+    mask_time_vec_zoomin = (time_vec >= -0.5) & (time_vec < 0.5) 
 
     conditions_diff = ['MECA', 'CO2', 'FR_CV_2']
     odor_list_diff = ['+', '-']
@@ -3896,9 +3896,10 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
     #### thresh cluster
     mask = np.zeros(data_cond.shape[-1])
 
+    _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
+
     if _mask.sum() != 0:
  
-        _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
         start, stop = np.where(np.diff(_mask) != 0)[0][::2], np.where(np.diff(_mask) != 0)[0][1::2] 
         
         sizes = stop - start
@@ -4221,6 +4222,344 @@ def get_cluster_stats_manual_prem(xr_data):
 
 
 
+def get_cluster_stats_manual_prem_subject_wise():
+
+    ######## VERIFY COMPUTATION ########
+    if os.path.exists(os.path.join(path_precompute, 'allsujet', 'ERP', 'cluster_stats_manual_perm_allsujet.nc')):
+
+        os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
+
+        print('ALREADY COMPUTED', flush=True)
+        xr_cluster_based_perm = xr.open_dataarray('cluster_stats_manual_perm_allsujet.nc')
+
+    ######## COMPUTE ########
+    else:
+
+        conditions_sel = ['FR_CV_1', 'CO2']
+        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+        xr_coords = {'sujet' : sujet_list, 'odor' : odor_list, 'chan' : chan_list_eeg, 'time' : time_vec}
+
+        ######## INITIATE MEMMAP ########
+        os.chdir(path_memmap)
+        xr_data = np.memmap(f'cluster_based_perm_allsujet.dat', dtype=np.float32, mode='w+', shape=(len(sujet_list), len(odor_list), len(chan_list_eeg), time_vec.size))
+
+        ######## PARALLELIZATION FUNCTION ########
+        #sujet_i, sujet = 3, sujet_list[3]
+        def get_cluster_based_perm_one_sujet(sujet_i, sujet):
+        # for sujet_i, sujet in enumerate(sujet_list):
+
+            ######## COMPUTE ERP ########
+            print(f'{sujet} COMPUTE ERP')
+
+            erp_data = {}
+
+            respfeatures = load_respfeatures(sujet)
+
+            #cond = 'FR_CV_1'
+            for cond in conditions_sel:
+
+                erp_data[cond] = {}
+
+                #odor = odor_list[0]
+                for odor in odor_list:
+
+                    erp_data[cond][odor] = {}
+
+                    #nchan_i, nchan = 0, chan_list_eeg[0]
+                    for nchan_i, nchan in enumerate(chan_list_eeg):
+
+                        #### load
+                        data = load_data_sujet(sujet, cond, odor)
+                        data = data[:len(chan_list_eeg),:]
+
+                        respfeatures_i = respfeatures[cond][odor]
+                        inspi_starts = respfeatures_i.query(f"select == 1")['inspi_index'].values
+
+                        #### chunk
+                        stretch_point_PPI = int(np.abs(ERP_time_vec[0])*srate + ERP_time_vec[1]*srate)
+                        data_stretch = np.zeros((inspi_starts.shape[0], int(stretch_point_PPI)))
+
+                        #### low pass 45Hz
+                        x = data[nchan_i,:]
+                        x = iirfilt(x, srate, lowcut=None, highcut=45, order=4, ftype='butter', verbose=False, show=False, axis=0)
+
+                        x_mean, x_std = x.mean(), x.std()
+
+                        for start_i, start_time in enumerate(inspi_starts):
+
+                            t_start = int(start_time + ERP_time_vec[0]*srate)
+                            t_stop = int(start_time + ERP_time_vec[1]*srate)
+
+                            data_stretch[start_i, :] = (x[t_start: t_stop] - x_mean) / x_std
+
+                        #### clean
+                        data_stretch_clean = data_stretch[~((data_stretch >= 3) | (data_stretch <= -3)).any(axis=1),:]
+
+                        erp_data[cond][odor][nchan] = data_stretch_clean
+       
+            ######## COMPUTE PERMUTATION ########
+            print(f'{sujet} COMPUTE PERMUTATION')
+
+            #odor_i, odor = 0, odor_list[0]
+            for odor_i, odor in enumerate(odor_list):
+
+                #chan_i, nchan = 0, chan_list_eeg[0]
+                for chan_i, nchan in enumerate(chan_list_eeg):
+
+                    data_baseline = erp_data['FR_CV_1'][odor][nchan]
+                    data_cond = erp_data['CO2'][odor][nchan]
+
+                    mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
+
+                    xr_data[sujet_i, odor_i, chan_i, :] = mask
+
+            print(f'{sujet} done')
+
+        ######## PARALLELIZATION COMPUTATION ########
+        joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(get_cluster_based_perm_one_sujet)(sujet_i, sujet) for sujet_i, sujet in enumerate(sujet_list))
+
+        ######## SAVE ########
+        xr_cluster_based_perm = xr.DataArray(data=xr_data, dims=xr_coords.keys(), coords=xr_coords.values())
+
+        os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
+        xr_cluster_based_perm.to_netcdf('cluster_stats_manual_perm_allsujet.nc')
+
+        os.chdir(path_memmap)
+        try:
+            os.remove(f'cluster_based_perm_allsujet.dat')
+            del xr_data
+        except:
+            pass
+
+    return xr_cluster_based_perm
+
+def get_df_mdp():
+
+    os.chdir(os.path.join(path_data, 'psychometric'))
+    df_mdp = pd.read_excel('OLFADYS_mdp.xlsx')
+    df_mdp = df_mdp.query(f"sujet in {sujet_list_rev.tolist()}")
+
+    ### sq
+    for sujet in df_mdp['sujet'].unique():
+
+        for session in df_mdp['session'].unique():
+
+            for cond in df_mdp['cond'].unique():
+
+                res = df_mdp.query(f"sujet == '{sujet}' and session == '{session}' and cond == '{cond}' and question in ['QS_1', 'QS_2', 'QS_3', 'QS_4', 'QS_5']").groupby(['sujet']).sum()['value'].values[0]
+
+                df_mdp = pd.concat([df_mdp, pd.DataFrame({'sujet' : [sujet], 'session' : [session], 'cond' : [cond], 'question' : ['SQ'], 'value' : [res]}) ])
+
+    ### A1+SQ
+    for sujet in df_mdp['sujet'].unique():
+
+        for session in df_mdp['session'].unique():
+
+            for cond in df_mdp['cond'].unique():
+
+                res = df_mdp.query(f"sujet == '{sujet}' and session == '{session}' and cond == '{cond}' and question in ['SQ', 'A1']").groupby(['sujet']).sum()['value'].values[0]
+
+                df_mdp = pd.concat([df_mdp, pd.DataFrame({'sujet' : [sujet], 'session' : [session], 'cond' : [cond], 'question' : ['A1+SQ'], 'value' : [res]}) ])
+
+    ### A2
+    for sujet in df_mdp['sujet'].unique():
+
+        for session in df_mdp['session'].unique():
+
+            for cond in df_mdp['cond'].unique():
+
+                res = df_mdp.query(f"sujet == '{sujet}' and session == '{session}' and cond == '{cond}' and question in ['A2_1', 'A2_2', 'A2_3', 'A2_4', 'A2_5']").groupby(['sujet']).sum()['value'].values[0]
+
+                df_mdp = pd.concat([df_mdp, pd.DataFrame({'sujet' : [sujet], 'session' : [session], 'cond' : [cond], 'question' : ['A2'], 'value' : [res]}) ])
+
+    ### A1+A2
+    for sujet in df_mdp['sujet'].unique():
+
+        for session in df_mdp['session'].unique():
+
+            for cond in df_mdp['cond'].unique():
+
+                res = df_mdp.query(f"sujet == '{sujet}' and session == '{session}' and cond == '{cond}' and question in ['A1', 'A2']").groupby(['sujet']).sum()['value'].values[0]
+
+                df_mdp = pd.concat([df_mdp, pd.DataFrame({'sujet' : [sujet], 'session' : [session], 'cond' : [cond], 'question' : ['A1+A2'], 'value' : [res]}) ])
+
+    ### selecct best
+    mask_best = []
+    for sujet in df_mdp['sujet'].values:
+        if sujet in sujet_best_list:
+            mask_best.append('REP')
+        else:
+            mask_best.append('NOREP')
+
+    df_mdp['select_best'] = mask_best
+
+    return df_mdp
+
+
+
+
+def get_df_ERP_metric_allsujet(xr_data, xr_cluster_based_perm):
+
+    #### load mdp
+    df_mdp = get_df_mdp()
+
+    df_ERP_metrics_allsujet = pd.DataFrame({'sujet' : [], 'odor' : [], 'phase' : [], 'chan' : [], 'amplitude' : [], 'time' : []})
+    time_vec = xr_data['time'].values
+
+    for sujet in sujet_list:
+
+        for odor in odor_list:
+
+            for chan in chan_list_eeg:
+
+                for phase in ['inspi', 'expi']:
+
+                    if phase == 'inspi':
+                        time_vec_mask_phase = time_vec >= 0
+
+                    elif phase == 'expi':
+                        time_vec_mask_phase = time_vec < 0
+
+                    time_vec_phase = time_vec[time_vec_mask_phase]
+                    ERP_mean_phase = xr_data.loc[sujet, 'CO2', odor, chan, :][time_vec_mask_phase].values
+                    mask_cluster = xr_cluster_based_perm.loc[sujet, odor, chan, :][time_vec_mask_phase].values
+
+                    mask_cluster[0], mask_cluster[-1] = 0, 0 # to ensure diff detection
+
+                    if np.abs(np.diff(mask_cluster)).sum() != 0: 
+
+                        start_stop_chunk = np.where(np.diff(mask_cluster))[0]
+
+                        max_chunk_signi = []
+                        max_chunk_time = []
+                        for start_i in np.arange(0, start_stop_chunk.size, 2):
+
+                            _argmax = np.argmax(np.abs(ERP_mean_phase)[start_stop_chunk[start_i]:start_stop_chunk[start_i+1]])
+                            max_chunk_time.append(start_stop_chunk[start_i] +_argmax)
+                            max_chunk_signi.append(ERP_mean_phase[_argmax])
+
+                        cluster_selected = np.argmax(np.abs(max_chunk_signi))
+                        max_rep = max_chunk_signi[cluster_selected]
+                        time_max_rep = time_vec_phase[max_chunk_time[cluster_selected]]
+
+                    else:
+
+                        continue
+
+                    _df = pd.DataFrame({'sujet' : [sujet], 'odor' : [odor], 'phase' : [phase], 'chan' : [chan], 'amplitude' : [max_rep], 'time' : [time_max_rep]})
+                    df_ERP_metrics_allsujet = pd.concat([df_ERP_metrics_allsujet, _df])
+    
+    #### generate df with A2 ratings
+    df_ERP_metric_A2_ratings = df_ERP_metrics_allsujet.query(f"odor == '+'")
+
+    A2_ratings = []
+    rep_state = []
+    for row_i in range(df_ERP_metric_A2_ratings.shape[0]):
+        sujet = df_ERP_metrics_allsujet.iloc[row_i,:]['sujet']
+        sujet_rev = f"{sujet[2:]}{sujet[:2]}"
+        _diff_A2_p = df_mdp.query(f"sujet == '{sujet_rev}' and cond == 'CO2' and session == '+' and question == 'A2'")['value'].values[0]
+        _diff_A2_o = df_mdp.query(f"sujet == '{sujet_rev}' and cond == 'CO2' and session == 'o' and question == 'A2'")['value'].values[0]
+        A2_ratings.append(_diff_A2_p - _diff_A2_o)
+        if sujet in sujet_best_list_rev:
+            rep_state.append(True)
+        else:
+            rep_state.append(False)
+
+    df_ERP_metric_A2_ratings['rep_state'] = rep_state
+    df_ERP_metric_A2_ratings['A2_diff'] = A2_ratings
+
+    return df_ERP_metrics_allsujet, df_ERP_metric_A2_ratings
+
+
+def plot_ERP_metrics_A2_lm(df_ERP_metric_A2_ratings):
+
+    rep_state_color = {True : 'green', False : 'red'}
+
+    min, max = df_ERP_metric_A2_ratings['amplitude'].min(), df_ERP_metric_A2_ratings['amplitude'].max()
+
+    for chan in chan_list_eeg:
+
+        fig, axs = plt.subplots(ncols=2)
+
+        for phase_i, phase in enumerate(['inspi', 'expi']):
+
+            ax = axs[phase_i]
+
+            _df = df_ERP_metric_A2_ratings.query(f"chan == '{chan}' and phase == '{phase}'")
+
+            if _df.size == 0:
+                continue
+
+            for _amplitude, _A2_diff, _rep_state in zip(_df['amplitude'].values, _df['A2_diff'].values, _df['rep_state'].values):
+
+                ax.scatter(x=_A2_diff, y=_amplitude, color=rep_state_color[_rep_state])
+
+            ax.set_xlabel('A2')
+            ax.set_ylabel('amplitude')
+            ax.set_xlim(-10, 10)
+            ax.set_ylim(min, max)
+            ax.set_title(phase)
+
+        plt.suptitle(chan)
+        plt.tight_layout()
+
+        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'lm_A2_ampl'))
+        fig.savefig(f"{chan}_lm_A2ampl.png")
+
+
+
+
+
+def plot_ERP_metrics_response(df_ERP_metrics_allsujet):
+
+    df_ERP_metrics_allsujet.query(f"phase == 'inspi'")['amplitude'].mean()
+
+    time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+    angles_vec = np.linspace(0, 2*np.pi, num=time_vec.size)
+
+    rep_sujet = []
+    for _sujet in df_ERP_metrics_allsujet['sujet']:
+        if _sujet in sujet_best_list_rev:
+            rep_sujet.append(True)
+        else:
+            rep_sujet.append(False)
+    df_ERP_metrics_allsujet['rep_sujet'] = rep_sujet
+
+    color_sujet_rep = {True : 'tab:green', False : 'tab:red'}
+
+    ######## PLOT RESPONSE ########
+
+    for chan in chan_list_eeg:
+
+        min, max = df_ERP_metrics_allsujet['amplitude'].min(), df_ERP_metrics_allsujet['amplitude'].max()
+
+        fig, axs = plt.subplots(ncols=3, subplot_kw={'projection': 'polar'}, figsize=(10,8))
+
+        for odor_i, odor in enumerate(odor_list):
+
+            ax = axs[odor_i]
+
+            _df = df_ERP_metrics_allsujet.query(f"chan == '{chan}' and odor == '{odor}'")
+
+            time_responses_i = [np.where(time_vec == time_val)[0][0] for time_val in _df['time']]
+            angle_responses = angles_vec[time_responses_i]
+
+            for _angle, _time, _rep_status in zip(angle_responses, _df['amplitude'], _df['rep_sujet']):
+                ax.scatter(_angle, _time, color=color_sujet_rep[_rep_status], s=10)
+
+            ax.set_xticks(np.linspace(0, 2 * np.pi, num=4, endpoint=False))
+            ax.set_xticklabels(np.round(np.linspace(-2.5,2.5, num=4, endpoint=False), 2))
+            ax.set_yticks(np.round(np.linspace(min,max, num=3, endpoint=True), 2))
+            ax.set_rlim([min,max])
+            ax.set_title(f"{odor}")
+
+        plt.suptitle(f'{chan} CO2')
+        plt.tight_layout()
+
+        # plt.show()
+
+        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'time', 'channel_wise_allsujet'))
+        plt.savefig(f"{chan}_CO2.png")
 
 
 

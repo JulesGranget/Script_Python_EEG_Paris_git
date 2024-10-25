@@ -744,13 +744,13 @@ def timing_ERP_IE_SUM_export_df(xr_data):
 
 def timing_ERP_IE_SUM_plot(xr_data):   
 
-    mask_params = dict(markersize=15, markerfacecolor='y')
-
     ch_types = ['eeg'] * len(chan_list_eeg)
     info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
     info.set_montage('standard_1020')
 
     time_vec = xr_data['time'].data
+
+    ######## PLOT RESPONSE FOR ALL GROUPS ########
 
     #subgroup_type = 'allsujet'
     for subgroup_type in ['allsujet', 'rep', 'no_rep']:
@@ -882,7 +882,7 @@ def timing_ERP_IE_SUM_plot(xr_data):
         os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'time'))
         plt.savefig(f"{subgroup_type}_CO2.png")
 
-
+    
 
 
 
@@ -1400,11 +1400,17 @@ if __name__ == '__main__':
 
     plot_ERP_response_profile(xr_data, xr_data_sem)
 
-    ######## ERP COMPARISON ########
+    ######## ERP ANALYSIS ########
 
     cluster_stats_type = 'manual_perm'
     # cluster_stats, cluster_stats_rep_norep = get_cluster_stats(xr_data)
     cluster_stats, cluster_stats_rep_norep = get_cluster_stats_manual_prem(xr_data)
+    xr_cluster_based_perm = get_cluster_stats_manual_prem_subject_wise()
+
+    df_ERP_metrics_allsujet, df_ERP_metric_A2_ratings = get_df_ERP_metric_allsujet(xr_data, xr_cluster_based_perm)
+
+    plot_ERP_metrics_response(df_ERP_metrics_allsujet)
+    plot_ERP_metrics_A2_lm(df_ERP_metric_A2_ratings)
 
     plot_ERP_diff(xr_data, cluster_stats, cluster_stats_type) # used for analysis
 

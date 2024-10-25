@@ -1074,6 +1074,382 @@ def plot_mean_respi(sujet, xr_itl):
 
 
 
+########################################################
+######## PLOT ERP RESPONSES EVERY SUJETS ########
+########################################################
+
+
+def plot_ERP_cluster_every_sujet():
+
+    ######## PARALLELIZATION FUNCTION ########
+    #sujet = sujet_list[5]
+    def get_cluster_based_perm_one_sujet(sujet):
+
+        ######## COMPUTE ERP ########
+        print(f'{sujet} COMPUTE ERP')
+
+        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+
+        erp_data = {}
+        xr_perm_mask = np.zeros((len(odor_list), len(chan_list_eeg), time_vec.size))
+
+        respfeatures = load_respfeatures(sujet)
+
+        #cond = 'FR_CV_1'
+        for cond in ['FR_CV_1', 'CO2']:
+
+            erp_data[cond] = {}
+
+            #odor = odor_list[0]
+            for odor in odor_list:
+
+                erp_data[cond][odor] = {}
+
+                data_allcond = load_data_sujet(sujet, 'allcond', odor)
+
+                #nchan_i, nchan = 0, chan_list_eeg[0]
+                for nchan_i, nchan in enumerate(chan_list_eeg):
+
+                    #### get zscore params
+                    x_mean, x_std = data_allcond[nchan_i,:].mean(), data_allcond[nchan_i,:].std()
+
+                    #### load
+                    data = load_data_sujet(sujet, cond, odor)
+                    data = data[:len(chan_list_eeg),:]
+
+                    respfeatures_i = respfeatures[cond][odor]
+                    inspi_starts = respfeatures_i.query(f"select == 1")['inspi_index'].values
+
+                    #### chunk
+                    stretch_point_PPI = int(np.abs(ERP_time_vec[0])*srate + ERP_time_vec[1]*srate)
+                    data_stretch = np.zeros((inspi_starts.shape[0], int(stretch_point_PPI)))
+
+                    #### low pass 45Hz
+                    x = data[nchan_i,:]
+                    x = iirfilt(x, srate, lowcut=None, highcut=45, order=4, ftype='butter', verbose=False, show=False, axis=0)
+
+                    for start_i, start_time in enumerate(inspi_starts):
+
+                        t_start = int(start_time + ERP_time_vec[0]*srate)
+                        t_stop = int(start_time + ERP_time_vec[1]*srate)
+
+                        data_stretch[start_i, :] = (x[t_start: t_stop] - x_mean) / x_std
+
+                    #### clean
+                    data_stretch_clean = data_stretch[~((data_stretch >= 3) | (data_stretch <= -3)).any(axis=1),:]
+
+                    erp_data[cond][odor][nchan] = data_stretch_clean
+    
+        ######## COMPUTE PERMUTATION ########
+        print(f'{sujet} COMPUTE PERMUTATION')
+
+        #odor_i, odor = 0, odor_list[0]
+        for odor_i, odor in enumerate(odor_list):
+
+            print(odor)
+
+            #chan_i, nchan = 0, chan_list_eeg[0]
+            for chan_i, nchan in enumerate(chan_list_eeg):
+
+                data_baseline = erp_data['FR_CV_1'][odor][nchan]
+                data_cond = erp_data['CO2'][odor][nchan]
+
+                mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
+
+                xr_perm_mask[odor_i, chan_i, :] = mask
+
+        ######## GET MIN MAX ########
+        min, max = [], []
+        for chan_i, chan in enumerate(chan_list_eeg):
+            for odor_i, odor in enumerate(odor_list):
+                data_stretch = erp_data['CO2'][odor][nchan].mean(axis=0)
+                sem = erp_data['CO2'][odor][nchan].std(axis=0) / np.sqrt(erp_data['CO2'][odor][nchan].shape[0])
+                baseline = erp_data['FR_CV_1'][odor][nchan].mean(axis=0)
+                sem_baseline = erp_data['FR_CV_1'][odor][nchan].std(axis=0) / np.sqrt(erp_data['FR_CV_1'][odor][nchan].shape[0])
+
+                max.append((data_stretch+sem).max())
+                min.append((data_stretch-sem).min())
+                max.append((baseline+sem_baseline).max())
+                min.append((baseline-sem_baseline).min())
+
+        min, max = np.array(min).min(), np.array(max).max()
+
+        ######## PLOT ########
+        
+        print(f"{sujet} PLOT")
+
+        if sujet in sujet_best_list_rev:
+            rep_status = 'REP'
+        else:
+            rep_status = 'NOREP'    
+
+        #chan_i, nchan = 15, 'O1'
+        for chan_i, nchan in enumerate(chan_list_eeg):
+
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=1)
+
+            fig.set_figheight(10)
+            fig.set_figwidth(10)
+
+            plt.suptitle(f'{nchan} {sujet} {rep_status} intra')
+
+            #odor_i, odor = 1, odor_list[1]
+            for odor_i, odor in enumerate(odor_list):
+
+                data_stretch = erp_data['CO2'][odor][nchan].mean(axis=0)
+                sem = erp_data['CO2'][odor][nchan].std(axis=0) / np.sqrt(erp_data['CO2'][odor][nchan].shape[0])
+                baseline = erp_data['FR_CV_1'][odor][nchan].mean(axis=0)
+                sem_baseline = erp_data['FR_CV_1'][odor][nchan].std(axis=0) / np.sqrt(erp_data['FR_CV_1'][odor][nchan].shape[0])
+
+                ax = axs[odor_i]
+
+                ax.set_title(f"{cond}")
+                ax.set_ylabel(f"{odor}")
+
+                ax.set_ylim(min, max)
+
+                ax.plot(time_vec, data_stretch, color='r')
+                ax.fill_between(time_vec, data_stretch+sem, data_stretch-sem, alpha=0.25, color='m')
+
+                ax.plot(time_vec, baseline, label='FR_CV_1', color='b')
+                ax.fill_between(time_vec, baseline+sem_baseline, baseline-sem_baseline, alpha=0.25, color='c')
+
+                clusters = xr_perm_mask[odor_i, chan_i, :]
+
+                ax.fill_between(time_vec, min, max, where=clusters.astype('int'), alpha=0.3, color='r')
+
+                ax.invert_yaxis()
+
+                ax.vlines(0, ymin=min, ymax=max, colors='g')  
+
+            fig.tight_layout()
+            plt.legend()
+
+            # plt.show()
+
+            #### save
+            os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff_subject_wise', 'intra'))
+            fig.savefig(f'{nchan}_{sujet}_intra.jpeg', dpi=150)
+
+            plt.close('all')
+
+    ######## PARALLELIZATION COMPUTATION ########
+    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(get_cluster_based_perm_one_sujet)(sujet) for sujet in sujet_list)
+
+    
+
+
+def plot_ERP_respi():
+
+    ######## PARALLELIZATION FUNCTION ########
+    #sujet = sujet_list[4]
+    def get_respi_cluster_based_perm_one_sujet(sujet):
+
+        ######## COMPUTE ERP ########
+        print(f'{sujet} COMPUTE ERP')
+
+        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+
+        erp_data_session = {}
+        erp_data_allodor = {}
+
+        respfeatures = load_respfeatures(sujet)
+
+        respi_allodor = np.array([])
+
+        #odor = odor_list[0]
+        for odor_i, odor in enumerate(odor_list):
+
+            respi_allodor = np.concatenate([respi_allodor, load_data_sujet(sujet, 'allcond', odor)[chan_list.index('PRESS'),:]])
+
+        x_mean_allsig, x_std_allsig = respi_allodor.mean(), respi_allodor.std()
+
+        #odor = odor_list[0]
+        for odor in odor_list:
+
+            erp_data_session[odor] = {}
+            erp_data_allodor[odor] = {}
+
+            #### load
+            x = load_data_sujet(sujet, 'allcond', odor)[chan_list.index('PRESS'),:]
+            x_mean, x_std = x.mean(), x.std()
+
+            #cond = 'FR_CV_1'
+            for cond in ['FR_CV_1', 'CO2']:
+
+                #### load
+                data = load_data_sujet(sujet, cond, odor)
+                x = data[chan_list.index('PRESS'),:]
+
+                respfeatures_i = respfeatures[cond][odor]
+                inspi_starts = respfeatures_i.query(f"select == 1")['inspi_index'].values
+
+                #### chunk
+                stretch_point_PPI = int(np.abs(ERP_time_vec[0])*srate + ERP_time_vec[1]*srate)
+                data_stretch_session = np.zeros((inspi_starts.shape[0], int(stretch_point_PPI)))
+                data_stretch_allodor = np.zeros((inspi_starts.shape[0], int(stretch_point_PPI)))
+                
+                #### low pass 45Hz
+                x = iirfilt(x, srate, lowcut=None, highcut=45, order=4, ftype='butter', verbose=False, show=False, axis=0)
+
+                for start_i, start_time in enumerate(inspi_starts):
+
+                    t_start = int(start_time + ERP_time_vec[0]*srate)
+                    t_stop = int(start_time + ERP_time_vec[1]*srate)
+
+                    data_stretch_session[start_i, :] = (x[t_start: t_stop] - x_mean) / x_std
+                    data_stretch_allodor[start_i, :] = (x[t_start: t_stop] - x_mean_allsig) / x_std_allsig
+
+                erp_data_session[odor][cond] = data_stretch_session
+                erp_data_allodor[odor][cond] = data_stretch_allodor
+
+                if debug:
+
+                    for erp_i in range(data_stretch.shape[0]):
+                        plt.plot(erp_data_session[odor]['FR_CV_1'][erp_i,:], color='r', label='FR_CV_1')
+                        plt.plot(erp_data_session[odor]['CO2'][erp_i,:], color='b', label='CO2')
+                    plt.title(f"{cond} {odor}")
+                    plt.legend()
+                    plt.show()
+    
+        ######## GET MIN MAX ########
+        min_session, max_session = [], []
+        for odor_i, odor in enumerate(odor_list):
+            data_stretch = erp_data_session[odor]['CO2'].mean(axis=0)
+            sem = erp_data_session[odor]['CO2'].std(axis=0) / np.sqrt(erp_data_session[odor]['CO2'].shape[0])
+            baseline = erp_data_session[odor]['FR_CV_1'].mean(axis=0)
+            sem_baseline = erp_data_session[odor]['FR_CV_1'].std(axis=0) / np.sqrt(erp_data_session[odor]['FR_CV_1'].shape[0])
+
+            max_session.append((data_stretch+sem).max())
+            min_session.append((data_stretch-sem).min())
+            max_session.append((baseline+sem_baseline).max())
+            min_session.append((baseline-sem_baseline).min())
+
+        min_session, max_session = np.array(min_session).min(), np.array(max_session).max()
+
+        min_allodor, max_allodor = [], []
+        for odor_i, odor in enumerate(odor_list):
+            data_stretch = erp_data_allodor[odor]['CO2'].mean(axis=0)
+            sem = erp_data_allodor[odor]['CO2'].std(axis=0) / np.sqrt(erp_data_allodor[odor]['CO2'].shape[0])
+            baseline = erp_data_allodor[odor]['FR_CV_1'].mean(axis=0)
+            sem_baseline = erp_data_allodor[odor]['FR_CV_1'].std(axis=0) / np.sqrt(erp_data_allodor[odor]['FR_CV_1'].shape[0])
+
+            max_allodor.append((data_stretch+sem).max())
+            min_allodor.append((data_stretch-sem).min())
+            max_allodor.append((baseline+sem_baseline).max())
+            min_allodor.append((baseline-sem_baseline).min())
+
+        min_allodor, max_allodor = np.array(min_allodor).min(), np.array(max_allodor).max()
+
+        ######## PLOT ########
+        
+        print(f"{sujet} PLOT")
+
+        if sujet in sujet_best_list_rev:
+            rep_status = 'REP'
+        else:
+            rep_status = 'NOREP'    
+
+        #### session
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=1)
+
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
+
+        plt.suptitle(f'RESPI {sujet} {rep_status} intra one session')
+
+        #odor_i, odor = 1, odor_list[1]
+        for odor_i, odor in enumerate(odor_list):
+
+            data_stretch = erp_data_session[odor]['CO2'].mean(axis=0)
+            sem = erp_data_session[odor]['CO2'].std(axis=0) / np.sqrt(erp_data_session[odor]['CO2'].shape[0])
+            baseline = erp_data_session[odor]['FR_CV_1'].mean(axis=0)
+            sem_baseline = erp_data_session[odor]['FR_CV_1'].std(axis=0) / np.sqrt(erp_data_session[odor]['FR_CV_1'].shape[0])
+
+            ax = axs[odor_i]
+
+            ax.set_title(f"{cond}")
+            ax.set_ylabel(f"{odor}")
+
+            ax.set_ylim(min_session, max_session)
+
+            ax.plot(time_vec, data_stretch, color='r')
+            ax.fill_between(time_vec, data_stretch+sem, data_stretch-sem, alpha=0.25, color='m')
+
+            ax.plot(time_vec, baseline, label='FR_CV_1', color='b')
+            ax.fill_between(time_vec, baseline+sem_baseline, baseline-sem_baseline, alpha=0.25, color='c')
+
+            ax.invert_yaxis()
+
+            ax.vlines(0, ymin=min_session, ymax=max_session, colors='g')  
+
+        fig.tight_layout()
+        plt.legend()
+
+        # plt.show()
+
+        #### save
+        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'respi', 'summary_diff'))
+        fig.savefig(f'RESPI_{sujet}_zscore_onesession.jpeg', dpi=150)
+
+        plt.close('all')
+
+        #### allodor
+
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=1)
+
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
+
+        plt.suptitle(f'RESPI {sujet} {rep_status} intra all session')
+
+        #odor_i, odor = 1, odor_list[1]
+        for odor_i, odor in enumerate(odor_list):
+
+            data_stretch = erp_data_allodor[odor]['CO2'].mean(axis=0)
+            sem = erp_data_allodor[odor]['CO2'].std(axis=0) / np.sqrt(erp_data_allodor[odor]['CO2'].shape[0])
+            baseline = erp_data_allodor[odor]['FR_CV_1'].mean(axis=0)
+            sem_baseline = erp_data_allodor[odor]['FR_CV_1'].std(axis=0) / np.sqrt(erp_data_allodor[odor]['FR_CV_1'].shape[0])
+
+            ax = axs[odor_i]
+
+            ax.set_title(f"{cond}")
+            ax.set_ylabel(f"{odor}")
+
+            ax.set_ylim(min_allodor, max_allodor)
+
+            ax.plot(time_vec, data_stretch, color='r')
+            ax.fill_between(time_vec, data_stretch+sem, data_stretch-sem, alpha=0.25, color='m')
+
+            ax.plot(time_vec, baseline, label='FR_CV_1', color='b')
+            ax.fill_between(time_vec, baseline+sem_baseline, baseline-sem_baseline, alpha=0.25, color='c')
+
+            ax.invert_yaxis()
+
+            ax.vlines(0, ymin=min_allodor, ymax=max_allodor, colors='g')  
+
+        fig.tight_layout()
+        plt.legend()
+
+        # plt.show()
+
+        #### save
+        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'respi', 'summary_diff'))
+        fig.savefig(f'RESPI_{sujet}_zscore_allsession.jpeg', dpi=150)
+
+        plt.close('all')
+
+    ######## PARALLELIZATION COMPUTATION ########
+    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(get_respi_cluster_based_perm_one_sujet)(sujet) for sujet in sujet_list)
+
+    
+
+
+
+
+
+
+
 
 
 
@@ -1109,7 +1485,9 @@ if __name__ == '__main__':
         plot_ERP(sujet, data_chunk_allcond, data_value_microV, ERP_surr, lm_data, cond_erp)
 
 
-
+    #### plot for every subjects
+    plot_ERP_cluster_every_sujet()
+    plot_ERP_respi()
 
     ### data leo
     xr_itl = get_data_itl()

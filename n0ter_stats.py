@@ -1,4 +1,6 @@
 
+import os
+from n0_config_params import *
 import numpy as np
 import pandas as pd
 import pingouin as pg
@@ -32,10 +34,13 @@ def sphericity(df, predictor, outcome, subject):
     return spher
 
 def homoscedasticity(df, predictor, outcome):
-    homoscedasticity = pg.homoscedasticity(data = df, dv = outcome, group = predictor)['equal_var'].values[0]
+
+    homoscedasticity = pg.homoscedasticity(data = df, dv = outcome, group = predictor)['equal_var'].values[0] # Levene test
+
     return homoscedasticity
 
 def parametric(df, predictor, outcome, subject = None):
+    
     df = df.reset_index(drop=True)
     groups = list(set(df[predictor]))
     n_groups = len(groups)
@@ -774,33 +779,81 @@ def get_df_stats_pre(df, predictor, outcome, subject=None, design='within', tran
     return results
 
 
-
-
-#df, predictor, outcome, subject, design, transform, verbose, estimator =  df_respi_paris, 'cond', 'VT', 'sujet', 'within', False, True, 'mean'
-def get_summary_stats(df, predictor, outcome, subject=None, design='within', transform=False, verbose=False):
+# df = load_respi_stat_df()
+# df = load_respi_stat_df().query(f"cond == 'MECA'")
+#df, predictor, outcome, subject, design, transform, verbose, export_param_test =  df, 'session', 'BF', 'sujet', 'within', False
+def get_summary_stats(df, predictor, outcome, subject=None, design='within', export_param_test=False):
 
     #### one independant variable
 
     if isinstance(predictor, str):
 
-        #### transformation
+        #### clean pred and outcome for formula
+        for _str in ['+', '-', '/']:
+            if outcome.find(_str) != -1:
+                raise ValueError('rename outcome to supress + / - string')
+        for _str in ['+', '-', '/']:
+            if predictor.find(_str) != -1:
+                raise ValueError('rename outcome to supress + / - string')
 
-        parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
-        
-        if transform:
-            if not parametricity_pre_transfo:
-                df = transform_data(df, outcome)
-                parametricity_post_transfo = parametric(df, predictor, outcome, subject)
-                parametricity = parametricity_post_transfo
-                if verbose:
-                    if parametricity_post_transfo:
-                        print('Successfull transformation')
-                    else:
-                        print('Un-successfull transformation')
+        #### parametricity
+
+        n_group = df[predictor].unique().size
+
+        if n_group <= 2:
+
+            #### identify normality of every groups
+            df_parametricity = pg.normality(data=df, dv=outcome, group=predictor, method='normaltest') # Shapiro Wilk
+            df_parametricity.insert(0, 'param_test', ['shapiro_wilk']*df_parametricity.shape[0], True)
+            
+            if sum(df_parametricity['normal']) == df_parametricity['normal'].size:
+                parametricity = True
             else:
-                parametricity = parametricity_pre_transfo
-        else:
-            parametricity = parametricity_pre_transfo
+                parametricity = False
+
+        if n_group > 2:
+
+            #### 1) identify normality of residuals
+            formula = f'{outcome} ~ {predictor}'
+
+            model = smf.ols(formula, data=df).fit()
+            residuals = model.resid
+            df_parametricity = pg.normality(residuals, method='normaltest') # Shapiro Wilk
+            df_parametricity.insert(0, 'param_test', ['shapiro']*df_parametricity.shape[0], True)
+            df_parametricity = df_parametricity.rename(columns={'normal' : 'parametric'})
+
+            #### 2) identify homoscedasticity
+            _df_parametricity = pg.homoscedasticity(data=df, dv=outcome, group=predictor, method='levene').reset_index(drop=True) # Levene test
+            _df_parametricity.insert(0, 'param_test', ['levene']*df_parametricity.shape[0], True)
+            _df_parametricity = _df_parametricity.rename(columns={'equal_var' : 'parametric'})
+
+            df_parametricity = pd.concat([df_parametricity, _df_parametricity])
+
+            #### 3) idependance, to check on the protocol
+
+            #### Final decision
+
+            if sum(df_parametricity['parametric']) == 2:
+                parametricity = True
+            else:
+                parametricity = False 
+        
+        # parametricity_pre_transfo = parametric(df, predictor, outcome, subject)
+        
+        # if transform:
+        #     if not parametricity_pre_transfo:
+        #         df = transform_data(df, outcome)
+        #         parametricity_post_transfo = parametric(df, predictor, outcome, subject)
+        #         parametricity = parametricity_post_transfo
+        #         if verbose:
+        #             if parametricity_post_transfo:
+        #                 print('Successfull transformation')
+        #             else:
+        #                 print('Un-successfull transformation')
+        #     else:
+        #         parametricity = parametricity_pre_transfo
+        # else:
+        #     parametricity = parametricity_pre_transfo
 
         #### test identification
 
@@ -866,7 +919,8 @@ def get_summary_stats(df, predictor, outcome, subject=None, design='within', tra
             res['alternative'] = alternative
             res['pre_pval'] = pval
             res['cohen_d'] = cohen_d
-            df_res = res.reindex(columns=['predictor', 'outcome', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval', 'cohen_d'])
+            res['param'] = parametricity
+            df_res = res.reindex(columns=['predictor', 'outcome', 'param', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval', 'cohen_d'])
             df_res = pd.concat([df_res.reset_index(drop=True), pd.DataFrame(stats_descriptives)], axis=1)
 
         #### more than 2 groups
@@ -916,10 +970,11 @@ def get_summary_stats(df, predictor, outcome, subject=None, design='within', tra
             post_hoc['pre_pval'] = np.array([pval] * post_hoc.shape[0])
             post_hoc['cohen_d'] = np.array([cohen_d] * post_hoc.shape[0])
             post_hoc['post_test_name'] = np.array([post_name_test] * post_hoc.shape[0])
+            post_hoc['param'] = np.array([parametricity] * post_hoc.shape[0])
 
             post_hoc = post_hoc.rename(columns={'Contrast' : 'predictor'})
 
-            df_post_hoc = post_hoc.reindex(columns=['predictor', 'outcome', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval', 'cohen_d', 'post_test_name', 'A', 'B', 'mean(A)', 'std(A)', 'mean(B)', 'std(B)', 'p-unc', 'p-corr', 'p-adjust'])
+            df_post_hoc = post_hoc.reindex(columns=['predictor', 'outcome', 'param', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval', 'cohen_d', 'post_test_name', 'A', 'B', 'mean(A)', 'std(A)', 'mean(B)', 'std(B)', 'p-unc', 'p-corr', 'p-adjust'])
 
             _dict_median = {'median(A)' : [], 'median(B)' : [], 'mad(A)' : [], 'mad(B)' : [], 'A_Q1' : [], 'B_Q1' : [], 'A_Q3' : [], 'B_Q3' : [], 'A_N' : [], 'B_N' : []}
 
@@ -934,7 +989,7 @@ def get_summary_stats(df, predictor, outcome, subject=None, design='within', tra
             df_median = pd.DataFrame(_dict_median)
             df_post_hoc = pd.concat([df_post_hoc, df_median], axis=1)
 
-            df_post_hoc = df_post_hoc.reindex(columns=['predictor', 'outcome', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval','cohen_d', 'post_test_name', 'A', 'B', 
+            df_post_hoc = df_post_hoc.reindex(columns=['predictor', 'outcome', 'param', 'pre_test_name', 'stat_test', 'alternative', 'pre_pval','cohen_d', 'post_test_name', 'A', 'B', 
                                                         'A_N', 'mean(A)', 'std(A)', 'B_N', 'mean(B)', 'std(B)',
                                                         'median(A)', 'mad(A)', 'A_Q1', 'A_Q3', 'median(B)', 'mad(B)', 'B_Q1',  'B_Q3', 
                                                         'p-unc', 'p-corr', 'p-adjust'])
@@ -946,32 +1001,104 @@ def get_summary_stats(df, predictor, outcome, subject=None, design='within', tra
 
     elif isinstance(predictor, list):
 
+        #### parametricity
+
+        #### 1) identify normality of residuals
+        formula = f'{outcome} ~ {predictor[0]} + {predictor[1]} + {predictor[0]}:{predictor[1]}'
+
+        model = smf.ols(formula, data=df).fit()
+        residuals = model.resid
+        df_parametricity = pg.normality(residuals, method='normaltest') # Shapiro Wilk
+        df_parametricity.insert(0, 'param_test', ['shapiro']*df_parametricity.shape[0], True)
+        df_parametricity = df_parametricity.rename(columns={'normal' : 'parametric'})
+
+        #### 2) identify homoscedasticity
+        df['interaction'] = df[predictor[0]] + df[predictor[1]]
+
+        _df_parametricity = pg.homoscedasticity(data=df, dv=outcome, group='interaction', method='levene').reset_index(drop=True)
+        _df_parametricity.insert(0, 'param_test', ['levene']*df_parametricity.shape[0], True)
+        _df_parametricity = _df_parametricity.rename(columns={'equal_var' : 'parametric'})
+
+        df_parametricity = pd.concat([df_parametricity, _df_parametricity])
+
+        #### 3) idependance, to check on the protocol
+
+        #### Final decision
+
+        if sum(df_parametricity['parametric']) == 2:
+            parametricity = True
+        else:
+            parametricity = False 
+
+        if parametricity == False:
+            print(df_parametricity)
+            raise ValueError('Non parametric test for 2 factors, two way ANOVA not possible')
+
+        #### tests
+
         if design == 'within':
             test_type = 'two_way_rm_anova'
             test = pg.rm_anova(data=df, dv=outcome, within = predictor, subject = subject, effsize = 'np2').set_index('Source').round(3)
-            pval = test.loc[f'{predictor[0]} * {predictor[1]}','p-GG-corr']
-            pstars = pval_stars(pval)
-            es_label = test.columns[-2]
-            es = test.loc[f'{predictor[0]} * {predictor[1]}','np2']
-            es_inter = es_interpretation(es_label=es_label, es_value=es)
-            ppred_0 = test.loc[f'{predictor[0]}', 'p-GG-corr']
-            ppred_1 = test.loc[f'{predictor[1]}', 'p-GG-corr']
             
         elif design == 'between':
             test_type = 'two_way_anova'
             test = pg.anova(data=df, dv=outcome, between = predictor).set_index('Source').round(3)
-            pval = test.loc[f'{predictor[0]} * {predictor[1]}','p-unc']
-            pstars = pval_stars(pval)
-            es_label = test.columns[-1]
-            es = test.loc[f'{predictor[0]} * {predictor[1]}','np2']
-            es_inter = es_interpretation(es_label=es_label, es_value=es)
-            ppred_0 = test.loc[f'{predictor[0]}', 'p-unc']
-            ppred_1 = test.loc[f'{predictor[1]}', 'p-unc']
 
         df_res = test.reset_index(drop=False)
+        df_res['predictor'] = np.array([f"{predictor[0]}_{predictor[1]}"] * df_res.shape[0])
+        df_res['outcome'] = np.array([outcome] * df_res.shape[0])
         df_res['test_name'] = np.array([test_type] * df_res.shape[0])
-        column_to_move = df_res.pop("test_name")
-        df_res.insert(0, "test_name", column_to_move)
+        df_res['param'] = np.array([parametricity] * df_res.shape[0])
+        df_res = df_res.reindex(columns=np.concatenate([df_res.columns[-3:], df_res.columns[:-3]]))
 
-    return df_res
+    if export_param_test:
+        return df_res, df_parametricity
+    else:
+        return df_res
 
+
+
+def load_respi_stat_df():
+
+    os.chdir(os.path.join(path_data, 'respi_detection'))
+    df_respi_paris = pd.read_excel('OLFADYS_alldata_mean.xlsx').query(f"sujet in {sujet_list.tolist()}").reset_index(drop=True)
+
+    for row_i in range(df_respi_paris.shape[0]):
+        if df_respi_paris.iloc[row_i]['odor'] == 'p':
+            df_respi_paris['odor'][row_i] = '+'
+        if df_respi_paris.iloc[row_i]['odor'] == 'n':
+            df_respi_paris['odor'][row_i] = '-'
+
+    df_respi_paris = df_respi_paris.rename(columns={"odor": "session"})
+
+    sujet_sel_mask = []
+
+    for row_i in range(df_respi_paris.shape[0]):
+
+        if df_respi_paris['sujet'].iloc[row_i] in sujet_best_list_rev:
+
+            sujet_sel_mask.append('YES')
+
+        else:
+
+            sujet_sel_mask.append('NO')
+
+    df_respi_paris['select_best'] = sujet_sel_mask
+
+    nan_count = 0
+
+    for respi_metric in ['TI', 'Te', 'Ttot', 'BF', 'VT', 'Ve', 'VT_Ti', 'Ti_Ttot', 'PRESS', 'PetCO2']:
+
+        for nan_i in np.where(df_respi_paris[respi_metric].isnull().values)[0]:
+
+            odor = df_respi_paris['session'][nan_i]
+            cond = df_respi_paris['cond'][nan_i]
+            nan_replace = df_respi_paris.query(f"session == '{odor}' and cond == '{cond}'")[respi_metric].median()
+            df_respi_paris[respi_metric][nan_i] = nan_replace 
+
+            nan_count += 1
+
+    print(f"{nan_count} replaced")
+    df_respi_paris
+
+    return df_respi_paris

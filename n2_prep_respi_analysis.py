@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import scipy.signal
 import mne
 import pandas as pd
-import respirationtools
 
 from bycycle.cyclepoints import find_extrema, find_zerox
 from bycycle.plts import plot_cyclepoints_array
@@ -544,32 +543,32 @@ def load_respi_allcond_data_recompute(sujet, cond, odor_i, cycle_detection_param
 
 
 #respi_allcond = respi_allcond_bybycle
-def edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond):
+# def edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond):
 
-    for cond in conditions:
+#     for cond in conditions:
         
-        for odor_i in odor_list:
+#         for odor_i in odor_list:
 
-            #### stretch
-            cycles = respfeatures_allcond[cond][odor_i][0][['inspi_index', 'expi_index']].values/srate
-            times = np.arange(respi_allcond[cond][odor_i].shape[0])/srate
-            clipped_times, times_to_cycles, cycles, cycle_points, data_stretch_linear = respirationtools.deform_to_cycle_template(
-                    respi_allcond[cond][odor_i], times, cycles, nb_point_by_cycle=stretch_point_TF, inspi_ratio=ratio_stretch_TF)
+#             #### stretch
+#             cycles = respfeatures_allcond[cond][odor_i][0][['inspi_index', 'expi_index']].values/srate
+#             times = np.arange(respi_allcond[cond][odor_i].shape[0])/srate
+#             clipped_times, times_to_cycles, cycles, cycle_points, data_stretch_linear = respirationtools.deform_to_cycle_template(
+#                     respi_allcond[cond][odor_i], times, cycles, nb_point_by_cycle=stretch_point_TF, inspi_ratio=ratio_stretch_TF)
 
-            if debug:
-                plt.plot(data_stretch_linear)
-                plt.show()
+#             if debug:
+#                 plt.plot(data_stretch_linear)
+#                 plt.show()
 
-            i_to_update = respfeatures_allcond[cond][odor_i][0].index.values[~np.isin(respfeatures_allcond[cond][odor_i][0].index.values, cycles)]
-            for i_to_update_i in i_to_update:
+#             i_to_update = respfeatures_allcond[cond][odor_i][0].index.values[~np.isin(respfeatures_allcond[cond][odor_i][0].index.values, cycles)]
+#             for i_to_update_i in i_to_update:
                 
-                if i_to_update_i == respfeatures_allcond[cond][odor_i][0].shape[0] - 1:
-                    continue
+#                 if i_to_update_i == respfeatures_allcond[cond][odor_i][0].shape[0] - 1:
+#                     continue
 
-                else:
-                    respfeatures_allcond[cond][odor_i][0]['select'][i_to_update_i] = 0
+#                 else:
+#                     respfeatures_allcond[cond][odor_i][0]['select'][i_to_update_i] = 0
 
-    return respfeatures_allcond
+#     return respfeatures_allcond
 
 
 
@@ -680,7 +679,7 @@ if __name__ == '__main__':
         ######## EDIT CYCLES SELECTED ########
         ########################################
 
-        respfeatures_allcond = edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond)
+        # respfeatures_allcond = edit_df_for_sretch_cycles_deleted(respi_allcond, respfeatures_allcond)
 
         export_cycle_count(sujet, respfeatures_allcond)
 
