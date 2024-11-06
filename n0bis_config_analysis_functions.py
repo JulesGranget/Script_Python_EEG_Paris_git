@@ -861,7 +861,8 @@ def stretch_data(resp_features, nb_point_by_cycle, data, srate):
     #### params
     cycle_times = resp_features[['inspi_time', 'expi_time', 'next_inspi_time']].values
     mean_cycle_duration = np.mean(resp_features[['inspi_duration', 'expi_duration']].values, axis=0)
-    mean_inspi_ratio = mean_cycle_duration[0]/mean_cycle_duration.sum()
+    # mean_inspi_ratio = mean_cycle_duration[0]/mean_cycle_duration.sum()
+    mean_inspi_ratio = 0.5
     times = np.arange(0,data.shape[0])/srate
 
     #### stretch
@@ -896,7 +897,6 @@ def stretch_data(resp_features, nb_point_by_cycle, data, srate):
 
     return data_stretch, mean_inspi_ratio
 
-    
 
 
 

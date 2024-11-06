@@ -289,6 +289,10 @@ def viewer_one_sujet(sujet, cond, odor, chan_selection, filter=False, raw_signal
 
 
 
+
+
+
+
 ################################
 ######## EXECUTE ########
 ################################
@@ -300,7 +304,7 @@ if __name__ == '__main__':
     '14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
     '30AR','31HJ','32CM','33MA']
 
-    sujet = '08DM'
+    sujet = '15LG'
 
     #### cond
     cond = 'allcond'
@@ -324,7 +328,7 @@ if __name__ == '__main__':
     chan_selection = ['Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']
 
     chan_selection = ['C3']
-    chan_selection = ['P7']
+    chan_selection = ['FC1']
 
     #### view
     raw_signals = True

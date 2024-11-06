@@ -1125,7 +1125,7 @@ if __name__ == '__main__':
     band_prep = 'wb'
     stats_plot = False
 
-    #sujet = sujet_list[14]
+    #sujet = sujet_list[0]
     for sujet in sujet_list:
 
         print(sujet, flush=True)

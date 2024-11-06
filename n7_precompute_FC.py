@@ -9,8 +9,6 @@ import scipy.signal
 import joblib
 import xarray as xr
 
-import frites
-
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
 

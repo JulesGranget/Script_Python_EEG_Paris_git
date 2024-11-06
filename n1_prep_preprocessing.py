@@ -276,8 +276,22 @@ def respi_preproc(raw_aux):
 
 
 # to compare during preprocessing
-#chan_name = 'C3'
+#data_pre, data_post, chan_name = raw_eeg.get_data(), raw_preproc_wb_clean.get_data(), 'C3'
 def compare_pre_post(data_pre, data_post, srate, chan_name):
+
+    trig = pd.read_excel(os.path.join(path_prep, sujet, 'info', f"{sujet}_{session_i}_trig.xlsx")).drop(columns=['Unnamed: 0'])
+
+    trig_data = {'start' : [], 'stop' : []}
+
+    for cond_i in conditions:
+        _start = [i for i in trig.query(f"name == '{cond_i}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
+        _start = int(_start[0])/srate
+        _stop = [i for i in trig.query(f"name == '{cond_i}'")['time'].values[0][1:-1].split(' ') if len(i) != 0]
+        _stop = int(_stop[1])/srate
+        trig_data['start'].append(_start)
+        trig_data['stop'].append(_stop)
+
+    trig = pd.DataFrame(trig_data)
 
     # compare before after
     nchan_i = chan_list_eeg.index(chan_name)
@@ -297,6 +311,10 @@ def compare_pre_post(data_pre, data_post, srate, chan_name):
     plt.plot(time, x_post, label='x_post')
     plt.title(chan_name)
     plt.legend()
+
+    plt.vlines(trig['start'].values, ymin=x_pre.min(), ymax=(x_pre.max()), colors='g', label='start')
+    plt.vlines(trig['stop'].values, ymin=x_pre.min(), ymax=(x_pre.max()), colors='r', label='stop')
+
     plt.show()
 
     plt.semilogy(hzPxx, Pxx_pre, label='Pxx_pre')
@@ -396,7 +414,7 @@ def filter(raw_data, raw_info, h_freq, l_freq):
 def ICA_computation(raw_data, raw_info):
 
     # n_components = np.size(raw.get_data(),0) # if int, use only the first n_components PCA components to compute the ICA decomposition
-    n_components = 15
+    n_components = 20
     random_state = 27
     method = 'fastica'
 
@@ -617,10 +635,10 @@ def view_data(data, data_aux):
         for chan_i, chan in enumerate(chan_selection_list[select_chanlist_i]):
         
             x = data_resampled[chan_i,:]
-            ax.plot(time_vec_resample, zscore(x)+(chan_i)+2, label=chan)
+            ax.plot(time_vec_resample, zscore(x)+3*(chan_i)+2, label=chan)
 
-        ax.vlines(trig['start'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='g', label='start')
-        ax.vlines(trig['stop'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+(chan_i)).max(), colors='r', label='stop')
+        ax.vlines(trig['start'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+3*(chan_i)+2).max(), colors='g', label='start')
+        ax.vlines(trig['stop'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+3*(chan_i)+2).max(), colors='r', label='stop')
         
         plt.legend()
         handles, labels = ax.get_legend_handles_labels()
@@ -1011,11 +1029,12 @@ def remove_artifacts(raw, session_i, srate, trig):
         artifacts_clean = artifacts.copy()
 
         #### clean if overlap
-        rectification_i = 0
+        row_to_del = np.array([])
         for start_i, start_val in enumerate(artifacts_clean['start_ind'].values):
-            
-            start_i -= rectification_i
 
+            if start_i in row_to_del:
+                continue
+            
             if start_i == artifacts_clean['start_ind'].values.shape[0]-1:
                 break
 
@@ -1023,9 +1042,9 @@ def remove_artifacts(raw, session_i, srate, trig):
 
                 row_del_i = np.arange(start_i+1, (artifacts_clean['stop_ind'] <= artifacts_clean['stop_ind'].values[start_i]).sum())
 
-                artifacts_clean = artifacts_clean.drop(index=row_del_i).reset_index().drop(columns='index')
+                row_to_del = np.append(row_to_del, row_del_i)
 
-                rectification_i += row_del_i.shape[0]
+        artifacts_clean = artifacts_clean.drop(index=row_to_del).reset_index().drop(columns='index')
 
         artifacts = artifacts_clean.copy()
 
@@ -1200,7 +1219,7 @@ def remove_artifacts_everychan(raw, srate, trig):
 
 if __name__== '__main__':
 
-    #sujet = sujet_list[5]
+    #sujet = sujet_list[0]
     for sujet in sujet_list:
 
         ########################################
@@ -1301,7 +1320,7 @@ if __name__== '__main__':
 
             raw_aux = respi_preproc(raw_aux)
 
-            if debug == True:
+            if debug:
                 #### verif ECG
                 chan_list_aux = raw_aux.info['ch_names']
                 ecg_i = chan_list_aux.index('ECG')
@@ -1345,19 +1364,26 @@ if __name__== '__main__':
                 view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
                 compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb.get_data(), srate=srate, chan_name='C3')
 
-            raw_preproc_wb_data = ICA_computation(raw_preproc_wb.get_data(), raw_preproc_wb.info)
-            raw_preproc_wb = mne.io.RawArray(raw_preproc_wb_data, raw_preproc_wb.info)
+            # raw_preproc_wb_data = ICA_computation(raw_preproc_wb.get_data(), raw_preproc_wb.info)
+            # raw_preproc_wb = mne.io.RawArray(raw_preproc_wb_data, raw_preproc_wb.info)
+            
+            # if np.array([True for _sujet, _odor in no_artifact_removing_list if _sujet == sujet and _odor == odor_code]).sum() == 1:
 
-            if debug:
+            #      raw_preproc_wb, raw_preproc_wb_clean = raw_preproc_wb, raw_preproc_wb
 
-                view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
+            # else:
 
-            raw_preproc_wb = remove_artifacts_everychan(raw_preproc_wb, srate, trig)
+            #     raw_preproc_wb = remove_artifacts_everychan(raw_preproc_wb, srate, trig)
+            #     raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
+
             raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
+
 
             ########################################
             ######## FINAL VIZUALISATION ########
             ########################################
+
+            view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data())
 
             if debug:
 
@@ -1367,6 +1393,7 @@ if __name__== '__main__':
                 view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data())
                 #### for one chan
                 compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb_clean.get_data(), srate=srate, chan_name='Cz')
+                compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb_clean.get_data(), srate=srate, chan_name='Fp2')
 
             ################################
             ######## CHOP AND SAVE ########
@@ -1377,7 +1404,7 @@ if __name__== '__main__':
             del raw_preproc_wb
 
             #### verif
-            if debug == True:
+            if debug:
                 compare_pre_post(raw_eeg.get_data(), raw_preproc_wb_clean.get_data(), srate, 'C3')
                 view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data()) 
 

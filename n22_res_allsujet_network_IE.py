@@ -305,7 +305,18 @@ def compute_topoplot_IE_network(xr_data):
 
 
 
-def compute_topoplot_IE_network_SUM(xr_data):
+
+
+
+
+def compute_topoplot_IE_network_SUM(stretch=False):
+
+    if stretch:
+        xr_data, xr_data_sem = compute_ERP_stretch()
+        cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep = get_cluster_stats_manual_prem(stretch=True)
+    else:
+        xr_data, xr_data_sem = compute_ERP()
+        cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep = get_cluster_stats_manual_prem()
 
     mask_params = dict(markersize=15, markerfacecolor='y')
 
@@ -315,48 +326,11 @@ def compute_topoplot_IE_network_SUM(xr_data):
 
     time_vec = xr_data.shape[-1]
 
-    #subgroup_type = 'no_rep'
-    for subgroup_type in ['allsujet', 'rep', 'no_rep']:
+    #subgroup_type = 'allsujet'
+    for subgroup_type in ['allsujet', 'rep', 'non_rep']:
 
         ######## INTRA ########
-        #### load stats
-        data_stats_cluster_intra = {}
-
-        for odor_i, odor in enumerate(['o', '+', '-']):
-
-            data_stats_cluster_intra[odor] = {}
-
-            if subgroup_type == 'allsujet':
-                data_baseline = xr_data.loc[:, 'FR_CV_1', odor, :, :].values
-
-            elif subgroup_type == 'rep':
-                data_baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, :, :].values
-
-            elif subgroup_type == 'no_rep':
-                data_baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, :, :].values
-
-            for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
-
-                print('intra', subgroup_type, odor, cond)
-
-                data_stats_cluster_intra[odor][cond] = np.zeros((len(chan_list_eeg), time_vec))
-
-                if subgroup_type == 'allsujet':
-                    data_cond = xr_data.loc[:, cond, odor, :, :].values
-                    
-                elif subgroup_type == 'rep':
-                    data_cond = xr_data.loc[sujet_best_list_rev, cond, odor, :, :].values
-
-                elif subgroup_type == 'no_rep':
-                    data_cond = xr_data.loc[sujet_no_respond_rev, cond, odor, :, :].values
-
-                for chan_i, chan in enumerate(chan_list_eeg):
-
-                    data_baseline_chan = data_baseline[:, chan_i, :]
-                    data_cond_chan = data_cond[:, chan_i, :] 
-
-                    data_stats_cluster_intra[odor][cond][chan_i,:] = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
-
+        
         #### scale
         cluster_size = np.array([])
 
@@ -370,9 +344,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
                     for chan_i, chan in enumerate(chan_list_eeg):
 
                         if phase == 'inspi':
-                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster_intra[odor][cond][chan_i,int(time_vec/2):]], axis=0)
+                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                         if phase == 'expi':
-                            perm_vec_phase = np.concatenate([data_stats_cluster_intra[odor][cond][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                            perm_vec_phase = np.concatenate([cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                         if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -408,7 +382,7 @@ def compute_topoplot_IE_network_SUM(xr_data):
                 #chan_i, chan = 6, chan_list_eeg[6]
                 for chan_i, chan in enumerate(chan_list_eeg):
 
-                    perm_vec_phase = data_stats_cluster_intra[odor][cond][chan_i,:]
+                    perm_vec_phase = cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :]
 
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -452,9 +426,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
                         for chan_i, chan in enumerate(chan_list_lobes[region]):
 
                             if phase == 'inspi':
-                                perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster_intra[odor][cond][chan_i,int(time_vec/2):]], axis=0)
+                                perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                             if phase == 'expi':
-                                perm_vec_phase = np.concatenate([data_stats_cluster_intra[odor][cond][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                                perm_vec_phase = np.concatenate([cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                             if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -489,7 +463,8 @@ def compute_topoplot_IE_network_SUM(xr_data):
 
         #### plot inspi expi
         print('plot intra')
-
+        
+        #cond_i, cond = 1, 'CO2'
         for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):    
 
             fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(15,15))
@@ -507,9 +482,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
                     for chan_i, chan in enumerate(chan_list_eeg):
 
                         if phase == 'inspi':
-                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster_intra[odor][cond][chan_i,int(time_vec/2):]], axis=0)
+                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                         if phase == 'expi':
-                            perm_vec_phase = np.concatenate([data_stats_cluster_intra[odor][cond][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                            perm_vec_phase = np.concatenate([cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                         if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -548,7 +523,11 @@ def compute_topoplot_IE_network_SUM(xr_data):
             plt.suptitle(f'{cond} {subgroup_type} INTRA {np.round(vlim,2)}')
 
             os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network'))
-            fig.savefig(f"SUM_{subgroup_type}_intra_{cond}.jpeg")
+
+            if stretch:
+                fig.savefig(f"stretch_SUM_{subgroup_type}_intra_{cond}.jpeg")
+            else:
+                fig.savefig(f"SUM_{subgroup_type}_intra_{cond}.jpeg")
 
             plt.close('all')
             
@@ -569,7 +548,7 @@ def compute_topoplot_IE_network_SUM(xr_data):
                 #chan_i, chan = 0, chan_list_eeg[0]
                 for chan_i, chan in enumerate(chan_list_eeg):
 
-                    perm_vec_phase = data_stats_cluster_intra[odor][cond][chan_i,:]
+                    perm_vec_phase = cluster_stats_intra.loc[subgroup_type, chan, odor, cond, :].values
                     
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -608,7 +587,11 @@ def compute_topoplot_IE_network_SUM(xr_data):
         plt.suptitle(f'{subgroup_type} INTRA {np.round(vlim_allphase,2)}')
 
         os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network'))
-        fig.savefig(f"SUM_ALLPHASE_{subgroup_type}_intra.jpeg")
+
+        if stretch:
+            fig.savefig(f"stretch_SUM_ALLPHASE_{subgroup_type}_intra.jpeg")
+        else:
+            fig.savefig(f"SUM_ALLPHASE_{subgroup_type}_intra.jpeg")
 
         plt.close('all')
         
@@ -624,7 +607,10 @@ def compute_topoplot_IE_network_SUM(xr_data):
                 os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network', 'allchan_sum'))
                 plt.title(f'{subgroup_type} intra {cond} {region}')
                 
-                plt.savefig(f"ALLCHAN_{subgroup_type}_{cond}_{region}_intra.jpeg")
+                if stretch:
+                    plt.savefig(f"stretch_ALLCHAN_{subgroup_type}_{cond}_{region}_intra.jpeg")
+                else:
+                    plt.savefig(f"ALLCHAN_{subgroup_type}_{cond}_{region}_intra.jpeg")
 
                 plt.close('all')
 
@@ -633,7 +619,10 @@ def compute_topoplot_IE_network_SUM(xr_data):
         os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network', 'allchan_sum'))
         plt.title(f'{subgroup_type} intra CO2')
         
-        plt.savefig(f"ALLCHAN_ALLREGION_{subgroup_type}_{cond}_intra.jpeg")
+        if stretch:
+            plt.savefig(f"stretch_ALLCHAN_ALLREGION_{subgroup_type}_{cond}_intra.jpeg")
+        else:
+            plt.savefig(f"ALLCHAN_ALLREGION_{subgroup_type}_{cond}_intra.jpeg")
 
         plt.close('all')
 
@@ -643,43 +632,6 @@ def compute_topoplot_IE_network_SUM(xr_data):
         
 
         ######## INTER ########
-        #### load stats
-        data_stats_cluster_inter = {}
-
-        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-            data_stats_cluster_inter[cond] = {}
-
-            if subgroup_type == 'allsujet':
-                data_baseline = xr_data.loc[:, cond, 'o', :, :].values
-                
-            elif subgroup_type == 'rep':
-                data_baseline = xr_data.loc[sujet_best_list_rev, cond, 'o', :, :].values
-
-            elif subgroup_type == 'no_rep':
-                data_baseline = xr_data.loc[sujet_no_respond_rev, cond, 'o', :, :].values
-
-            for odor_i, odor in enumerate(['+', '-']):
-
-                print('inter', subgroup_type, odor, cond)
-
-                data_stats_cluster_inter[cond][odor] = np.zeros((len(chan_list_eeg), time_vec))
-
-                if subgroup_type == 'allsujet':
-                    data_cond = xr_data.loc[:, cond, odor, :, :].values
-                    
-                elif subgroup_type == 'rep':
-                    data_cond = xr_data.loc[sujet_best_list_rev, cond, odor, :, :].values
-
-                elif subgroup_type == 'no_rep':
-                    data_cond = xr_data.loc[sujet_no_respond_rev, cond, odor, :, :].values
-
-                for chan_i, chan in enumerate(chan_list_eeg):
-
-                    data_baseline_chan = data_baseline[:, chan_i, :]
-                    data_cond_chan = data_cond[:, chan_i, :] 
-
-                    data_stats_cluster_inter[cond][odor][chan_i,:] = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
 
         #### scale
         cluster_size = np.array([])
@@ -693,9 +645,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
                     for chan_i, chan in enumerate(chan_list_eeg):
 
                         if phase == 'inspi':
-                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster_inter[cond][odor][chan_i,int(time_vec/2):]], axis=0)
+                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                         if phase == 'expi':
-                            perm_vec_phase = np.concatenate([data_stats_cluster_inter[cond][odor][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                            perm_vec_phase = np.concatenate([cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                         if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -730,7 +682,7 @@ def compute_topoplot_IE_network_SUM(xr_data):
 
                 for chan_i, chan in enumerate(chan_list_eeg):
 
-                    perm_vec_phase = data_stats_cluster_inter[cond][odor][chan_i,:]
+                    perm_vec_phase = cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values
 
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -774,9 +726,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
                         for chan_i, chan in enumerate(chan_list_lobes[region]):
 
                             if phase == 'inspi':
-                                perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster_inter[cond][odor][chan_i,int(time_vec/2):]], axis=0)
+                                perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                             if phase == 'expi':
-                                perm_vec_phase = np.concatenate([data_stats_cluster_inter[cond][odor][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                                perm_vec_phase = np.concatenate([cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                             if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -829,9 +781,9 @@ def compute_topoplot_IE_network_SUM(xr_data):
                     for chan_i, chan in enumerate(chan_list_eeg):
 
                         if phase == 'inspi':
-                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster_inter[cond][odor][chan_i,int(time_vec/2):]], axis=0)
+                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                         if phase == 'expi':
-                            perm_vec_phase = np.concatenate([data_stats_cluster_inter[cond][odor][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                            perm_vec_phase = np.concatenate([cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                         if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -870,7 +822,11 @@ def compute_topoplot_IE_network_SUM(xr_data):
             plt.suptitle(f'{odor} {subgroup_type} INTER {np.round(vlim,2)}')
 
             os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network'))
-            fig.savefig(f"SUM_{subgroup_type}_inter_{odor}.jpeg")
+
+            if stretch:
+                fig.savefig(f"stretch_SUM_{subgroup_type}_inter_{odor}.jpeg")
+            else:
+                fig.savefig(f"SUM_{subgroup_type}_inter_{odor}.jpeg")
 
             plt.close('all')
             
@@ -893,7 +849,7 @@ def compute_topoplot_IE_network_SUM(xr_data):
                 #chan_i, chan = 2, chan_list_eeg[2]
                 for chan_i, chan in enumerate(chan_list_eeg):
 
-                    perm_vec_phase = data_stats_cluster_inter[cond][odor][chan_i,:]
+                    perm_vec_phase = cluster_stats_inter.loc[subgroup_type, chan, odor, cond, :].values
 
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -932,7 +888,11 @@ def compute_topoplot_IE_network_SUM(xr_data):
         plt.suptitle(f'{subgroup_type} INTER {np.round(vlim_allphase,2)}')
 
         os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network'))
-        fig.savefig(f"SUM_ALLPHASE_{subgroup_type}_inter.jpeg")
+
+        if stretch:
+            fig.savefig(f"stretch_SUM_ALLPHASE_{subgroup_type}_inter.jpeg")
+        else:
+            fig.savefig(f"SUM_ALLPHASE_{subgroup_type}_inter.jpeg")
 
         plt.close('all')
         
@@ -948,9 +908,20 @@ def compute_topoplot_IE_network_SUM(xr_data):
                 os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network', 'allchan_sum'))
                 plt.title(f'{subgroup_type} inter {cond} {region}')
                 
-                plt.savefig(f"ALLCHAN_{subgroup_type}_{cond}_{region}_inter.jpeg")
+                if stretch:
+                    plt.savefig(f"stretch_ALLCHAN_{subgroup_type}_{cond}_{region}_inter.jpeg")
+                else:
+                    plt.savefig(f"ALLCHAN_{subgroup_type}_{cond}_{region}_inter.jpeg")
 
                 plt.close('all')
+
+
+
+
+
+
+
+
 
 
 
@@ -1058,7 +1029,14 @@ def compute_topoplot_IE_network_repnorep(xr_data):
 
 
 
-def compute_topoplot_IE_network_repnorep_SUM(xr_data):
+def compute_topoplot_IE_network_repnorep_SUM(stretch=False):
+
+    if stretch:
+        xr_data, xr_data_sem = compute_ERP_stretch()
+        cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep = get_cluster_stats_manual_prem(stretch=True)
+    else:
+        xr_data, xr_data_sem = compute_ERP()
+        cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep = get_cluster_stats_manual_prem()
 
     mask_params = dict(markersize=15, markerfacecolor='y')
 
@@ -1066,31 +1044,7 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
     info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
     info.set_montage('standard_1020')
 
-    time_vec = xr_data.shape[-1]
-
-    #### load stats
-    data_stats_cluster = {}
-
-    for odor_i, odor in enumerate(odor_list):
-
-        data_stats_cluster[odor] = {}
-
-        for cond_i, cond in enumerate(conditions):
-
-            print('repnorep', odor, cond)
-
-            data_baseline = xr_data.loc[sujet_best_list_rev, cond, odor, :, :].values
-
-            data_cond = xr_data.loc[sujet_no_respond_rev, cond, odor, :, :].values
-
-            data_stats_cluster[odor][cond] = np.zeros((len(chan_list_eeg), time_vec))
-
-            for chan_i, chan in enumerate(chan_list_eeg):
-
-                data_baseline_chan = data_baseline[:, chan_i, :]
-                data_cond_chan = data_cond[:, chan_i, :] 
-
-                data_stats_cluster[odor][cond][chan_i,:] = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
+    time_vec = xr_data.shape[-1]    
 
     #### scale
     cluster_size = np.array([])
@@ -1104,9 +1058,9 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
                 for chan_i, chan in enumerate(chan_list_eeg):
 
                     if phase == 'inspi':
-                        perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster[odor][cond][chan_i,int(time_vec/2):]], axis=0)
+                        perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_rep_norep.loc[chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                     if phase == 'expi':
-                        perm_vec_phase = np.concatenate([data_stats_cluster[odor][cond][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                        perm_vec_phase = np.concatenate([cluster_stats_rep_norep.loc[chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -1128,7 +1082,7 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
 
                 for chan_i, chan in enumerate(chan_list_eeg):
 
-                    perm_vec_phase = data_stats_cluster[odor][cond][chan_i,:]
+                    perm_vec_phase = cluster_stats_rep_norep.loc[chan, odor, cond, :].values
 
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -1157,9 +1111,9 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
                     for chan_i, chan in enumerate(chan_list_lobes[region]):
 
                         if phase == 'inspi':
-                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster[odor][cond][chan_i,int(time_vec/2):]], axis=0)
+                            perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_rep_norep.loc[chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                         if phase == 'expi':
-                            perm_vec_phase = np.concatenate([data_stats_cluster[odor][cond][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                            perm_vec_phase = np.concatenate([cluster_stats_rep_norep.loc[chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                         if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -1195,9 +1149,9 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
                 for chan_i, chan in enumerate(chan_list_eeg):
 
                     if phase == 'inspi':
-                        perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), data_stats_cluster[odor][cond][chan_i,int(time_vec/2):]], axis=0)
+                        perm_vec_phase = np.concatenate([np.zeros(int(time_vec/2)), cluster_stats_rep_norep.loc[chan, odor, cond, :].values[int(time_vec/2):]], axis=0)
                     if phase == 'expi':
-                        perm_vec_phase = np.concatenate([data_stats_cluster[odor][cond][chan_i,:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
+                        perm_vec_phase = np.concatenate([cluster_stats_rep_norep.loc[chan, odor, cond, :].values[:int(time_vec/2)], np.zeros(int(time_vec/2))], axis=0) 
 
                     if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -1221,7 +1175,11 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
         plt.suptitle(f'{phase} REP_NOREP {np.round(vlim,2)}')
 
         os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network'))
-        fig.savefig(f"SUM_repnorep_{phase}.jpeg")
+
+        if stretch:
+            fig.savefig(f"stretch_SUM_repnorep_{phase}.jpeg")
+        else:
+            fig.savefig(f"SUM_repnorep_{phase}.jpeg")
 
         plt.close('all')
         
@@ -1242,7 +1200,7 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
             #chan_i, chan = 12, chan_list_eeg[12]
             for chan_i, chan in enumerate(chan_list_eeg):
 
-                perm_vec_phase = data_stats_cluster[odor][cond][chan_i,:]
+                perm_vec_phase = cluster_stats_rep_norep.loc[chan, odor, cond, :].values
 
                 if perm_vec_phase.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
 
@@ -1266,7 +1224,11 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
     plt.suptitle(f'ALLPHASE REP_NOREP {np.round(vlim_allphase,2)}')
 
     os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network'))
-    fig.savefig(f"SUM_ALLPHASE_repnorep.jpeg")
+
+    if stretch:
+        fig.savefig(f"stretch_SUM_ALLPHASE_repnorep.jpeg")
+    else:
+        fig.savefig(f"SUM_ALLPHASE_repnorep.jpeg")
 
     plt.close('all')
     
@@ -1282,13 +1244,30 @@ def compute_topoplot_IE_network_repnorep_SUM(xr_data):
             os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_IE_network', 'allchan_sum'))
             plt.title(f'repnorep {cond} {region}')
             
-            plt.savefig(f"ALLCHAN_repnorep_{cond}_{region}.jpeg")
+            if stretch:
+                plt.savefig(f"stretch_ALLCHAN_repnorep_{cond}_{region}.jpeg")
+            else:
+                plt.savefig(f"ALLCHAN_repnorep_{cond}_{region}.jpeg")
 
             plt.close('all')
 
     #### value for CO2
     df_allchan_response_repnorep.query(f"cond == 'CO2' and region == 'all'")
     df_allchan_response_repnorep.query(f"cond == 'FR_CV_1' and region == 'all'")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def network_TF_IE():
@@ -1917,15 +1896,24 @@ def network_TF_IE_power_extraction():
 
 if __name__ == '__main__':
 
-    xr_data, xr_data_sem = compute_ERP()
+    #### MAIN WORKFLOW
 
-    compute_topoplot_IE_network(xr_data)
+    compute_topoplot_IE_network_SUM(stretch=False)
+    compute_topoplot_IE_network_SUM(stretch=True)
 
-    compute_topoplot_IE_network_SUM(xr_data)
+    compute_topoplot_IE_network_repnorep_SUM(stretch=False)
+    compute_topoplot_IE_network_repnorep_SUM(stretch=True)
 
-    compute_topoplot_IE_network_repnorep(xr_data)
 
-    compute_topoplot_IE_network_repnorep_SUM(xr_data)
+
+
+
+
+    #### ACCESORY FUNCTION
+
+    compute_topoplot_IE_network()
+
+    compute_topoplot_IE_network_repnorep()
 
     network_TF_IE()
 

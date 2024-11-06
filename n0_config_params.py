@@ -27,15 +27,15 @@ perso_repo_computation = False
 
 conditions = ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']
 
-sujet_list =                    np.array(['01PD','03VN','05LV','06EF','07PB','08DM','09TA','10BH',
-                            '11FA','12BD','13FP','14MD','15LG','16GM','17JR','19TM','20TY','21ZV',
+sujet_list =                    np.array(['01PD','03VN','05LV','06EF','07PB','08DM','09TA',
+                            '11FA','12BD','13FP','14MD','16GM','17JR','19TM','20TY','21ZV',
                             '23LF','24TJ','26MN','28NT','29SC','30AR','31HJ','32CM','33MA'])
 
-sujet_list_rev =                np.array(['PD01','VN03','LV05','EF06','PB07','DM08','TA09','BH10',
-                            'FA11','BD12','FP13','MD14','LG15','GM16','JR17','TM19','TY20','ZV21',
+sujet_list_rev =                np.array(['PD01','VN03','LV05','EF06','PB07','DM08','TA09',
+                            'FA11','BD12','FP13','MD14','GM16','JR17','TM19','TY20','ZV21',
                             'LF23','TJ24','MN26','NT28','SC29','AR30','HJ31','CM32','MA33'])
 
-# ['02MJ', '18SE', '22DI', '27BD'] signal problems
+# ['02MJ', '18SE', '22DI', '27BD', '10BH', '15LG'] signal problems
 # ['04GB', '25DF'] dypnea induction failed
 
 sujet_best_list =               np.array(['BD12','CM32','FA11','GM16','HJ31','JR17','MA33','MN26',
@@ -43,9 +43,9 @@ sujet_best_list =               np.array(['BD12','CM32','FA11','GM16','HJ31','JR
 sujet_best_list_rev =           np.array(['12BD','32CM','11FA','16GM','31HJ','17JR','33MA','26MN',
                             '01PD','29SC','09TA','24TJ','19TM','03VN','21ZV'])
 
-sujet_no_respond =              np.array(['LV05','EF06','PB07','DM08','BH10','FP13','MD14','LG15',
+sujet_no_respond =              np.array(['LV05','EF06','PB07','DM08','FP13','MD14',
                             'TY20','LF23','NT28','AR30'])
-sujet_no_respond_rev =          np.array(['05LV','06EF','07PB','08DM','10BH','13FP','14MD','15LG',
+sujet_no_respond_rev =          np.array(['05LV','06EF','07PB','08DM','13FP','14MD',
                             '20TY','23LF','28NT','30AR'])
 
 
@@ -312,7 +312,7 @@ prep_step_hf = {
 'csd_computation' : {'execute': True},
 }
 
-
+no_artifact_removing_list = [['19TM', 'o'], ['19TM', '-'], ['19TM', '+'], ['10BH', 'o'], ['10BH', '+'], ['10BH', '-']]
 
 
 
