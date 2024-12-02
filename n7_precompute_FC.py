@@ -1,7 +1,5 @@
 
 
-
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,7 +9,6 @@ import xarray as xr
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
-
 
 debug = False
 
@@ -212,6 +209,265 @@ def get_wpli_ispc_fc_dfc(sujet, cond):
 
 
 
+################################
+######## MUTUAL INFORMATION ########
+################################
+
+
+def get_MI(sujet, stretch=False):
+
+    #### verif computation
+    compute_token = 0
+
+    if stretch:
+        if os.path.exists(os.path.join(path_precompute, sujet, 'FC', f'{sujet}_MI_allpairs_stretch.nc')):
+            print(f'ALREADY DONE MI {sujet} STRETCH')
+            compute_token = 1
+
+    else:
+        if os.path.exists(os.path.join(path_precompute, sujet, 'FC', f'{sujet}_MI_allpairs.nc')):
+            print(f'ALREADY DONE MI {sujet}')
+            compute_token = 1
+
+    if compute_token == 1:
+        return
+
+    #### identify anat info
+    chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
+    # chan_list_MI = chan_list_eeg
+
+    pairs_to_compute = []
+
+    for pair_A in chan_list_MI:
+        
+        for pair_B in chan_list_MI:
+
+            if pair_A == pair_B or f'{pair_A}-{pair_B}' in pairs_to_compute or f'{pair_B}-{pair_A}' in pairs_to_compute:
+                continue
+
+            pairs_to_compute.append(f'{pair_A}-{pair_B}')
+
+    #### compute
+    cond_sel = ['FR_CV_1', 'CO2']
+
+    if stretch:
+        time_vec = np.arange(stretch_point_TF)
+    else:
+        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+
+    os.chdir(path_memmap)
+    MI_sujet = np.memmap(f'{sujet}_MI.dat', dtype=np.float32, mode='w+', shape=(len(pairs_to_compute), len(cond_sel), len(odor_list), time_vec.size))
+        
+    #pair_i, pair = 0, pairs_to_compute[0]
+    def get_MI_pair(pair_i, pair):
+
+        print_advancement(pair_i, len(pairs_to_compute), [25,50,75])
+
+        #### LOAD DATA
+        erp_data = {}
+
+        A, B = pair.split('-')[0], pair.split('-')[1]
+        chan_sel = {A : chan_list_eeg.index(A), B : chan_list_eeg.index(B)}
+
+        cond_sel = ['FR_CV_1', 'CO2']
+
+        respfeatures = load_respfeatures(sujet)
+
+        #chan, chan_i = A, chan_list_eeg.index(A)
+        for chan, chan_i in chan_sel.items():
+
+            erp_data[chan] = {}
+
+            #cond = 'CO2'
+            for cond in cond_sel:
+
+                erp_data[chan][cond] = {}
+
+                #odor = odor_list[0]
+                for odor in odor_list:
+
+                    #### load
+                    x_raw = load_data_sujet(sujet, cond, odor)[chan_i,:]
+
+                    respfeatures_i = respfeatures[cond][odor]
+                    inspi_starts = respfeatures_i.query(f"select == 1")['inspi_index'].values
+
+                    #### ERP PREPROC
+                    x = scipy.signal.detrend(x_raw, type='linear')
+                    x = iirfilt(x, srate, lowcut=None, highcut=45, order=4, ftype='butter', verbose=False, show=False, axis=0)
+                    x = iirfilt(x, srate, lowcut=0.1, highcut=None, order=4, ftype='butter', verbose=False, show=False, axis=0)
+
+                    #### CHUNK
+                    if stretch:
+
+                        time_vec = np.arange(stretch_point_TF)
+
+                        x = zscore(x)
+
+                        data_chunk, mean_inspi_ratio = stretch_data(respfeatures_i, stretch_point_TF, x, srate)
+
+                    else:
+
+                        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+
+                        data_chunk = np.zeros((inspi_starts.shape[0], int(time_vec.size)))
+
+                        for start_i, start_time in enumerate(inspi_starts):
+
+                            t_start = int(start_time + ERP_time_vec[0]*srate)
+                            t_stop = int(start_time + ERP_time_vec[1]*srate)
+
+                            x_chunk = x[t_start: t_stop]
+
+                            data_chunk[start_i, :] = (x_chunk - x_chunk.mean()) / x_chunk.std()
+                            # data_chunk[start_i, :] = (x_chunk - x_mean) / x_std
+
+                    if debug:
+
+                        for inspi_i, _ in enumerate(inspi_starts):
+
+                            plt.plot(data_chunk[inspi_i, :], alpha=0.3)
+
+                        plt.vlines(data_chunk[0, :].size/2, ymax=data_chunk.max(), ymin=data_chunk.min(), color='k')
+                        plt.hlines([-3, 3], xmax=0, xmin=data_chunk[0, :].size, color='k')
+                        plt.plot(data_chunk.mean(axis=0), color='r')
+                        plt.title(f'{cond} {odor} : {data_chunk.shape[0]}')
+                        plt.show()
+
+                    erp_data[chan][cond][odor] = data_chunk
+        
+        #### initiate res
+        
+        #cond = 'CO2'
+        for cond_i, cond in enumerate(cond_sel):
+
+            #odor = odor_list[0]
+            for odor_i, odor in enumerate(odor_list):
+
+                A_data = erp_data[A][cond][odor]
+                B_data = erp_data[B][cond][odor]
+
+                for i in range(time_vec.size):
+
+                    MI_sujet[pair_i, cond_i, odor_i, i] = get_MI_2sig(A_data[:,i], B_data[:,i])
+
+        if debug:
+
+            plt.plot(MI_sujet[0,0,0,:])
+            plt.show()
+
+            fig, axs = plt.subplots(ncols=len(cond_sel), nrows=len(odor_list))
+
+            for cond_i, cond in enumerate(cond_sel):
+
+                #odor = odor_list[0]
+                for odor_i, odor in enumerate(odor_list):
+
+                    ax = axs[odor_i, cond_i]
+                    ax.plot(MI_sujet[pair_i,cond_i, odor_i, :])
+                    ax.set_title(f"{cond} {odor}")
+                    ax.set_ylim(MI_sujet[pair_i,:,:,:].min(), MI_sujet[pair_i,:,:,:].max())
+
+            plt.suptitle(sujet)
+            plt.show()
+
+    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(get_MI_pair)(pair_i, pair) for pair_i, pair in enumerate(pairs_to_compute))
+
+    #### export
+    if stretch:
+        MI_dict = {'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'time' : time_vec}
+    else:
+        MI_dict = {'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
+
+    xr_MI = xr.DataArray(data=MI_sujet, dims=MI_dict.keys(), coords=MI_dict.values())
+    
+    os.chdir(os.path.join(path_precompute, sujet, 'FC'))
+
+    if stretch:
+        xr_MI.to_netcdf(f'{sujet}_MI_allpairs_stretch.nc')
+    else:
+        xr_MI.to_netcdf(f'{sujet}_MI_allpairs.nc')
+
+
+
+def export_df_MI():
+
+    stretch = False
+
+    #### identify anat info
+    chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
+    # chan_list_MI = chan_list_eeg
+
+    pairs_to_compute = []
+
+    for pair_A in chan_list_MI:
+        
+        for pair_B in chan_list_MI:
+
+            if pair_A == pair_B or f'{pair_A}-{pair_B}' in pairs_to_compute or f'{pair_B}-{pair_A}' in pairs_to_compute:
+                continue
+
+            pairs_to_compute.append(f'{pair_A}-{pair_B}')
+
+    #### compute
+    cond_sel = ['FR_CV_1', 'CO2']
+
+    if stretch:
+        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
+        time_vec = np.arange(stretch_point_TF)
+    else:
+        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'time' : time_vec}
+
+    MI_sujet = np.zeros((len(sujet_list), len(pairs_to_compute), len(cond_sel), len(odor_list), time_vec.size))
+
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        os.chdir(os.path.join(path_precompute, sujet, 'FC'))
+
+        if stretch:
+            _xr_MI = xr.open_dataarray(f'{sujet}_MI_allpairs_stretch.nc')
+        else:
+            _xr_MI = xr.open_dataarray(f'{sujet}_MI_allpairs.nc')
+
+        MI_sujet[sujet_i] = _xr_MI.values
+
+    xr_MI = xr.DataArray(data=MI_sujet, dims=MI_dict.keys(), coords=MI_dict.values())
+
+    phase_list = ['inspi', 'expi']
+    
+    MI_data = np.zeros((len(sujet_list), len(cond_sel), len(odor_list), len(phase_list), len(pairs_to_compute)))
+
+    for cond_i, cond in enumerate(cond_sel):
+
+        for odor_i, odor in enumerate(odor_list):
+                    
+            for sujet_i, sujet in enumerate(sujet_list):
+
+                for phase_i, phase in enumerate(phase_list):
+
+                    if phase == 'inspi':
+                        mask_sel = time_vec[int(time_vec.size/2):]
+                    elif phase == 'expi':
+                        mask_sel = time_vec[:int(time_vec.size/2)]
+
+                    for pair_i, pair in enumerate(pairs_to_compute):
+
+                        MI_vec = xr_MI.loc[sujet, pair, cond, odor, mask_sel].values
+
+                        MI_data[sujet_i, cond_i, odor_i, phase_i, pair_i] = MI_vec.mean()
+
+    xr_MI = xr.DataArray(data=MI_data, dims=['sujet', 'cond', 'odor', 'phase', 'pair'], coords=[sujet_list, cond_sel, odor_list, phase_list, pairs_to_compute])
+
+    df_MI = xr_MI.to_dataframe(name='MI').reset_index(drop=False)
+
+    df_MI = pd.pivot_table(df_MI, values='MI', columns=['pair'], index=['sujet', 'cond', 'odor', 'phase']).reset_index(drop=False)
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'FC'))
+    df_MI.to_excel('df_MI_allsujet.xlsx')
+
+
+
 
 
 ################################
@@ -221,6 +477,29 @@ def get_wpli_ispc_fc_dfc(sujet, cond):
 
 
 if __name__ == '__main__':
+
+    ######## MI ########
+
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
+
+        print(sujet)
+        get_MI(sujet, stretch=False)
+        get_MI(sujet, stretch=True)
+
+    export_df_MI()
+
+
+
+
+
+
+
+
+
+
+
+    ######## OTHER FC METRICS ########
 
     #sujet = sujet_list[0]
     for sujet in sujet_list:

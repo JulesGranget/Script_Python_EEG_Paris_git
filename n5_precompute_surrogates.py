@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import scipy.signal
 import mne
 import pandas as pd
-import respirationtools
 
 from n0_config_params import *
 from n0bis_config_analysis_functions import *
@@ -284,7 +283,7 @@ def precompute_MVL(sujet, band_prep, cond):
 
 if __name__ == '__main__':
 
-    #sujet = sujet_list[22]
+    #sujet = sujet_list[14]
     for sujet in sujet_list:    
 
         #### compute and save
@@ -296,13 +295,13 @@ if __name__ == '__main__':
         for cond in conditions:
 
             # precompute_surrogates_cyclefreq(sujet, band_prep, cond)
-            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
+            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
 
             # precompute_MVL(sujet, band_prep, cond)
-            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
+            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
 
-            # precompute_surrogates_coh(sujet, band_prep, cond)
-            execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
+            precompute_surrogates_coh(sujet, band_prep, cond)
+            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
 
             
 

@@ -538,6 +538,259 @@ def process_fc_res(FR_CV_normalized, plot_circle_dfc=False, plot_verif=False):
 
 
 
+################################
+######## MI ########
+################################
+
+def plot_MI():
+
+    stretch = False
+
+    #### identify anat info
+    chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
+    # chan_list_MI = chan_list_eeg
+
+    pairs_to_compute = []
+
+    for pair_A in chan_list_MI:
+        
+        for pair_B in chan_list_MI:
+
+            if pair_A == pair_B or f'{pair_A}-{pair_B}' in pairs_to_compute or f'{pair_B}-{pair_A}' in pairs_to_compute:
+                continue
+
+            pairs_to_compute.append(f'{pair_A}-{pair_B}')
+
+    #### compute
+    cond_sel = ['FR_CV_1', 'CO2']
+
+    if stretch:
+        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
+        time_vec = np.arange(stretch_point_TF)
+    else:
+        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
+        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'time' : time_vec}
+
+    MI_sujet = np.zeros((len(sujet_list), len(pairs_to_compute), len(cond_sel), len(odor_list), time_vec.size))
+
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        os.chdir(os.path.join(path_precompute, sujet, 'FC'))
+
+        if stretch:
+            _xr_MI = xr.open_dataarray(f'{sujet}_MI_allpairs_stretch.nc')
+        else:
+            _xr_MI = xr.open_dataarray(f'{sujet}_MI_allpairs.nc')
+
+        MI_sujet[sujet_i] = _xr_MI.values
+
+    xr_MI = xr.DataArray(data=MI_sujet, dims=MI_dict.keys(), coords=MI_dict.values())
+
+    if debug:
+
+        sujet = sujet_list[1]
+        pair = pairs_to_compute[0]
+
+        fig, axs = plt.subplots(ncols=len(cond_sel), nrows=len(odor_list))
+
+        for cond_i, cond in enumerate(cond_sel):
+
+            #odor = odor_list[0]
+            for odor_i, odor in enumerate(odor_list):
+
+                ax = axs[odor_i, cond_i]
+
+                for sujet in sujet_list:
+                    ax.plot(xr_MI.loc[sujet,pair,cond,odor,:].values, alpha=0.2)
+
+                ax.plot(xr_MI.loc[:,pair,cond,odor,:].mean('sujet').values, color='r')
+                    
+                ax.set_title(f"{cond} {odor}")
+                ax.set_ylim(xr_MI.loc[:,pair,cond,odor,:].values.min(), xr_MI.loc[:,pair,cond,odor,:].values.max())
+
+        plt.suptitle(f"{pair}")
+        plt.show()
+
+        fig, ax = plt.subplots()
+
+        for pair in pairs_to_compute:
+            ax.plot(xr_MI.loc[sujet,pair,cond,odor,:].values)                    
+                
+        ax.set_ylim(xr_MI.loc[sujet,:,cond,odor,:].values.min(), xr_MI.loc[sujet,:,cond,odor,:].values.max())
+
+        plt.suptitle(f"{sujet}{cond}{odor}")
+        plt.show()
+
+    #### build matrices
+    phase_list = ['inspi', 'expi']
+    MI_mat = np.zeros((len(sujet_list), len(cond_sel), len(odor_list), len(phase_list), len(chan_list_MI), len(chan_list_MI)))
+
+    for cond_i, cond in enumerate(cond_sel):
+
+        for odor_i, odor in enumerate(odor_list):
+                    
+            for sujet_i, sujet in enumerate(sujet_list):
+
+                for phase_i, phase in enumerate(phase_list):
+
+                    if phase == 'inspi':
+                        mask_sel = time_vec[int(time_vec.size/2):]
+                    elif phase == 'expi':
+                        mask_sel = time_vec[:int(time_vec.size/2)]
+
+                    for pair_A_i, pair_A in enumerate(chan_list_MI):
+                
+                        for pair_B_i, pair_B in enumerate(chan_list_MI):
+
+                            if pair_A == pair_B:
+                                continue
+
+                            try:
+                                MI_vec = xr_MI.loc[sujet, f'{pair_A}-{pair_B}', cond, odor, mask_sel].values
+                            except:
+                                MI_vec = xr_MI.loc[sujet, f'{pair_B}-{pair_A}', cond, odor, mask_sel].values
+
+                            MI_mat[sujet_i, cond_i, odor_i, phase_i, pair_A_i, pair_B_i] = MI_vec.mean()
+
+    MI_mat = xr.DataArray(data=MI_mat, dims=['sujet', 'cond', 'odor', 'phase', 'chanA', 'chanB'], coords=[sujet_list, cond_sel, odor_list, phase_list, chan_list_MI, chan_list_MI])
+
+    MI_mat_diff = MI_mat.loc[:,'CO2',:,:,:,:] - MI_mat.loc[:,'FR_CV_1',:,:,:,:] 
+
+    if debug:
+
+        fig, ax = plt.subplots(figsize=(8,8))
+        im = ax.imshow(MI_mat[0, 0, 0, 0, :, :])
+
+        ax.set_yticks(np.arange(len(chan_list_MI)))
+        ax.set_yticklabels(chan_list_MI)
+
+        ax.set_xticks(np.arange(len(chan_list_MI)))
+        ax.set_xticklabels(chan_list_MI)
+
+        fig.colorbar(im, orientation='vertical', fraction = 0.05)
+
+        plt.show()
+
+    #### plot
+    group_list = ['allsujet', 'rep', 'no_rep']
+    group_sujet_sel_list = {'allsujet' : sujet_list, 'rep' : sujet_best_list_rev, 'no_rep' : sujet_no_respond_rev}
+
+    for group in group_list:
+
+        #### scales
+        min, max = [], []
+
+        for phase_i, phase in enumerate(phase_list):
+
+            for cond_i, cond in enumerate(cond_sel):
+            
+                for odor_i, odor in enumerate(odor_list):
+
+                    _mat = MI_mat.loc[group_sujet_sel_list[group], cond, odor, phase, :, :].mean('sujet').values
+                    min.append(_mat[_mat != 0].min())
+                    max.append(_mat.max())
+
+        min, max = np.array([min]).min(), np.array([max]).max()
+
+        #### plot
+        for phase_i, phase in enumerate(phase_list):
+
+            fig, axs = plt.subplots(figsize=(8,8), ncols=len(cond_sel), nrows=len(odor_list))
+            
+            for cond_i, cond in enumerate(cond_sel):
+            
+                for odor_i, odor in enumerate(odor_list):
+
+                    ax = axs[odor_i, cond_i]
+
+                    _mat = MI_mat.loc[group_sujet_sel_list[group], cond, odor, phase, :, :].mean('sujet').values
+
+                    im = ax.imshow(_mat, cmap=cm.YlGn, vmin=min, vmax=max)
+
+                    if cond_i == 0:
+                        ax.set_ylabel(odor)
+                    if odor_i == 0:
+                        ax.set_title(cond)
+
+                    ax.set_yticks(np.arange(len(chan_list_MI)))
+                    ax.set_yticklabels(chan_list_MI)
+
+                    ax.set_xticks(np.arange(len(chan_list_MI)))
+                    ax.set_xticklabels(chan_list_MI)
+
+            fig.colorbar(im, orientation='vertical', fraction = 0.05)
+            plt.suptitle(f'{phase}_{group}')
+
+            os.chdir(os.path.join(path_results, 'allplot', 'FC', 'summary_MI'))
+            fig.savefig(f'{phase}_{group}.png')
+
+            # plt.show()
+
+    #### scales diff
+    vlim_diff = []
+
+    for group in group_list:
+
+        for phase_i, phase in enumerate(phase_list):
+        
+            for odor_i, odor in enumerate(odor_list):
+
+                _mat = MI_mat_diff.loc[group_sujet_sel_list[group], odor, phase, :, :].mean('sujet').values
+                vlim_diff.append(_mat.min())
+                vlim_diff.append(_mat.max())
+
+    vlim_diff = np.abs(np.array([vlim_diff])).max()
+
+    #### plot
+    for group in group_list:
+        
+        fig, axs = plt.subplots(figsize=(8,8), ncols=len(phase_list), nrows=len(odor_list))
+            
+        for phase_i, phase in enumerate(phase_list):
+        
+            for odor_i, odor in enumerate(odor_list):
+
+                ax = axs[odor_i, phase_i]
+
+                _mat = MI_mat_diff.loc[group_sujet_sel_list[group], odor, phase, :, :].mean('sujet').values
+
+                im = ax.imshow(_mat, cmap=cm.seismic, vmin=-vlim_diff, vmax=vlim_diff)
+
+                if phase_i == 0:
+                    ax.set_ylabel(odor)
+                if odor_i == 0:
+                    ax.set_title(phase)
+
+                ax.set_yticks(np.arange(len(chan_list_MI)))
+                ax.set_yticklabels(chan_list_MI)
+
+                ax.set_xticks(np.arange(len(chan_list_MI)))
+                ax.set_xticklabels(chan_list_MI)
+
+        fig.colorbar(im, orientation='vertical', fraction = 0.05)
+
+        plt.suptitle(f"{group}")
+
+        os.chdir(os.path.join(path_results, 'allplot', 'FC', 'summary_MI'))
+        fig.savefig(f'diff_{group}.png')
+
+        # plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ################################
 ######## EXECUTE ########
@@ -545,6 +798,12 @@ def process_fc_res(FR_CV_normalized, plot_circle_dfc=False, plot_verif=False):
 
 
 if __name__ == '__main__':
+
+    ######## MI ########
+
+    plot_MI()
+
+    ######## OTHERS ########
 
     compute_TF_allsujet()
 

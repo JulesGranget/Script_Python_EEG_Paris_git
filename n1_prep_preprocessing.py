@@ -575,7 +575,7 @@ def preprocessing_ieeg(raw, prep_step):
 ################################
 
 #data, data_aux = raw_eeg.get_data(), raw_aux.get_data()
-def view_data(data, data_aux):
+def view_data(data, data_aux, title=''):
 
     chan_selection_list = [['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1'],
                            ['Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']]
@@ -639,12 +639,12 @@ def view_data(data, data_aux):
 
         ax.vlines(trig['start'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+3*(chan_i)+2).max(), colors='g', label='start')
         ax.vlines(trig['stop'].values, ymin=zscore(data_resampled[0,:]).min(), ymax=(zscore(x)+3*(chan_i)+2).max(), colors='r', label='stop')
-        
+        ax.set_title(title)
         plt.legend()
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(reversed(handles), reversed(labels), loc='upper left')  # reverse to keep order consistent
 
-        plt.show()
+        return fig
 
 
   
@@ -825,38 +825,6 @@ def sliding_rms(x, sf, window=0.5, step=0.2, interp=True):
         out = f(t)
 
     return t, out
-
-#sig = data
-def iirfilt(sig, srate, lowcut=None, highcut=None, order=4, ftype='butter', verbose=False, show=False, axis=0):
-
-    if len(sig.shape) == 1:
-
-        axis = 0
-
-    if lowcut is None and not highcut is None:
-        btype = 'lowpass'
-        cut = highcut
-
-    if not lowcut is None and highcut is None:
-        btype = 'highpass'
-        cut = lowcut
-
-    if not lowcut is None and not highcut is None:
-        btype = 'bandpass'
-
-    if btype in ('bandpass', 'bandstop'):
-        band = [lowcut, highcut]
-        assert len(band) == 2
-        Wn = [e / srate * 2 for e in band]
-    else:
-        Wn = float(cut) / srate * 2
-
-    filter_mode = 'sos'
-    sos = scipy.signal.iirfilter(order, Wn, analog=False, btype=btype, ftype=ftype, output=filter_mode)
-
-    filtered_sig = scipy.signal.sosfiltfilt(sos, sig, axis=axis)
-
-    return filtered_sig
 
 
 
@@ -1300,7 +1268,7 @@ if __name__== '__main__':
             if debug == True:
                 mne.viz.plot_raw_psd(raw_eeg)
 
-                view_data(raw_eeg.get_data(), raw_aux.get_data())
+                view_data(raw_eeg.get_data(), raw_aux.get_data()).show()
 
             ################################
             ######## AUX PROCESSING ########
@@ -1361,7 +1329,7 @@ if __name__== '__main__':
 
             if debug:
 
-                view_data(raw_preproc_wb.get_data(), raw_aux.get_data())
+                view_data(raw_preproc_wb.get_data(), raw_aux.get_data()).show()
                 compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb.get_data(), srate=srate, chan_name='C3')
 
             # raw_preproc_wb_data = ICA_computation(raw_preproc_wb.get_data(), raw_preproc_wb.info)
@@ -1376,21 +1344,29 @@ if __name__== '__main__':
             #     raw_preproc_wb = remove_artifacts_everychan(raw_preproc_wb, srate, trig)
             #     raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
 
-            raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
+            if sujet == '22DI' and session_i in [1,2]:
+
+                raw_preproc_wb_clean = raw_preproc_wb
+                
+            else:
+
+                raw_preproc_wb_clean = remove_artifacts(raw_preproc_wb, session_i, srate, trig)
 
 
             ########################################
             ######## FINAL VIZUALISATION ########
             ########################################
 
-            view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data())
+            view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data()).show()
 
             if debug:
 
                 #### pre
-                view_data(raw_eeg.get_data(), raw_aux.get_data())
+                view_data(raw_eeg.get_data(), raw_aux.get_data(), title='raw')
                 #### post
-                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data())
+                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data(), title='preproc')
+                plt.show()
+
                 #### for one chan
                 compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb_clean.get_data(), srate=srate, chan_name='Cz')
                 compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb_clean.get_data(), srate=srate, chan_name='Fp2')
@@ -1406,7 +1382,7 @@ if __name__== '__main__':
             #### verif
             if debug:
                 compare_pre_post(raw_eeg.get_data(), raw_preproc_wb_clean.get_data(), srate, 'C3')
-                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data()) 
+                view_data(raw_preproc_wb_clean.get_data(), raw_aux.get_data()).show()
 
 
 

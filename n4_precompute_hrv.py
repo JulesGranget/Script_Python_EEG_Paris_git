@@ -8,7 +8,6 @@ import pandas as pd
 import mne
 import scipy.signal
 from bycycle.cyclepoints import find_extrema
-import respirationtools
 import pickle
 
 

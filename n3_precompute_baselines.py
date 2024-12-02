@@ -138,12 +138,11 @@ if __name__== '__main__':
 
 
     #### params
-    sujet = '04GB'
-    band_prep = 'wb'
-    odor_i = '-'
+    sujet = '18SE'
+    odor_i = '+'
 
     #### compute
-    #compute_and_save_baseline(sujet, odor_i, band_prep)
+    #compute_and_save_baseline(sujet, odor_i)
     
     #### slurm execution
     #sujet = sujet_list[14]

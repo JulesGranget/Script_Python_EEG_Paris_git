@@ -17,8 +17,6 @@ from n0bis_config_analysis_functions import *
 from n0ter_stats import *
 from n21bis_res_allsujet_ERP import *
 
-from mne.stats import permutation_cluster_test
-from mne.stats import permutation_cluster_1samp_test
 
 debug = False
 
@@ -38,7 +36,6 @@ if __name__ == '__main__':
 
     xr_data, xr_data_sem = compute_ERP()
     xr_data_stretch, xr_data_sem_stretch = compute_ERP_stretch()
-    cluster_stats_type = 'manual_perm'
     cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep = get_cluster_stats_manual_prem(stretch=False)
     cluster_stats_intra_stretch, cluster_stats_inter_stretch, cluster_stats_rep_norep_stretch = get_cluster_stats_manual_prem(stretch=True)
 
@@ -49,7 +46,7 @@ if __name__ == '__main__':
     plot_ERP_mean_subject_wise(stretch=True)
 
 
-
+    export_df_ERP()
 
 
 

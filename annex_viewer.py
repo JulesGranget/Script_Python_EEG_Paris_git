@@ -304,7 +304,7 @@ if __name__ == '__main__':
     '14MD','15LG','16GM','17JR','18SE','19TM','20TY','21ZV','22DI','23LF','24TJ','25DF','26MN','27BD','28NT','29SC',
     '30AR','31HJ','32CM','33MA']
 
-    sujet = '15LG'
+    sujet = '18SE'
 
     #### cond
     cond = 'allcond'

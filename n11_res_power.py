@@ -554,6 +554,113 @@ def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name, band_prep):
 ################################
 
 
+#n_chan, chan_name = 0, chan_list_eeg[0]
+def plot_save_Cxy_TOPOPLOT(sujet, band_prep):
+
+    #### create montage
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mask_params = dict(markersize=15, markerfacecolor='y')
+
+    #### load data
+    Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
+    prms = get_params()
+    respfeatures_allcond = load_respfeatures(sujet)
+
+    #### params
+    hzPxx = np.linspace(0,srate/2,int(prms['nfft']/2+1))
+    hzCxy = np.linspace(0,srate/2,int(prms['nfft']/2+1))
+    mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
+    hzCxy = hzCxy[mask_hzCxy]
+
+    cond_sel = ['FR_CV_1', 'CO2']
+
+    #### reduce data
+    topoplot_data = {}
+
+    for cond in cond_sel:
+
+        topoplot_data[cond] = {}
+
+        for odor_i in odor_list:
+
+            topoplot_data[cond][odor_i] = {}
+
+            mean_resp = respfeatures_allcond[cond][odor_i]['cycle_freq'].mean()
+            hzCxy_mask = (hzCxy > (mean_resp - around_respi_Cxy)) & (hzCxy < (mean_resp + around_respi_Cxy))
+
+            Cxy_allchan_i = Cxy_allcond[cond][odor_i][:,hzCxy_mask].mean(axis=1)
+            topoplot_data[cond][odor_i]['Cxy'] = Cxy_allchan_i
+
+            Cxy_allchan_surr_i = surrogates_allcond['Cxy'][cond][odor_i][:len(chan_list_eeg),hzCxy_mask].mean(axis=1)
+            topoplot_data[cond][odor_i]['Cxy_surr_val'] = Cxy_allchan_surr_i
+            topoplot_data[cond][odor_i]['Cxy_surr'] = np.array(Cxy_allchan_i > Cxy_allchan_surr_i)*1
+
+    #### check val
+    if debug:
+
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel))
+        plt.suptitle(f'{sujet}_Cxy')
+        fig.set_figheight(10)
+        fig.set_figwidth(10) 
+
+        for c, cond in enumerate(cond_sel):
+
+            #r, odor_i = 0, odor_list[0]
+            for r, odor_i in enumerate(odor_list):
+
+                ax = axs[r, c]
+
+                ax.plot(topoplot_data[cond][odor_i]['Cxy'], label='Cxy')
+                ax.plot(topoplot_data[cond][odor_i]['Cxy_surr_val'], label='Cxy_surr')
+                ax.set_ylim(0,1)
+        
+        plt.legend()
+        plt.show()
+
+
+    #### plot Cxy
+    fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel))
+    plt.suptitle(f'{sujet}_Cxy')
+    fig.set_figheight(10)
+    fig.set_figwidth(10)
+
+    #c, cond = 0, 'FR_CV_1'
+    for c, cond in enumerate(cond_sel):
+
+        #r, odor_i = 0, odor_list[0]
+        for r, odor_i in enumerate(odor_list):
+
+            #### plot
+            ax = axs[r, c]
+
+            if r == 0:
+                ax.set_title(cond, fontweight='bold', rotation=0)
+            if c == 0:
+                ax.set_ylabel(f'{odor_i}')
+
+            mask_signi = topoplot_data[cond][odor_i][f'Cxy_surr'].astype('bool')
+
+            im, _ = mne.viz.plot_topomap(data=topoplot_data[cond][odor_i][f'Cxy'], axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    mask=mask_signi, mask_params=mask_params, vlim=(0, 1), cmap='OrRd')
+            
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label('Amplitude')
+
+    # plt.show() 
+
+    #### save
+    os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
+    fig.savefig(f'{sujet}_Cxy_topo.jpeg', dpi=150)
+    os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet'))
+    fig.savefig(f'Cxy_{sujet}_topo.jpeg', dpi=150)
+    fig.clf()
+    plt.close('all')
+    gc.collect()
+
+
 
 #n_chan, chan_name = 0, chan_list_eeg[0]
 def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
@@ -1107,7 +1214,9 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep):
     # if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', f'{sujet}_Cxy_raw_{band_prep}_topo.jpeg')) and os.path.exists(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet', f'raw_Cxy_{sujet}_{band_prep}_topo.jpeg')):
     #     print('TOPOPLOT ALREADY COMPUTED', flush=True)
     # else:    
-    plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep)
+    
+    # plot_save_Cxy_TOPOPLOT(sujet, band_prep)
+    # plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep)
 
     print('done', flush=True)
 
@@ -1123,19 +1232,22 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep):
 if __name__ == '__main__':
 
     band_prep = 'wb'
-    stats_plot = False
+    # stats_plot = False
 
     #sujet = sujet_list[0]
     for sujet in sujet_list:
 
         print(sujet, flush=True)
 
-        #### Pxx Cxy CycleFreq
-        compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
+        #### Cxy
+        plot_save_Cxy_TOPOPLOT(sujet, band_prep)
+
+        #### Pxx CycleFreq
+        # compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
         # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
 
         #### TF & ITPC
-        compilation_compute_TF_ITPC(sujet, band_prep, stats_plot)
+        # compilation_compute_TF_ITPC(sujet, band_prep, stats_plot)
         # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep, stats_plot], '15G')
 
 

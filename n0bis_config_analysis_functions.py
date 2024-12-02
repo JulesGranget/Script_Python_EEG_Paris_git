@@ -9,8 +9,10 @@ import pandas as pd
 import sys
 import stat
 import subprocess
+import scipy.stats
 import xarray as xr
 import physio
+import getpass
 
 from bycycle.cyclepoints import find_extrema
 import neurokit2 as nk
@@ -21,6 +23,39 @@ from n0_config_params import *
 debug = False
 
 
+
+
+#sig = data
+def iirfilt(sig, srate, lowcut=None, highcut=None, order=4, ftype='butter', verbose=False, show=False, axis=0):
+
+    if len(sig.shape) == 1:
+
+        axis = 0
+
+    if lowcut is None and not highcut is None:
+        btype = 'lowpass'
+        cut = highcut
+
+    if not lowcut is None and highcut is None:
+        btype = 'highpass'
+        cut = lowcut
+
+    if not lowcut is None and not highcut is None:
+        btype = 'bandpass'
+
+    if btype in ('bandpass', 'bandstop'):
+        band = [lowcut, highcut]
+        assert len(band) == 2
+        Wn = [e / srate * 2 for e in band]
+    else:
+        Wn = float(cut) / srate * 2
+
+    filter_mode = 'sos'
+    sos = scipy.signal.iirfilter(order, Wn, analog=False, btype=btype, ftype=ftype, output=filter_mode)
+
+    filtered_sig = scipy.signal.sosfiltfilt(sos, sig, axis=axis)
+
+    return filtered_sig
 
 
 ########################################
@@ -267,6 +302,183 @@ def generate_folder_structure(sujet):
 
     
 
+
+################################################
+######## DATA MANAGEMENT CLUSTER ########
+################################################
+
+
+def sync_folders(local_folder, remote_folder, hostname, username, port):
+
+    hostname = '10.69.168.93'
+    port = 22
+    username = 'jules.granget'
+
+    local_folder = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_slurm'
+    remote_folder = "/mnt/data/julesgranget/Olfadys/test"
+
+    try:
+        # Prompt for the SSH password
+        password = getpass.getpass(prompt="Enter your SSH password: ")
+
+        # Build the rsync command
+        rsync_command = [
+            "rsync", "-avz",  # Flags for archive mode, verbose, and compression
+            "-e", f"ssh -p {port}",  # Use SSH for the connection and specify the port
+            f"{local_folder}/",  # Local folder (trailing slash ensures content syncing)
+            f"{username}@{hostname}:{remote_folder}"  # Remote destination
+        ]
+        
+        print("Running rsync command...")
+        # Run the rsync command
+        process = subprocess.run(
+            rsync_command, 
+            input=password,  # Pass the password
+            text=True,  # Ensure the password is passed as a string
+            capture_output=True  # Capture the output for debugging
+        )
+
+        process = subprocess.run(['cd N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'], shell=True, capture_output=True)
+
+        process.stdout
+        
+        # Check the result
+        if process.returncode == 0:
+            print("Synchronization successful.")
+        else:
+            print(f"Rsync failed with error: {process.stderr}")
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def ssh_connect(hostname, port, username, password, command):
+    """
+    Connects to a remote machine using SSH and executes a command.
+    
+    Parameters:
+    - hostname (str): IP address or hostname of the remote machine.
+    - port (int): SSH port (default is 22).
+    - username (str): SSH username.
+    - password (str): SSH password.
+    - command (str): Command to execute on the remote machine.
+    
+    Returns:
+    - str: Output of the executed command.
+    """
+    # Create an SSH client
+    ssh_client = paramiko.SSHClient()
+    
+    # Automatically add the server's SSH key (if not already known)
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    
+    try:
+        # Connect to the remote machine
+        print(f"Connecting to {hostname}...")
+        ssh_client.connect(hostname, port=port, username=username, password=password)
+        print("Connection established.")
+        
+        # Execute a command
+        print(f"Executing command: {command}")
+        stdin, stdout, stderr = ssh_client.exec_command(command)
+        
+        # Read the output and error
+        output = stdout.read().decode()
+        error = stderr.read().decode()
+        
+        # Print command output or error
+        if output:
+            print("Command Output:")
+            print(output)
+        if error:
+            print("Command Error:")
+            print(error)
+        
+        return output if output else error
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+    
+    finally:
+        # Close the connection
+        ssh_client.close()
+        print("Connection closed.")
+
+
+
+
+def verify_data():
+
+    hostname = '10.69.168.93'
+    port = 22
+    username = 'jules.granget'
+    path_remote_rawdata = "/mnt/data/julesgranget/Olfadys/rawdata"
+
+    origin_path = os.getcwd()
+
+    #### identify data in local
+    os.chdir(path_data)
+
+    local_files = {}
+    
+    for root, _, files in os.walk(path_data):
+        for file in files:
+            file_path = os.path.join(root, file)
+            relative_path = os.path.relpath(file_path, path_data)
+            local_files[relative_path] = compute_file_hash(file_path)
+
+    #### identify data in remote
+        #### connect
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    password = getpass.getpass(prompt="Enter your SSH password: ")
+    ssh_client.connect(hostname, port=port, username=username, password=password)
+    print(f"Connected to {hostname}")
+    sftp = ssh_client.open_sftp()
+
+        #### identify data
+    remote_files = {}
+            
+    def walk_remote_dir(path_remote_rawdata, relative_path=""):
+
+        file_list = sftp.listdir(path_remote_rawdata)
+        
+        for item in file_list:
+            full_path = os.path.join(path_remote_rawdata, item)
+            rel_path = os.path.join(relative_path, item)
+            
+            try:
+                if is_remote_directory(sftp, full_path):
+                    walk_remote_dir(full_path, rel_path)
+                else:
+                    remote_files[rel_path] = compute_remote_file_hash(sftp, full_path)
+            except IOError:
+                continue
+
+    walk_remote_dir(path_remote_rawdata)
+
+    #### compute differences
+    differences = {'not_in_remote' : [], 'different_from_local' : [], 'only_in_remote' : []}
+        
+    for file in local_files:
+        if file not in remote_files:
+            differences['not_in_remote'].append(file)
+        elif local_files[file] != remote_files[file]:
+            differences['different_from_local'].append(file)
+    
+    for file in remote_files:
+        if file not in local_files:
+            differences['only_in_remote'].append(file)
+
+    #### balance local and remote
+    for file in differences['not_in_remote']:
+
+        sftp.put(os.path.join(path_data, file), path_remote_rawdata)
+
+    sftp.chdir(path_remote_rawdata)
+    sftp.getcwd()
+    
+    return is_same, differences
 
 
 
@@ -1195,6 +1407,43 @@ def get_MVL(x):
 
     return MVL
 
+
+def get_MI_2sig(x, y):
+
+    #### Freedman and Diaconis rule
+    nbins_x = int(np.ceil((x.max() - x.min()) / (2 * scipy.stats.iqr(x)*(x.size**(-1/3)))))
+    nbins_y = int(np.ceil((y.max() - y.min()) / (2 * scipy.stats.iqr(y)*(y.size**(-1/3)))))
+
+    #### compute proba
+    hist_x = np.histogram(x,bins = nbins_x)[0]
+    hist_x = hist_x/np.sum(hist_x)
+    hist_y = np.histogram(y,bins = nbins_y)[0]
+    hist_y = hist_y/np.sum(hist_y)
+
+    hist_2d = np.histogram2d(x, y, bins=[nbins_x, nbins_y])[0]
+    hist_2d = hist_2d / np.sum(hist_2d)
+
+    #### compute MI
+    E_x = 0
+    E_y = 0
+    E_x_y = 0
+
+    for p in hist_x:
+        if p!=0 :
+            E_x += -p*np.log2(p)
+
+    for p in hist_y:
+        if p!=0 :
+            E_y += -p*np.log2(p)
+
+    for p0 in hist_2d:
+        for p in p0 :
+            if p!=0 :
+                E_x_y += -p*np.log2(p)
+
+    MI = E_x+E_y-E_x_y
+
+    return MI
 
 
 
