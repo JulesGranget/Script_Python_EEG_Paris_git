@@ -78,6 +78,8 @@ chan_list = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'C
 chan_list_eeg = ['Fp1', 'Fz', 'F3', 'F7', 'FT9', 'FC5', 'FC1', 'C3', 'T7', 'TP9', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'O1', 
             'Oz', 'O2', 'P4', 'P8', 'TP10', 'CP6', 'CP2', 'Cz', 'C4', 'T8', 'FT10', 'FC6', 'FC2', 'F4', 'F8', 'Fp2']
 
+chan_list_short = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
+
 chan_list_eeg_fc = ['Fp1', 'Fp2', 'F3', 'F4', 'F7', 'F8','Fz', 'FC1', 'FC2', 'FC5', 'FC6', 'FT9', 'FT10', 'Cz', 'C3', 'C4',
                     'CP1', 'CP2', 'CP5', 'CP6', 'Pz', 'P3', 'P4', 'P7', 'P8', 'T7', 'T8', 'TP9', 'TP10', 'Oz', 'O1', 'O2']
 
@@ -124,7 +126,9 @@ PC_ID = socket.gethostname()
 
 if PC_ID == 'LAPTOP-EI7OSP7K':
 
-    if teleworking:
+    path_init = os.getcwd()
+
+    try:
 
         PC_working = 'Jules_VPN'
         if perso_repo_computation:
@@ -135,7 +139,9 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
         path_memmap = 'Z:\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
         n_core = 4
 
-    else:
+        os.chdir(path_general)
+
+    except:
 
         PC_working = 'Jules_VPN'
         if perso_repo_computation:
@@ -146,7 +152,18 @@ if PC_ID == 'LAPTOP-EI7OSP7K':
         path_memmap = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
         n_core = 4
 
-    
+    os.chdir(path_init)
+
+elif PC_ID in ['jules-precisiont1700']:
+
+    PC_working = 'Jules_Labo_Linux'
+    if perso_repo_computation:
+        path_main_workdir = '/home/jules/Bureau/perso_repo_computation/Script_Python_EEG_Paris_git'
+    else:    
+        path_main_workdir = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
+    path_memmap = '/home/jules/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Mmap'
+    n_core = 4
 
 elif PC_ID == 'DESKTOP-3IJUK7R':
 
@@ -181,9 +198,9 @@ elif PC_ID == 'pc-valentin':
     path_memmap = '/home/valentin/smb4k/CRNLDATA/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Mmap'
     n_core = 6
 
-elif PC_ID == 'nodeGPU':
+elif PC_ID in ['nodeGPU', 'node14']:
 
-    PC_working = 'nodeGPU'
+    PC_working = 'crnlcluster'
     path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
     path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
     path_memmap = '/mnt/data/julesgranget'
@@ -191,13 +208,13 @@ elif PC_ID == 'nodeGPU':
 
 else:
 
-    PC_working = 'crnl_cluster'
-    path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
-    path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
-    path_memmap = '/mnt/data/julesgranget'
-    n_core = 10
+    PC_working = 'slurmcluster'
+    path_main_workdir = '/mnt/data/julesgranget/Olfadys/Script_Python_EEG_Paris_git'
+    path_general = '/mnt/data/julesgranget/Olfadys'
+    path_memmap = '/mnt/data/julesgranget/Olfadys/memmap'
+    n_core = 15
     
-
+path_mntdata = "/mnt/data/julesgranget/Olfadys"
 path_data = os.path.join(path_general, 'Data')
 path_prep = os.path.join(path_general, 'Analyses', 'preprocessing')
 path_precompute = os.path.join(path_general, 'Analyses', 'precompute') 
@@ -361,7 +378,7 @@ stretch_point_surrogates = 500
 #### coh
 n_surrogates_coh = 500
 freq_surrogates = [0, 2]
-percentile_coh = .95
+percentile_coh = 99
 
 #### cycle freq
 n_surrogates_cyclefreq = 500
@@ -400,7 +417,6 @@ tf_percentile_sel_stats_dw = 5
 tf_percentile_sel_stats_up = 95 
 tf_stats_percentile_cluster = 95
 tf_stats_percentile_cluster_manual_perm = 80
-erp_time_cluster_thresh = 50 #ms
 norm_method = 'rscore'# 'zscore', 'dB'
 exclude_frex_range = [48, 52]
 

@@ -11,9 +11,9 @@ import cv2
 import pickle
 import gc
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
-from n0ter_stats import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
+from n00ter_stats import *
 
 
 debug = False
@@ -90,7 +90,23 @@ def get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet):
 
     return Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond
 
-        
+
+
+def get_Cxy_Surrogates_allcond(sujet):
+
+    source_path = os.getcwd()
+    
+    os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
+
+    with open(f'allcond_{sujet}_Cxy.pkl', 'rb') as f:
+        Cxy_allcond = pickle.load(f)
+
+    with open(f'allcond_{sujet}_surrogates.pkl', 'rb') as f:
+        surrogates_allcond = pickle.load(f)
+
+    os.chdir(source_path)
+
+    return Cxy_allcond, surrogates_allcond
 
 
 def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet():
@@ -104,7 +120,8 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet():
     for sujet in sujet_list:
 
         #### load data
-        Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
+        # Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
+        Cxy_allcond, surrogates_allcond = get_Cxy_Surrogates_allcond(sujet)
         prms = get_params()
         respfeatures_allcond = load_respfeatures(sujet)
 
@@ -599,87 +616,6 @@ def get_tf_stats(tf, pixel_based_distrib):
 
 
 
-def compute_TF_allsujet():
-
-    #tf_mode = 'TF'
-    for tf_mode in ['TF', 'ITPC']:
-
-        if tf_mode == 'ITPC':
-            continue
-
-        print('COMPUTE', flush=True)
-
-        if os.path.exists(os.path.join(path_precompute, 'allsujet', tf_mode, f'allsujet_{tf_mode}.nc')):
-            print('ALREADY COMPUTED', flush=True)
-            return
-
-        else:
-
-            #### generate xr
-            os.chdir(path_memmap)
-            group_sujet = ['allsujet', 'rep', 'no_rep']
-            data_xr = np.memmap(f'allsujet_tf_reduction.dat', dtype=np.float64, mode='w+', shape=(len(chan_list_eeg), len(group_sujet), len(conditions), len(odor_list), nfrex, stretch_point_TF))
-
-            #nchan = 0
-            def compute_TF_ITPC(nchan, tf_mode):
-
-                print(f'#### chan{nchan}', flush=True)
-
-                tf_median = np.zeros((len(sujet_list),len(conditions),len(odor_list),nfrex,stretch_point_TF))
-
-                #sujet_i, sujet = 0, sujet_list[0]
-                for sujet_i, sujet in enumerate(sujet_list):
-
-                    print_advancement(sujet_i, len(sujet_list), steps=[25, 50, 75])
-
-                    #cond_i, cond = 0, conditions[0]
-                    for cond_i, cond in enumerate(conditions):
-                        #odor_i, odor = 0, odor_list[0]
-                        for odor_i, odor in enumerate(odor_list):
-
-                            os.chdir(os.path.join(path_precompute, sujet, tf_mode))
-                            tf_median[sujet_i, cond_i, odor_i, :, :] = np.median(np.load(f'{sujet}_tf_conv_{cond}_{odor}.npy')[nchan,:,:,:], axis=0)
-
-                #sujet_group_i, sujet_group = 0, sujet_group[0] 
-                for sujet_group_i, sujet_group in enumerate(group_sujet):
-
-                    if sujet_group == 'allsujet':  
-                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median, axis=0)
-                    if sujet_group == 'rep':
-                        sel = np.array([np.where(sujet_list == sujet)[0][0] for sujet in sujet_best_list_rev])
-                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sel,:], axis=0)
-                    if sujet_group == 'no_rep':  
-                        sel = np.array([np.where(sujet_list == sujet)[0][0] for sujet in sujet_no_respond_rev])
-                        data_xr[nchan,sujet_group_i,:,:,:,:] = np.median(tf_median[sel,:], axis=0)
-
-                if debug:
-
-                    os.chdir(path_general)
-                    time = range(stretch_point_TF)
-                    tf_plot = np.median(tf_median, axis=0)[0,0,:,:]
-                    plt.pcolormesh(time, frex, tf_plot, shading='gouraud', cmap=plt.get_cmap('seismic'))
-                    plt.yscale('log')
-                    plt.savefig('test.jpg')
-
-            joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_TF_ITPC)(nchan, tf_mode) for nchan, nchan_name in enumerate(chan_list_eeg))
-
-            dict_xr = {'nchan' : chan_list_eeg, 'group_sujet' : group_sujet, 'cond' : conditions, 'odor' : odor_list, 'nfrex' : np.arange(0, nfrex), 'times' : np.arange(0, stretch_point_TF)}
-            xr_allsujet = xr.DataArray(data_xr, coords=dict_xr.values(), dims=dict_xr.keys())
-
-            os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
-            xr_allsujet.to_netcdf(f'allsujet_{tf_mode}.nc')
-
-            os.chdir(path_memmap)
-            os.remove(f'allsujet_tf_reduction.dat')
-
-    print('done', flush=True)
-
-
-
-
-
-
-
 def compilation_compute_TF_ITPC():
 
     #tf_mode = 'TF'
@@ -878,9 +814,6 @@ if __name__ == '__main__':
     plot_save_Cxy_TOPOPLOT_allsujet()
 
     #### TF & ITPC
-    compute_TF_allsujet()
-    # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compute_TF_allsujet', [], 15)
-
     compilation_compute_TF_ITPC()
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_TF_ITPC', [nchan, nchan_name, band_prep], 15)
 

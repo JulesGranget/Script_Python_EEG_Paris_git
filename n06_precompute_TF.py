@@ -9,8 +9,8 @@ import pandas as pd
 import xarray as xr
 import joblib
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 debug = False
 
@@ -282,8 +282,8 @@ if __name__ == '__main__':
     #sujet = sujet_list[3]
     for sujet in sujet_list:
     
-        #precompute_tf_all_conv(sujet)
-        execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_tf_all_conv', [sujet], '35G')
+        precompute_tf_all_conv(sujet)
+        # execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_tf_all_conv', [sujet], '35G')
         #precompute_itpc(sujet, cond)
         # execute_function_in_slurm_bash_mem_choice('n6_precompute_TF', 'precompute_itpc', [sujet], '30G')
 

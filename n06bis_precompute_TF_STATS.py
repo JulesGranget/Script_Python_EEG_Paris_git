@@ -9,8 +9,8 @@ import xarray as xr
 import gc
 import cv2
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 debug = False
 
@@ -429,7 +429,7 @@ if __name__ == '__main__':
     for sujet in sujet_list:    
     
         # precompute_tf_STATS(sujet)
-        execute_function_in_slurm_bash_mem_choice('n6bis_precompute_TF_STATS', 'precompute_tf_STATS', [sujet], '30G')
+        execute_function_in_slurm_bash('n6bis_precompute_TF_STATS', 'precompute_tf_STATS', [sujet], '30G')
 
         
 

@@ -9,8 +9,8 @@ import joblib
 import mne_connectivity
 import copy
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 debug = False
 

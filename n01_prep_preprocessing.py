@@ -10,9 +10,9 @@ import physio
 
 import seaborn as sns
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
-from n1bis_prep_info import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
+from n01bis_prep_info import *
 
 debug = False
 
@@ -541,7 +541,8 @@ def preprocessing_ieeg(raw, prep_step):
 
     if prep_step['csd_computation']['execute']:
         print('csd_computation', flush=True)
-        raw_post = csd_computation(raw_data)
+        raw_csd = mne.io.RawArray(raw_data, raw_info)
+        raw_post = csd_computation(raw_csd).get_data()
         #compare_pre_post(data_pre=raw_data, data_post=raw_post, srate=srate, chan_name='C3')
         raw_data = raw_post
 
@@ -1330,7 +1331,7 @@ if __name__== '__main__':
             if debug:
 
                 view_data(raw_preproc_wb.get_data(), raw_aux.get_data()).show()
-                compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb.get_data(), srate=srate, chan_name='C3')
+                compare_pre_post(data_pre=raw_eeg.get_data(), data_post=raw_preproc_wb.get_data(), srate=srate, chan_name='Fp1')
 
             # raw_preproc_wb_data = ICA_computation(raw_preproc_wb.get_data(), raw_preproc_wb.info)
             # raw_preproc_wb = mne.io.RawArray(raw_preproc_wb_data, raw_preproc_wb.info)

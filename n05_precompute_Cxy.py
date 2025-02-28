@@ -6,8 +6,9 @@ import scipy.signal
 import mne
 import pandas as pd
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 import joblib
 
@@ -24,65 +25,73 @@ debug = False
 
 
 
+# Surrogate computation for a single channel
+def compute_surrogates_coh_n_chan(n_chan, data_tmp, respi, mask_hzCxy, n_surrogates_coh, srate, hannw, nwind, noverlap, nfft):
 
-def precompute_surrogates_coh(sujet, band_prep, cond):
-    
-    os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
-    
-    print(cond)
+    print_advancement(n_chan, data_tmp.shape[0], steps=[25, 50, 75])
 
+    x = data_tmp[n_chan, :]
+    surrogates_val_tmp = np.zeros((n_surrogates_coh, mask_hzCxy.sum()))
+
+    for surr_i in range(n_surrogates_coh):
+        
+        x_shift = shuffle_Cxy(x)
+
+        # Compute coherence
+        hzCxy_tmp, Cxy = scipy.signal.coherence(x_shift, respi, fs=srate, window=hannw, nperseg=nwind, noverlap=noverlap, nfft=nfft)
+        surrogates_val_tmp[surr_i, :] = Cxy[mask_hzCxy]
+
+    return np.percentile(surrogates_val_tmp, percentile_coh, axis=0)
+
+
+
+
+def precompute_surrogates_coh(sujet):
+
+    save_path = os.path.join(path_precompute, 'allsujet', 'PSD_Coh')
+    if os.path.exists(os.path.join(save_path, f"{sujet}_surr_Cxy.npy")):
+        print(f'ALREADY COMPUTED {sujet}')
+        return
+    
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
 
-    #odor_i = odor_list[0]
-    for odor_i in odor_list:
+    # Precompute frequency bins and mask
+    hzCxy = np.linspace(0, srate / 2, int(nfft / 2 + 1))
+    mask_hzCxy = (hzCxy >= freq_surrogates[0]) & (hzCxy < freq_surrogates[1])
+    hzCxy_respi = hzCxy[mask_hzCxy]
 
-        data_tmp = load_data_sujet(sujet, cond, odor_i)
+    # Initialize array to store surrogate results
+    Cxy_surr_sujet = np.zeros((len(conditions), len(odor_list), len(chan_list), len(hzCxy_respi)))
 
-        if os.path.exists(f"{sujet}_{cond}_{odor_i}_Coh.npy"):
-            print(f'ALREADY COMPUTED {cond} {odor_i}')
-            continue
-        
-        respi = data_tmp[chan_list.index('PRESS'),:]
+    print(sujet)
 
-        hzCxy = np.linspace(0,srate/2,int(nfft/2+1))
-        mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
-        hzCxy = hzCxy[mask_hzCxy]
+    for cond_i, cond in enumerate(conditions):
+        for odor_i, odor in enumerate(odor_list):
+            print(cond, odor)
 
-        surrogates_n_chan = np.zeros((data_tmp.shape[0],len(hzCxy)))
+            # Load data once per condition and odor
+            data_tmp = load_data_sujet(sujet, cond, odor)
+            respi = data_tmp[chan_list.index('PRESS'), :]
 
-        def compute_surrogates_coh_n_chan(n_chan):
+            # Parallelized computation of surrogates
+            surrogates_n_chan = joblib.Parallel(n_jobs=n_core, prefer='threads')(
+                joblib.delayed(compute_surrogates_coh_n_chan)(n_chan, data_tmp, respi, mask_hzCxy, n_surrogates_coh, srate, hannw, nwind, noverlap, nfft) 
+                for n_chan in range(data_tmp.shape[0])
+            )
 
-            print_advancement(n_chan, data_tmp.shape[0], steps=[25, 50, 75])
+            # Store results
+            for chan_i in range(data_tmp.shape[0]):
+                Cxy_surr_sujet[cond_i, odor_i, chan_i, :] = surrogates_n_chan[chan_i]
 
-            x = data_tmp[n_chan,:]
-            y = respi
+    # Save results to disk
+    os.chdir(save_path)
+    np.save(f"{sujet}_surr_Cxy.npy", Cxy_surr_sujet)
 
-            surrogates_val_tmp = np.zeros((n_surrogates_coh,len(hzCxy)))
+    print('Done')
 
-            for surr_i in range(n_surrogates_coh):
 
-                x_shift = shuffle_Cxy(x)
-                #y_shift = shuffle_Cxy(y)
-                hzCxy_tmp, Cxy = scipy.signal.coherence(x_shift, y, fs=srate, window=hannw, nperseg=nwind, noverlap=noverlap, nfft=nfft)
 
-                surrogates_val_tmp[surr_i,:] = Cxy[mask_hzCxy]
 
-            surrogates_val_tmp_sorted = np.sort(surrogates_val_tmp, axis=0)
-            percentile_i = int(np.floor(n_surrogates_coh*percentile_coh))
-            compute_surrogates_coh_tmp = surrogates_val_tmp_sorted[percentile_i,:]
-
-            return compute_surrogates_coh_tmp
-        
-        compute_surrogates_coh_results = joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(compute_surrogates_coh_n_chan)(n_chan) for n_chan in range(data_tmp.shape[0]))
-
-        for n_chan in range(data_tmp.shape[0]):
-
-            surrogates_n_chan[n_chan,:] = compute_surrogates_coh_results[n_chan]
-
-        #### save
-        np.save(f'{sujet}_{cond}_{odor_i}_Coh.npy', surrogates_n_chan)
-
-        print('done')
 
 
 
@@ -283,25 +292,37 @@ def precompute_MVL(sujet, band_prep, cond):
 
 if __name__ == '__main__':
 
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
+
+
+
+        # precompute_surrogates_coh(sujet)
+        execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh', [[sujet] for sujet in sujet_list])
+    # sync_folders__push_to_crnldata()  
+
+
+
+
+
+
     #sujet = sujet_list[14]
-    for sujet in sujet_list:    
+    # for sujet in sujet_list:    
 
         #### compute and save
-        print(f'######## COMPUTE SURROGATES {sujet} ########')
+        # print(f'######## COMPUTE SURROGATES {sujet} ########')
 
-        band_prep = 'wb'
+        #cond = conditions[2]
+        # for cond in conditions:
 
-        #cond = conditions[1]
-        for cond in conditions:
+            # precompute_surrogates_cyclefreq(sujet, cond)
+            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, cond])
 
-            # precompute_surrogates_cyclefreq(sujet, band_prep, cond)
-            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_cyclefreq', [sujet, band_prep, cond])
+            # precompute_MVL(sujet, cond)
+            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, cond])    
+             
+    
 
-            # precompute_MVL(sujet, band_prep, cond)
-            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_MVL', [sujet, band_prep, cond])               
-
-            precompute_surrogates_coh(sujet, band_prep, cond)
-            # execute_function_in_slurm_bash('n5_precompute_surrogates', 'precompute_surrogates_coh', [sujet, band_prep, cond])
 
             
 

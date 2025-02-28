@@ -1,6 +1,6 @@
 
 import os
-from n0_config_params import *
+from n00_config_params import *
 import numpy as np
 import pandas as pd
 import pingouin as pg

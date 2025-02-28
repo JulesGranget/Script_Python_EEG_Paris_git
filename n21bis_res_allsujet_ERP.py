@@ -11,9 +11,10 @@ import xarray as xr
 import seaborn as sns
 import pickle
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
-from n0ter_stats import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
+from n00ter_stats import *
+from n08_precompute_ERP import *
 
 from mne.stats import permutation_cluster_test
 from mne.stats import permutation_cluster_1samp_test
@@ -60,6 +61,7 @@ def compute_ERP():
         xr_dict_sem = {'sujet' : sujet_list, 'cond' : conditions, 'odor' : odor_list, 'nchan' : chan_list_eeg, 'time' : time_vec}
         xr_data_sem = xr.DataArray(data=np.zeros((len(sujet_list), len(conditions), len(odor_list), len(chan_list_eeg), time_vec.shape[0])), dims=xr_dict.keys(), coords=xr_dict.values())
 
+        df_sd_cleaning = {'sujet' : [], 'nchan' : [], 'cond' : [], 'odor' : [], 'n_removed' : [], 'n_keep' : [], '%_removed' : []}
 
         #sujet_i, sujet = 5, sujet_list[5]
         for sujet_i, sujet in enumerate(sujet_list):
@@ -108,6 +110,15 @@ def compute_ERP():
 
                             data_stretch[start_i, :] = (x_chunk - x_chunk.mean()) / x_chunk.std()
                             # data_stretch[start_i, :] = (x_chunk - x_mean) / x_std
+
+                        data_stretch_mask = (data_stretch >= 3) | (data_stretch <= -3)
+                        df_sd_cleaning['sujet'].append(sujet)
+                        df_sd_cleaning['nchan'].append(nchan)
+                        df_sd_cleaning['cond'].append(cond)
+                        df_sd_cleaning['odor'].append(odor)
+                        df_sd_cleaning['n_removed'].append((data_stretch_mask.sum(axis=1) != 0).sum())
+                        df_sd_cleaning['n_keep'].append((data_stretch_mask.sum(axis=1) == 0).sum())
+                        df_sd_cleaning['%_removed'].append((data_stretch_mask.sum(axis=1) != 0).sum() * 100 / data_stretch.shape[0])
 
                         if debug:
 
@@ -160,8 +171,63 @@ def compute_ERP():
         xr_data.to_netcdf('allsujet_ERP_data.nc')
         xr_data_sem.to_netcdf('allsujet_ERP_data_sem.nc')
 
+        df_sd_cleaning = pd.DataFrame(df_sd_cleaning)
+        df_sd_cleaning.to_excel('df_sd_cleaning.xlsx')
+
     return xr_data, xr_data_sem
             
+
+def explore_sd_cleaning_preocmpute():
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
+    df_sd_cleaning = pd.read_excel('df_sd_cleaning.xlsx')
+    df_sd_cleaning['n_tot'] = df_sd_cleaning['n_removed'] + df_sd_cleaning['n_keep'] 
+
+    os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'erp_cleaning_methods'))
+
+    for cond in ['FR_CV_1', 'CO2']:
+
+        df_plot = df_sd_cleaning.query(f"cond == '{cond}'") 
+        sns.displot(data=df_plot, x="n_removed", hue='odor', kind='kde')
+        plt.xlim(0,150)
+        plt.title(cond)
+        plt.tight_layout()
+        plt.savefig(f'{cond}_n_removed.png')
+        plt.close('all')
+
+        df_plot = df_sd_cleaning.query(f"cond == '{cond}'") 
+        sns.displot(data=df_plot, x="n_keep", hue='odor', kind='kde')
+        plt.xlim(0,150)
+        plt.title(cond)
+        plt.tight_layout()
+        plt.savefig(f'{cond}_n_keep.png')
+        plt.close('all')
+
+        df_plot = df_sd_cleaning.query(f"cond == '{cond}'") 
+        sns.displot(data=df_plot, x="%_removed", hue='odor', kind='kde')
+        plt.xlim(0,150)
+        plt.title(cond)
+        plt.tight_layout()
+        plt.savefig(f'{cond}_%_removed.png')
+        plt.close('all')
+
+        df_plot = df_sd_cleaning.query(f"cond == '{cond}'") 
+        sns.displot(data=df_plot, x="n_tot", hue='odor', kind='kde')
+        plt.xlim(0,150)
+        plt.title(cond)
+        plt.tight_layout()
+        plt.savefig(f'{cond}_n_tot.png')
+        plt.close('all')
+
+
+
+    
+    
+
+
+
+
+
 
 
 
@@ -1673,13 +1739,13 @@ def plot_ERP(xr_data, xr_lm_data, xr_lm_pred, xr_lm_pred_coeff, xr_surr, xr_PPI_
 
 
 
-def plot_ERP_diff(stretch=False):
-
-    print('ERP PLOT', flush=True)
+def plot_ERP_diff(stretch=True):
 
     ch_types = ['eeg'] * len(chan_list_eeg)
     info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
     info.set_montage('standard_1020')
+
+    cond_sel = ['FR_CV_1', 'MECA', 'CO2']
 
     t_start_ERP = ERP_time_vec[0]
     t_stop_ERP = ERP_time_vec[1]
@@ -1693,7 +1759,7 @@ def plot_ERP_diff(stretch=False):
         xr_data, xr_data_sem = compute_ERP()
         cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep = get_cluster_stats_manual_prem(stretch=False)
 
-    sujet_group = ['allsujet', 'rep', 'non_rep', 'repnorep']
+    sujet_group = ['allsujet', 'rep', 'non_rep']
 
     if stretch:
         time_vec = np.arange(stretch_point_TF)
@@ -1701,12 +1767,12 @@ def plot_ERP_diff(stretch=False):
         time_vec = np.arange(t_start_ERP, t_stop_ERP, 1/srate)
         mask_time_vec_zoomin = (time_vec >= -0.5) & (time_vec < 0.5) 
 
-    conditions_diff = {'allsujet' : ['MECA', 'CO2', 'FR_CV_2'], 'rep' : ['MECA', 'CO2', 'FR_CV_2'], 'non_rep' : ['MECA', 'CO2', 'FR_CV_2'], 'repnorep' : ['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']}
+    conditions_diff = {'allsujet' : ['MECA', 'CO2'], 'rep' : ['MECA', 'CO2'], 'non_rep' : ['MECA', 'CO2'], 'repnorep' : ['FR_CV_1', 'MECA', 'CO2']}
     odor_list_diff = {'allsujet' : ['+', '-'], 'rep' : ['+', '-'], 'non_rep' : ['+', '-'], 'repnorep' : ['o', '+', '-']}
 
     ######## IDENTIFY MIN MAX ########
 
-    print('PLOT SUMMARY ERP')
+    print('IDENTIFY MIN MAX')
 
     #### identify min max for allsujet
 
@@ -1718,12 +1784,12 @@ def plot_ERP_diff(stretch=False):
     for nchan_i, nchan in enumerate(chan_list_eeg):
 
         #cond_i, cond = 2, conditions_diff[2]
-        for cond_i, cond in enumerate(conditions):
+        for cond_i, cond in enumerate(cond_sel):
 
             #odor_i, odor = 0, odor_list[0]
             for odor_i, odor in enumerate(odor_list):
 
-                data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                data_stretch = xr_data.loc[:, cond, odor, nchan, :].median('sujet').values
                 sem = xr_data.loc[:, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, cond, odor, nchan, :].shape[0])
                 data_stretch_up, data_stretch_down = data_stretch + sem, data_stretch - sem
                 _absmax = np.concatenate([_absmax, np.abs(data_stretch_up), np.abs(data_stretch_down)])
@@ -1738,7 +1804,7 @@ def plot_ERP_diff(stretch=False):
     for nchan_i, nchan in enumerate(chan_list_eeg):
 
         #cond_i, cond = 2, conditions_diff[2]
-        for cond_i, cond in enumerate(conditions):
+        for cond_i, cond in enumerate(cond_sel):
 
             #odor_i, odor = 0, odor_list[0]
             for odor_i, odor in enumerate(odor_list):
@@ -1746,10 +1812,10 @@ def plot_ERP_diff(stretch=False):
                 for group in ['rep', 'non_rep']:
 
                     if group == 'rep':
-                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
                     elif group == 'non_rep':
-                        data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
 
                     data_stretch_up, data_stretch_down = data_stretch + sem, data_stretch - sem
@@ -1759,8 +1825,10 @@ def plot_ERP_diff(stretch=False):
 
     ######## SUMMARY NCHAN INTRA ########
 
-    #group = sujet_group[3]
+    #group = sujet_group[0]
     for group in sujet_group:
+
+        print(f'plot intra {group}')
 
         if group == 'allsujet':
             n_sujet = xr_data.loc[:, cond, odor, nchan, :].shape[0]
@@ -1768,8 +1836,6 @@ def plot_ERP_diff(stretch=False):
             n_sujet = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0]
         elif group == 'non_rep':
             n_sujet = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0]
-        elif group == 'repnorep':
-            n_sujet = f"rep:{xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0]}/norep:{xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0]}" 
 
         #nchan_i, nchan = 0, chan_list_eeg[0]
         for nchan_i, nchan in enumerate(chan_list_eeg):
@@ -1777,7 +1843,7 @@ def plot_ERP_diff(stretch=False):
             fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions_diff[group]))
 
             fig.set_figheight(10)
-            fig.set_figwidth(10)
+            fig.set_figwidth(7)
 
             if stretch:
                 plt.suptitle(f'stretch {nchan} {group} {n_sujet} intra')
@@ -1791,35 +1857,26 @@ def plot_ERP_diff(stretch=False):
                 for odor_i, odor in enumerate(odor_list):
 
                     if group == 'allsujet':
-                        data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[:, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[:, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+                        baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].median('sujet').values
                         sem_baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, 'FR_CV_1', odor, nchan, :].shape[0])
                         # if cond != 'VS':
                         #     data_surr_up = xr_surr.loc[:, cond, odor, nchan, 'up', :].mean('sujet').values
                         #     data_surr_down = xr_surr.loc[:, cond, odor, nchan, 'down', :].mean('sujet').values
                     elif group == 'rep':
-                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+                        baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].median('sujet').values
                         sem_baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].shape[0])
                         # if cond != 'VS':
                         #     data_surr_up = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'up', :].mean('sujet').values
                         #     data_surr_down = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'down', :].mean('sujet').values
                     elif group == 'non_rep':
-                        data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+                        baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].median('sujet').values
                         sem_baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].shape[0])
-                        # if cond != 'VS':
-                        #     data_surr_up = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'up', :].mean('sujet').values
-                        #     data_surr_down = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'down', :].mean('sujet').values
-                    
-                    elif group == 'repnorep':
-                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
-                        sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
-                        sem_baseline = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
                         # if cond != 'VS':
                         #     data_surr_up = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'up', :].mean('sujet').values
                         #     data_surr_down = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'down', :].mean('sujet').values
@@ -1848,16 +1905,11 @@ def plot_ERP_diff(stretch=False):
                     ax.plot(time_vec, data_stretch, color='r')
                     ax.fill_between(time_vec, data_stretch+sem, data_stretch-sem, alpha=0.25, color='m')
 
-                    if group == 'repnorep':
-                        ax.plot(time_vec, baseline, label='norep', color='b')
-                    else:
-                        ax.plot(time_vec, baseline, label='FR_CV_1', color='b')
+                    ax.plot(time_vec, baseline, label='FR_CV_1', color='b')
+
                     ax.fill_between(time_vec, baseline+sem_baseline, baseline-sem_baseline, alpha=0.25, color='c')
 
-                    if group == 'repnorep':
-                        clusters = cluster_stats_rep_norep.loc[nchan, odor, cond, :]
-                    else:
-                        clusters = cluster_stats_intra.loc[group, nchan, odor, cond, :]
+                    clusters = cluster_stats_intra.loc[group, nchan, odor, cond, :]
 
                     if group == 'allsujet':
                         ax.fill_between(time_vec, -absmax_group['allsujet'], absmax_group['allsujet'], where=clusters.astype('int'), alpha=0.3, color='r')
@@ -1910,10 +1962,6 @@ def plot_ERP_diff(stretch=False):
                     os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'rep and norep'))
                     fig.savefig(f'stretch_{nchan}_intra_{group}.jpeg', dpi=150)
 
-                elif group == 'repnorep':
-                    os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'repnorep'))
-                    fig.savefig(f'stretch_{nchan}_intra_{group}.jpeg', dpi=150)
-
                 fig.clf()
                 plt.close('all')
                 gc.collect()
@@ -1930,149 +1978,30 @@ def plot_ERP_diff(stretch=False):
                     os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'rep and norep'))
                     fig.savefig(f'nostretch_{nchan}_intra_{group}.jpeg', dpi=150)
 
-                elif group == 'repnorep':
-                    os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'repnorep'))
-                    fig.savefig(f'nostretch_{nchan}_intra_{group}.jpeg', dpi=150)
-
                 fig.clf()
                 plt.close('all')
                 gc.collect()
-
-    return
     
-    if stretch == False:
-
-        ######## SUMMARY NCHAN INTRA ZOOMIN ########
-
-        #group = sujet_group[0]
-        for group in sujet_group:
-
-            if group == 'allsujet':
-                n_sujet = xr_data.loc[:, cond, odor, nchan, :].shape[0]
-            if group == 'rep':
-                n_sujet = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0]
-            elif group == 'non_rep':
-                n_sujet = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0]
-
-            #nchan_i, nchan = 0, chan_list_eeg[0]
-            for nchan_i, nchan in enumerate(chan_list_eeg):
-
-                fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions_diff))
-
-                fig.set_figheight(10)
-                fig.set_figwidth(10)
-
-                plt.suptitle(f'{nchan} {group} {n_sujet} intra')
-
-                #cond_i, cond = 1, 'MECA'
-                for cond_i, cond in enumerate(conditions_diff):
-
-                    #odor_i, odor = 0, odor_list[0]
-                    for odor_i, odor in enumerate(odor_list):
-
-                        if group == 'allsujet':
-                            data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
-                            sem = xr_data.loc[:, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, cond, odor, nchan, :].shape[0])
-                            baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].mean('sujet').values
-                            sem_baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, 'FR_CV_1', odor, nchan, :].shape[0])
-                            # if cond != 'VS':
-                            #     data_surr_up = xr_surr.loc[:, cond, odor, nchan, 'up', :].mean('sujet').values
-                            #     data_surr_down = xr_surr.loc[:, cond, odor, nchan, 'down', :].mean('sujet').values
-                        elif group == 'rep':
-                            data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
-                            sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
-                            baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
-                            sem_baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].shape[0])
-                            # if cond != 'VS':
-                            #     data_surr_up = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'up', :].mean('sujet').values
-                            #     data_surr_down = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'down', :].mean('sujet').values
-                        elif group == 'non_rep':
-                            data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
-                            sem = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
-                            baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
-                            sem_baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].shape[0])
-                            # if cond != 'VS':
-                            #     data_surr_up = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'up', :].mean('sujet').values
-                            #     data_surr_down = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'down', :].mean('sujet').values
-
-                        ax = axs[odor_i, cond_i]
-
-                        # pval_pre = df_stats_interintra['intra'].query(f"nchan == '{nchan}' and group == '{group}' and odor == '{odor}'").query(f"A == '{cond}' or B == '{cond}'")['pre_test_pval'].values[0]
-                        # pval_post = df_stats_interintra['intra'].query(f"nchan == '{nchan}' and group == '{group}' and odor == '{odor}'").query(f"A == '{cond}' or B == '{cond}'")['p_unc'].values[0]
-                        # if pval_pre <= 0.05 and pval_post <= 0.05: 
-                        #     pval_title = pval_stars(pval_post)
-                        # else:
-                        #     pval_title = 'ns'
-
-                        # ax.set_title(f"{cond} {pval_title}")
-
-                        ax.set_title(f"{cond}")
-
-                        if cond_i == 0:
-                            ax.set_ylabel(f"{odor}")
-
-                        if group == 'allsujet':
-                            ax.set_ylim(-absmax_group['allsujet'], absmax_group['allsujet'])
-                        else:
-                            ax.set_ylim(-absmax_group['repnorep'], absmax_group['repnorep'])
-
-                        ax.plot(time_vec[mask_time_vec_zoomin], data_stretch[mask_time_vec_zoomin], color='r')
-                        ax.fill_between(time_vec[mask_time_vec_zoomin], data_stretch[mask_time_vec_zoomin]+sem[mask_time_vec_zoomin], data_stretch[mask_time_vec_zoomin]-sem[mask_time_vec_zoomin], alpha=0.25, color='m')
-
-                        ax.plot(time_vec[mask_time_vec_zoomin], baseline[mask_time_vec_zoomin], label='FR_CV_1', color='b')
-                        ax.fill_between(time_vec[mask_time_vec_zoomin], baseline[mask_time_vec_zoomin]+sem_baseline[mask_time_vec_zoomin], baseline[mask_time_vec_zoomin]-sem_baseline[mask_time_vec_zoomin], alpha=0.25, color='c')
-
-                        if cluster_stats_type == 'manual_perm':
-                            clusters = cluster_stats['intra'][group][nchan][odor][cond]
-                            if group == 'allsujet':
-                                ax.fill_between(time_vec[mask_time_vec_zoomin], -absmax_group['allsujet'], absmax_group['allsujet'], where=clusters[mask_time_vec_zoomin].astype('int'), alpha=0.3, color='r')
-                            else:
-                                ax.fill_between(time_vec[mask_time_vec_zoomin], -absmax_group['repnorep'], absmax_group['repnorep'], where=clusters[mask_time_vec_zoomin].astype('int'), alpha=0.3, color='r')
-
-                        else:
-                            clusters = cluster_stats['intra'][group][nchan][odor][cond]['cluster']
-                            cluster_p_values = cluster_stats['intra'][group][nchan][odor][cond]['pval']
-                            #c = clusters[0]
-                            for i_c, c in enumerate(clusters):
-                                c = c[0]
-                                if cluster_p_values[i_c] <= 0.05:
-                                    h = ax.axvspan(time_vec[c.start], time_vec[c.stop - 1], color="r", alpha=0.3)
-                                # else:
-                                #     ax.axvspan(time_vec[c.start], time_vec[c.stop - 1], color='k', alpha=0.3)
-
-                            # ax.legend((h,), ("cluster p-value < 0.05",))
-
-                        ax.invert_yaxis()
-
-                        if group == 'allsujet':
-                            ax.vlines(0, ymin=-absmax_group['allsujet'], ymax=absmax_group['allsujet'], colors='g')  
-                        else:
-                            ax.vlines(0, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
-
-                fig.tight_layout()
-                plt.legend()
-
-                # plt.show()
-
-                #### save
-                os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'zoomin'))
-                fig.savefig(f'{nchan}_intra_{group}.jpeg', dpi=150)
-
-                fig.clf()
-                plt.close('all')
-                gc.collect()
+    
 
     ######## SUMMARY NCHAN INTER ########
 
-    print('PLOT SUMMARY ERP')
-
-    #group = sujet_group[0]
+    #group = sujet_group[-1]
     for group in sujet_group:
+
+        print(f'plot inter {group}')
+
+        if group == 'allsujet':
+            n_sujet = xr_data.loc[:, cond, odor, nchan, :].shape[0]
+        if group == 'rep':
+            n_sujet = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0]
+        elif group == 'non_rep':
+            n_sujet = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0]
 
         #nchan_i, nchan = 0, chan_list_eeg[0]
         for nchan_i, nchan in enumerate(chan_list_eeg):
 
-            fig, axs = plt.subplots(nrows=len(odor_list_diff), ncols=len(conditions))
+            fig, axs = plt.subplots(nrows=len(odor_list_diff[group]), ncols=len(cond_sel))
 
             fig.set_figheight(10)
             fig.set_figwidth(10)
@@ -2080,31 +2009,31 @@ def plot_ERP_diff(stretch=False):
             plt.suptitle(f'{nchan} {group} {n_sujet} inter')
 
             #cond_i, cond = 1, 'MECA'
-            for cond_i, cond in enumerate(conditions):
+            for cond_i, cond in enumerate(cond_sel):
 
                 #odor_i, odor = 0, odor_list[0]
-                for odor_i, odor in enumerate(odor_list_diff):
+                for odor_i, odor in enumerate(odor_list_diff[group]):
 
                     if group == 'allsujet':
-                        data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[:, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[:, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[:, cond, 'o', nchan, :].mean('sujet').values
+                        baseline = xr_data.loc[:, cond, 'o', nchan, :].median('sujet').values
                         sem_baseline = xr_data.loc[:, cond, 'o', nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, cond, 'o', nchan, :].shape[0])
                         # if cond != 'VS':
                         #     data_surr_up = xr_surr.loc[:, cond, odor, nchan, 'up', :].mean('sujet').values
                         #     data_surr_down = xr_surr.loc[:, cond, odor, nchan, 'down', :].mean('sujet').values
                     elif group == 'rep':
-                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[sujet_best_list_rev, cond, 'o', nchan, :].mean('sujet').values
+                        baseline = xr_data.loc[sujet_best_list_rev, cond, 'o', nchan, :].median('sujet').values
                         sem_baseline = xr_data.loc[sujet_best_list_rev, cond, 'o', nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, 'o', nchan, :].shape[0])
                         # if cond != 'VS':
                         #     data_surr_up = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'up', :].mean('sujet').values
                         #     data_surr_down = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'down', :].mean('sujet').values
                     elif group == 'non_rep':
-                        data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
+                        data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].median('sujet').values
                         sem = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
-                        baseline = xr_data.loc[sujet_no_respond_rev, cond, 'o', nchan, :].mean('sujet').values
+                        baseline = xr_data.loc[sujet_no_respond_rev, cond, 'o', nchan, :].median('sujet').values
                         sem_baseline = xr_data.loc[sujet_no_respond_rev, cond, 'o', nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, 'o', nchan, :].shape[0])
                         # if cond != 'VS':
                         #     data_surr_up = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'up', :].mean('sujet').values
@@ -2138,7 +2067,8 @@ def plot_ERP_diff(stretch=False):
                     ax.fill_between(time_vec, baseline+sem_baseline, baseline-sem_baseline, alpha=0.25, color='c')
 
                     if cluster_stats_type == 'manual_perm':
-                        clusters = cluster_stats['inter'][group][nchan][cond][odor]
+
+                        clusters = cluster_stats_inter.loc[group, nchan, odor, cond].values
 
                         if group == 'allsujet':
                             ax.fill_between(time_vec, -absmax_group['allsujet'], absmax_group['allsujet'], where=clusters.astype('int'), alpha=0.3, color='r')
@@ -2147,8 +2077,8 @@ def plot_ERP_diff(stretch=False):
 
                     else:
 
-                        clusters = cluster_stats['inter'][group][nchan][cond][odor]['cluster']
-                        cluster_p_values = cluster_stats['inter'][group][nchan][cond][odor]['pval']
+                        clusters = cluster_stats_inter[group][nchan][cond][odor]['cluster']
+                        cluster_p_values = cluster_stats_inter[group][nchan][cond][odor]['pval']
                         #c = clusters[0]
                         for i_c, c in enumerate(clusters):
                             c = c[0]
@@ -2161,15 +2091,22 @@ def plot_ERP_diff(stretch=False):
 
                     ax.invert_yaxis()
 
-                    if group == 'allsujet':
-                        ax.vlines(0, ymin=-absmax_group['allsujet'], ymax=absmax_group['allsujet'], colors='g')  
+                    if stretch:
+                        if group == 'allsujet':
+                            ax.vlines(stretch_point_TF/2, ymin=-absmax_group['allsujet'], ymax=absmax_group['allsujet'], colors='g')  
+                        else:
+                            ax.vlines(stretch_point_TF/2, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
                     else:
-                        ax.vlines(0, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
+                        if group == 'allsujet':
+                            ax.vlines(0, ymin=-absmax_group['allsujet'], ymax=absmax_group['allsujet'], colors='g')  
+                        else:
+                            ax.vlines(0, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
 
             fig.tight_layout()
             plt.legend()
 
             # plt.show()
+
             #### save
             os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'inter'))
             fig.savefig(f'{nchan}_inter_{group}.jpeg', dpi=150)
@@ -2185,6 +2122,121 @@ def plot_ERP_diff(stretch=False):
             fig.clf()
             plt.close('all')
             gc.collect()
+            
+
+    ######## SUMMARY NCHAN REPNOREP ########
+
+    print(f'plot repnorep')
+
+    n_sujet = f"rep:{xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0]}/norep:{xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0]}" 
+
+    #nchan_i, nchan = 0, chan_list_eeg[0]
+    for nchan_i, nchan in enumerate(chan_list_eeg):
+
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel))
+
+        fig.set_figheight(10)
+        fig.set_figwidth(7)
+
+        if stretch:
+            plt.suptitle(f'stretch {nchan} {group} {n_sujet} intra')
+        else:
+            plt.suptitle(f'nostretch {nchan} {group} {n_sujet} intra')
+
+        #cond_i, cond = 1, 'MECA'
+        for cond_i, cond in enumerate(cond_sel):
+
+            #odor_i, odor = 0, odor_list[0]
+            for odor_i, odor in enumerate(odor_list):
+
+                data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].median('sujet').values
+                sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
+                baseline = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].median('sujet').values
+                sem_baseline = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
+                # if cond != 'VS':
+                #     data_surr_up = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'up', :].mean('sujet').values
+                #     data_surr_down = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'down', :].mean('sujet').values
+
+                ax = axs[odor_i, cond_i]
+
+                # pval_pre = df_stats_interintra['intra'].query(f"nchan == '{nchan}' and group == '{group}' and odor == '{odor}'").query(f"A == '{cond}' or B == '{cond}'")['pre_test_pval'].values[0]
+                # pval_post = df_stats_interintra['intra'].query(f"nchan == '{nchan}' and group == '{group}' and odor == '{odor}'").query(f"A == '{cond}' or B == '{cond}'")['p_unc'].values[0]
+                # if pval_pre <= 0.05 and pval_post <= 0.05: 
+                #     pval_title = pval_stars(pval_post)
+                # else:
+                #     pval_title = 'ns'
+
+                # ax.set_title(f"{cond} {pval_title}")
+
+                ax.set_title(f"{cond}")
+
+                if cond_i == 0:
+                    ax.set_ylabel(f"{odor}")
+
+                ax.set_ylim(-absmax_group['repnorep'], absmax_group['repnorep'])
+
+                ax.plot(time_vec, data_stretch, color='r')
+                ax.fill_between(time_vec, data_stretch+sem, data_stretch-sem, alpha=0.25, color='m')
+
+                ax.plot(time_vec, baseline, label='norep', color='b')
+
+                ax.fill_between(time_vec, baseline+sem_baseline, baseline-sem_baseline, alpha=0.25, color='c')
+
+                clusters = cluster_stats_rep_norep.loc[nchan, odor, cond, :]
+
+                ax.fill_between(time_vec, -absmax_group['repnorep'], absmax_group['repnorep'], where=clusters.astype('int'), alpha=0.3, color='r')
+
+                ax.invert_yaxis()
+
+                if stretch:
+                    ax.vlines(stretch_point_TF/2, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
+                else:
+                    ax.vlines(0, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
+
+
+        fig.tight_layout()
+        plt.legend()
+
+        # plt.show()
+
+        #### save
+        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra'))
+
+        if stretch:
+
+            fig.savefig(f'stretch_{nchan}_intra_{group}.jpeg', dpi=150)
+
+            os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'repnorep'))
+            fig.savefig(f'stretch_{nchan}_intra_{group}.jpeg', dpi=150)
+
+            fig.clf()
+            plt.close('all')
+            gc.collect()
+
+        else:
+
+            fig.savefig(f'nostretch_{nchan}_intra_{group}.jpeg', dpi=150)
+
+            os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'repnorep'))
+            fig.savefig(f'nostretch_{nchan}_intra_{group}.jpeg', dpi=150)
+
+            fig.clf()
+            plt.close('all')
+            gc.collect()
+    
+
+    return
+
+
+
+
+
+
+
+
+
+
+
 
     ######## SUMMARY NCHAN INTER ZOOMIN ########
 
@@ -2504,7 +2556,127 @@ def plot_ERP_diff(stretch=False):
             gc.collect()
 
 
+    # if stretch == False:
 
+    #     ######## SUMMARY NCHAN INTRA ZOOMIN ########
+
+    #     #group = sujet_group[0]
+    #     for group in sujet_group:
+
+    #         if group == 'allsujet':
+    #             n_sujet = xr_data.loc[:, cond, odor, nchan, :].shape[0]
+    #         if group == 'rep':
+    #             n_sujet = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0]
+    #         elif group == 'non_rep':
+    #             n_sujet = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0]
+
+    #         #nchan_i, nchan = 0, chan_list_eeg[0]
+    #         for nchan_i, nchan in enumerate(chan_list_eeg):
+
+    #             fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions_diff))
+
+    #             fig.set_figheight(10)
+    #             fig.set_figwidth(10)
+
+    #             plt.suptitle(f'{nchan} {group} {n_sujet} intra')
+
+    #             #cond_i, cond = 1, 'MECA'
+    #             for cond_i, cond in enumerate(conditions_diff):
+
+    #                 #odor_i, odor = 0, odor_list[0]
+    #                 for odor_i, odor in enumerate(odor_list):
+
+    #                     if group == 'allsujet':
+    #                         data_stretch = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+    #                         sem = xr_data.loc[:, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, cond, odor, nchan, :].shape[0])
+    #                         baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+    #                         sem_baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[:, 'FR_CV_1', odor, nchan, :].shape[0])
+    #                         # if cond != 'VS':
+    #                         #     data_surr_up = xr_surr.loc[:, cond, odor, nchan, 'up', :].mean('sujet').values
+    #                         #     data_surr_down = xr_surr.loc[:, cond, odor, nchan, 'down', :].mean('sujet').values
+    #                     elif group == 'rep':
+    #                         data_stretch = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
+    #                         sem = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].shape[0])
+    #                         baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+    #                         sem_baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].shape[0])
+    #                         # if cond != 'VS':
+    #                         #     data_surr_up = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'up', :].mean('sujet').values
+    #                         #     data_surr_down = xr_surr.loc[sujet_best_list, cond, odor, nchan, 'down', :].mean('sujet').values
+    #                     elif group == 'non_rep':
+    #                         data_stretch = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
+    #                         sem = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].shape[0])
+    #                         baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+    #                         sem_baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].std('sujet').values / np.sqrt(xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].shape[0])
+    #                         # if cond != 'VS':
+    #                         #     data_surr_up = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'up', :].mean('sujet').values
+    #                         #     data_surr_down = xr_surr.loc[sujet_no_respond, cond, odor, nchan, 'down', :].mean('sujet').values
+
+    #                     ax = axs[odor_i, cond_i]
+
+    #                     # pval_pre = df_stats_interintra['intra'].query(f"nchan == '{nchan}' and group == '{group}' and odor == '{odor}'").query(f"A == '{cond}' or B == '{cond}'")['pre_test_pval'].values[0]
+    #                     # pval_post = df_stats_interintra['intra'].query(f"nchan == '{nchan}' and group == '{group}' and odor == '{odor}'").query(f"A == '{cond}' or B == '{cond}'")['p_unc'].values[0]
+    #                     # if pval_pre <= 0.05 and pval_post <= 0.05: 
+    #                     #     pval_title = pval_stars(pval_post)
+    #                     # else:
+    #                     #     pval_title = 'ns'
+
+    #                     # ax.set_title(f"{cond} {pval_title}")
+
+    #                     ax.set_title(f"{cond}")
+
+    #                     if cond_i == 0:
+    #                         ax.set_ylabel(f"{odor}")
+
+    #                     if group == 'allsujet':
+    #                         ax.set_ylim(-absmax_group['allsujet'], absmax_group['allsujet'])
+    #                     else:
+    #                         ax.set_ylim(-absmax_group['repnorep'], absmax_group['repnorep'])
+
+    #                     ax.plot(time_vec[mask_time_vec_zoomin], data_stretch[mask_time_vec_zoomin], color='r')
+    #                     ax.fill_between(time_vec[mask_time_vec_zoomin], data_stretch[mask_time_vec_zoomin]+sem[mask_time_vec_zoomin], data_stretch[mask_time_vec_zoomin]-sem[mask_time_vec_zoomin], alpha=0.25, color='m')
+
+    #                     ax.plot(time_vec[mask_time_vec_zoomin], baseline[mask_time_vec_zoomin], label='FR_CV_1', color='b')
+    #                     ax.fill_between(time_vec[mask_time_vec_zoomin], baseline[mask_time_vec_zoomin]+sem_baseline[mask_time_vec_zoomin], baseline[mask_time_vec_zoomin]-sem_baseline[mask_time_vec_zoomin], alpha=0.25, color='c')
+
+    #                     if cluster_stats_type == 'manual_perm':
+    #                         clusters = cluster_stats['intra'][group][nchan][odor][cond]
+    #                         if group == 'allsujet':
+    #                             ax.fill_between(time_vec[mask_time_vec_zoomin], -absmax_group['allsujet'], absmax_group['allsujet'], where=clusters[mask_time_vec_zoomin].astype('int'), alpha=0.3, color='r')
+    #                         else:
+    #                             ax.fill_between(time_vec[mask_time_vec_zoomin], -absmax_group['repnorep'], absmax_group['repnorep'], where=clusters[mask_time_vec_zoomin].astype('int'), alpha=0.3, color='r')
+
+    #                     else:
+    #                         clusters = cluster_stats['intra'][group][nchan][odor][cond]['cluster']
+    #                         cluster_p_values = cluster_stats['intra'][group][nchan][odor][cond]['pval']
+    #                         #c = clusters[0]
+    #                         for i_c, c in enumerate(clusters):
+    #                             c = c[0]
+    #                             if cluster_p_values[i_c] <= 0.05:
+    #                                 h = ax.axvspan(time_vec[c.start], time_vec[c.stop - 1], color="r", alpha=0.3)
+    #                             # else:
+    #                             #     ax.axvspan(time_vec[c.start], time_vec[c.stop - 1], color='k', alpha=0.3)
+
+    #                         # ax.legend((h,), ("cluster p-value < 0.05",))
+
+    #                     ax.invert_yaxis()
+
+    #                     if group == 'allsujet':
+    #                         ax.vlines(0, ymin=-absmax_group['allsujet'], ymax=absmax_group['allsujet'], colors='g')  
+    #                     else:
+    #                         ax.vlines(0, ymin=-absmax_group['repnorep'], ymax=absmax_group['repnorep'], colors='g')  
+
+    #             fig.tight_layout()
+    #             plt.legend()
+
+    #             # plt.show()
+
+    #             #### save
+    #             os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff', 'intra', 'zoomin'))
+    #             fig.savefig(f'{nchan}_intra_{group}.jpeg', dpi=150)
+
+    #             fig.clf()
+    #             plt.close('all')
+    #             gc.collect()
 
 
 
@@ -3943,451 +4115,13 @@ def get_cluster_stats(xr_data):
 
 
 
-# data_baseline, data_cond = data_baseline_chan, data_cond_chan
-def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
 
-    n_trials_baselines = data_baseline.shape[0]
-    n_trials_cond = data_cond.shape[0]
-    n_trials_min = np.array([n_trials_baselines, n_trials_cond]).min()
 
-    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
-    n_trial_tot = data_shuffle.shape[0]
 
-    test_vec_shuffle = np.zeros((n_surr, data_cond.shape[-1]))
 
-    pixel_based_distrib = np.zeros((n_surr, 2))
 
-    #surr_i = 0
-    for surr_i in range(n_surr):
 
-        #### shuffle
-        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
-        data_shuffle_baseline = data_shuffle[random_sel[:n_trials_min]]
-        data_shuffle_cond = data_shuffle[random_sel[n_trials_min:n_trials_min*2]]
 
-        if debug:
-            plt.plot(np.mean(data_shuffle_baseline, axis=0), label='baseline')
-            plt.plot(np.mean(data_shuffle_cond, axis=0), label='cond')
-            plt.legend()
-            plt.show()
-
-            plt.plot(test_vec_shuffle[surr_i,:], label='shuffle')
-            plt.hlines(0.05, xmin=0, xmax=data_shuffle.shape[-1], color='r')
-            plt.legend()
-            plt.show()
-
-        #### extract max min thresh
-        _min, _max = np.median(data_shuffle_cond, axis=0).min(), np.median(data_shuffle_cond, axis=0).max()
-        # _min, _max = np.percentile(np.median(data_shuffle_cond, axis=0), 1), np.percentile(np.median(data_shuffle_cond, axis=0), 99)
-        
-        pixel_based_distrib[surr_i, 0] = _min
-        pixel_based_distrib[surr_i, 1] = _max
-
-    min, max = np.median(pixel_based_distrib[:,0]), np.median(pixel_based_distrib[:,1]) 
-    # min, max = np.percentile(pixel_based_distrib[:,0], 50), np.percentile(pixel_based_distrib[:,1], 50)
-
-    if debug:
-        count, _, fig = plt.hist(pixel_based_distrib[:,0], bins=50)
-        count, _, fig = plt.hist(pixel_based_distrib[:,1], bins=50)
-        plt.vlines([np.median(pixel_based_distrib[:,0]), np.median(pixel_based_distrib[:,1])], ymin=count.min(), ymax=count.max(), color='r')
-        plt.show()
-
-        plt.plot(np.mean(data_baseline, axis=0), label='baseline')
-        plt.plot(np.mean(data_cond, axis=0), label='cond')
-        plt.hlines(min, xmin=0, xmax=data_shuffle.shape[-1], color='r', label='min')
-        plt.hlines(max, xmin=0, xmax=data_shuffle.shape[-1], color='r', label='max')
-        plt.legend()
-        plt.show()
-
-    #### thresh data
-    data_thresh = np.mean(data_cond, axis=0).copy()
-
-    _mask = np.logical_or(data_thresh < min, data_thresh > max)
-    _mask = _mask*1
-
-    if debug:
-
-        plt.plot(_mask)
-        plt.show()
-
-    #### thresh cluster
-    mask = np.zeros(data_cond.shape[-1])
-
-    _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
-
-    if _mask.sum() != 0:
- 
-        start, stop = np.where(np.diff(_mask) != 0)[0][::2], np.where(np.diff(_mask) != 0)[0][1::2] 
-        
-        sizes = stop - start
-        min_size = np.percentile(sizes, tf_stats_percentile_cluster_manual_perm)
-        if min_size < erp_time_cluster_thresh:
-            min_size = erp_time_cluster_thresh
-        cluster_signi = sizes >= min_size
-
-        mask = np.zeros(data_cond.shape[-1])
-
-        for cluster_i, cluster_p in enumerate(cluster_signi):
-
-            if cluster_p:
-
-                mask[start[cluster_i]:stop[cluster_i]] = 1
-
-    mask = mask.astype('bool')
-
-    if debug:
-
-        plt.plot(mask)
-        plt.show()
-
-    return mask
-
-
-
-
-
-
-
-
-
-
-
-def get_cluster_stats_manual_prem(stretch=False):
-
-    if stretch:
-
-        if os.path.exists(os.path.join(path_precompute, 'allsujet', 'ERP', 'cluster_stats_intra_stretch.nc')):
-
-            os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-            print('ALREADY COMPUTED', flush=True)
-
-            cluster_stats_intra = xr.open_dataarray('cluster_stats_intra_stretch.nc')
-            cluster_stats_inter = xr.open_dataarray('cluster_stats_inter_stretch.nc')
-            cluster_stats_rep_norep = xr.open_dataarray('cluster_stats_rep_norep_stretch.nc')
-
-            return cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep
-        
-    elif stretch == False:
-
-        if os.path.exists(os.path.join(path_precompute, 'allsujet', 'ERP', 'cluster_stats_intra.nc')):
-
-            os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-            print('ALREADY COMPUTED', flush=True)
-
-            cluster_stats_intra = xr.open_dataarray('cluster_stats_intra.nc')
-            cluster_stats_inter = xr.open_dataarray('cluster_stats_inter.nc')
-            cluster_stats_rep_norep = xr.open_dataarray('cluster_stats_rep_norep.nc')
-
-            return cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep
-
-    #### initiate
-    conditions_diff = ['MECA', 'CO2', 'FR_CV_2']
-    odor_diff = ['+', '-']
-    sujet_group = ['allsujet', 'rep', 'non_rep']
-
-    if stretch:
-        time_vec = np.arange(stretch_point_TF)
-    else:      
-        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
-
-    #### intra
-    os.chdir(path_memmap)
-    cluster_stats_intra = np.memmap(f'cluster_stats_intra.dat', dtype=np.float64, mode='w+', shape=(len(sujet_group), len(chan_list_eeg), len(odor_list), len(conditions_diff), time_vec.shape[0]))
-
-    def _get_cluster_stat_group(group_i, group):
-    #group = sujet_group[1]
-    # for group in sujet_group:
-
-        if stretch:
-            xr_data, xr_data_sem = compute_ERP_stretch()
-        else:
-            xr_data, xr_data_sem = compute_ERP()
-
-        #nchan = 'Fp1'
-        for nchan_i, nchan in enumerate(chan_list_eeg):
-
-            print(group, nchan)
-
-            #odor_i, odor = 1, odor_list[1]
-            for odor_i, odor in enumerate(odor_list):
-
-                #cond = conditions_diff[0]
-                for cond_i, cond in enumerate(conditions_diff):
-
-                    if group == 'allsujet':
-                        data_baseline = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].values
-                        data_cond = xr_data.loc[:, cond, odor, nchan, :].values
-                    elif group == 'rep':
-                        data_baseline = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].values
-                        data_cond = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].values
-                    elif group == 'non_rep':
-                        data_baseline = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].values
-                        data_cond = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].values
-
-                    mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
-
-                    if debug:
-
-                        plt.plot(data_baseline.mean(axis=0))
-                        plt.plot(data_cond.mean(axis=0))
-
-                        plt.show()
-
-                    cluster_stats_intra[group_i, nchan_i, odor_i, cond_i, :] = mask
-
-    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(_get_cluster_stat_group)(group_i, group) for group_i, group in enumerate(sujet_group))
-
-    xr_dict = {'group' : sujet_group, 'chan' : chan_list_eeg, 'odor' : odor_list, 'cond' : conditions_diff, 'time' : time_vec}
-    xr_cluster = xr.DataArray(data=cluster_stats_intra, dims=xr_dict.keys(), coords=xr_dict.values())
-
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-    if stretch:
-        xr_cluster.to_netcdf('cluster_stats_intra_stretch.nc')
-    else:
-        xr_cluster.to_netcdf('cluster_stats_intra.nc')
-
-    os.chdir(path_memmap)
-    try:
-        os.remove(f'cluster_stats_intra.dat')
-        del cluster_stats_intra
-    except:
-        pass
-
-    #### inter
-    os.chdir(path_memmap)
-    cluster_stats_inter = np.memmap(f'cluster_stats_inter.dat', dtype=np.float64, mode='w+', shape=(len(sujet_group), len(chan_list_eeg), len(odor_diff), len(conditions), time_vec.shape[0]))
-
-    def _get_cluster_stat_group(group_i, group):
-    # for group in sujet_group:
-
-        if stretch:
-            xr_data, xr_data_sem = compute_ERP_stretch()
-        else:
-            xr_data, xr_data_sem = compute_ERP()
-
-        for nchan_i, nchan in enumerate(chan_list_eeg):
-
-            print(group, nchan)
-
-            #cond_i, cond = 2, conditions[2]
-            for cond_i, cond in enumerate(conditions):
-
-                for odor_i, odor in enumerate(odor_diff):
-
-                    if group == 'allsujet':
-                        data_baseline = xr_data.loc[:, cond, 'o', nchan, :].values
-                        data_cond = xr_data.loc[:, cond, odor, nchan, :].values
-                    elif group == 'rep':
-                        data_baseline = xr_data.loc[sujet_best_list_rev, cond, 'o', nchan, :].values
-                        data_cond = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].values
-                    elif group == 'non_rep':
-                        data_baseline = xr_data.loc[sujet_no_respond_rev, cond, 'o', nchan, :].values
-                        data_cond = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].values
-
-                    mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
-
-                    if debug:
-                        fig, ax = plt.subplots()
-                        ax.plot(np.arange(data_baseline.shape[1]), data_baseline.mean(axis=0))
-                        ax.plot(np.arange(data_baseline.shape[1]), data_cond.mean(axis=0))
-                        ax.fill_between(np.arange(data_baseline.shape[1]), -0.5, 0.5, where=mask.astype('int'), alpha=0.3, color='r')
-                        plt.show()
-
-                    cluster_stats_inter[group_i, nchan_i, odor_i, cond_i, :] = mask
-
-    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(_get_cluster_stat_group)(group_i, group) for group_i, group in enumerate(sujet_group))
-
-    xr_dict = {'group' : sujet_group, 'chan' : chan_list_eeg, 'odor' : odor_diff, 'cond' : conditions, 'time' : time_vec}
-    xr_cluster = xr.DataArray(data=cluster_stats_inter, dims=xr_dict.keys(), coords=xr_dict.values())
-
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-    if stretch:
-        xr_cluster.to_netcdf('cluster_stats_inter_stretch.nc')
-    else:
-        xr_cluster.to_netcdf('cluster_stats_inter.nc')
-
-    os.chdir(path_memmap)
-    try:
-        os.remove(f'cluster_stats_inter.dat')
-        del cluster_stats_inter
-    except:
-        pass
-
-    #### rep norep
-    os.chdir(path_memmap)
-    cluster_stats_rep_norep = np.memmap(f'cluster_stats_rep_norep.dat', dtype=np.float64, mode='w+', shape=(len(chan_list_eeg), len(odor_list), len(conditions), time_vec.shape[0]))
-
-    def _get_cluster_stat_rep_norep_chan(chan_i, chan):
-
-        if stretch:
-            xr_data, xr_data_sem = compute_ERP_stretch()
-        else:
-            xr_data, xr_data_sem = compute_ERP()
-
-        print(chan)
-
-        #odor_i, odor = 2, odor_list[2]
-        for odor_i, odor in enumerate(odor_list):
-
-            for cond_i, cond in enumerate(conditions):
-
-                data_baseline = xr_data.loc[sujet_best_list_rev, cond, odor, chan, :].values
-                data_cond = xr_data.loc[sujet_no_respond_rev, cond, odor, chan, :].values
-
-                mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
-
-                cluster_stats_rep_norep[chan_i, odor_i, cond_i ,:] = mask
-
-    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(_get_cluster_stat_rep_norep_chan)(chan_i, chan) for chan_i, chan in enumerate(chan_list_eeg))
-
-    xr_dict = {'chan' : chan_list_eeg, 'odor' : odor_list, 'cond' : conditions, 'time' : time_vec}
-    xr_cluster = xr.DataArray(data=cluster_stats_rep_norep, dims=xr_dict.keys(), coords=xr_dict.values())
-
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-    if stretch:
-        xr_cluster.to_netcdf('cluster_stats_rep_norep_stretch.nc')
-    else:
-        xr_cluster.to_netcdf('cluster_stats_rep_norep.nc')
-
-    os.chdir(path_memmap)
-    try:
-        os.remove(f'cluster_stats_rep_norep.dat')
-        del cluster_stats_rep_norep
-    except:
-        pass
-    
-    os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-    if stretch:
-        cluster_stats_intra = xr.open_dataarray('cluster_stats_intra_stretch.nc')
-        cluster_stats_inter = xr.open_dataarray('cluster_stats_inter_stretch.nc')
-        cluster_stats_rep_norep = xr.open_dataarray('cluster_stats_rep_norep_stretch.nc')
-    else:
-        cluster_stats_intra = xr.open_dataarray('cluster_stats_intra.nc')
-        cluster_stats_inter = xr.open_dataarray('cluster_stats_inter.nc')
-        cluster_stats_rep_norep = xr.open_dataarray('cluster_stats_rep_norep.nc')
-
-    return cluster_stats_intra, cluster_stats_inter, cluster_stats_rep_norep
-
-
-
-
-
-def get_cluster_stats_manual_prem_subject_wise():
-
-    ######## VERIFY COMPUTATION ########
-    if os.path.exists(os.path.join(path_precompute, 'allsujet', 'ERP', 'cluster_stats_manual_perm_allsujet.nc')):
-
-        os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-
-        print('ALREADY COMPUTED', flush=True)
-        xr_cluster_based_perm = xr.open_dataarray('cluster_stats_manual_perm_allsujet.nc')
-
-    ######## COMPUTE ########
-    else:
-
-        conditions_sel = ['FR_CV_1', 'CO2']
-        time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
-        xr_coords = {'sujet' : sujet_list, 'odor' : odor_list, 'chan' : chan_list_eeg, 'time' : time_vec}
-
-        ######## INITIATE MEMMAP ########
-        os.chdir(path_memmap)
-        xr_data = np.memmap(f'cluster_based_perm_allsujet.dat', dtype=np.float32, mode='w+', shape=(len(sujet_list), len(odor_list), len(chan_list_eeg), time_vec.size))
-
-        ######## PARALLELIZATION FUNCTION ########
-        #sujet_i, sujet = 3, sujet_list[3]
-        def get_cluster_based_perm_one_sujet(sujet_i, sujet):
-        # for sujet_i, sujet in enumerate(sujet_list):
-
-            ######## COMPUTE ERP ########
-            print(f'{sujet} COMPUTE ERP')
-
-            erp_data = {}
-
-            respfeatures = load_respfeatures(sujet)
-
-            #cond = 'FR_CV_1'
-            for cond in conditions_sel:
-
-                erp_data[cond] = {}
-
-                #odor = odor_list[0]
-                for odor in odor_list:
-
-                    erp_data[cond][odor] = {}
-
-                    #nchan_i, nchan = 0, chan_list_eeg[0]
-                    for nchan_i, nchan in enumerate(chan_list_eeg):
-
-                        #### load
-                        data = load_data_sujet(sujet, cond, odor)
-                        data = data[:len(chan_list_eeg),:]
-
-                        respfeatures_i = respfeatures[cond][odor]
-                        inspi_starts = respfeatures_i.query(f"select == 1")['inspi_index'].values
-
-                        #### chunk
-                        stretch_point_PPI = int(np.abs(ERP_time_vec[0])*srate + ERP_time_vec[1]*srate)
-                        data_stretch = np.zeros((inspi_starts.shape[0], int(stretch_point_PPI)))
-
-                        #### low pass 45Hz
-                        x = data[nchan_i,:]
-                        x = iirfilt(x, srate, lowcut=None, highcut=45, order=4, ftype='butter', verbose=False, show=False, axis=0)
-
-                        x_mean, x_std = x.mean(), x.std()
-
-                        for start_i, start_time in enumerate(inspi_starts):
-
-                            t_start = int(start_time + ERP_time_vec[0]*srate)
-                            t_stop = int(start_time + ERP_time_vec[1]*srate)
-
-                            data_stretch[start_i, :] = (x[t_start: t_stop] - x_mean) / x_std
-
-                        #### clean
-                        data_stretch_clean = data_stretch[~((data_stretch >= 3) | (data_stretch <= -3)).any(axis=1),:]
-
-                        erp_data[cond][odor][nchan] = data_stretch_clean
-       
-            ######## COMPUTE PERMUTATION ########
-            print(f'{sujet} COMPUTE PERMUTATION')
-
-            #odor_i, odor = 0, odor_list[0]
-            for odor_i, odor in enumerate(odor_list):
-
-                #chan_i, nchan = 0, chan_list_eeg[0]
-                for chan_i, nchan in enumerate(chan_list_eeg):
-
-                    data_baseline = erp_data['FR_CV_1'][odor][nchan]
-                    data_cond = erp_data['CO2'][odor][nchan]
-
-                    mask = get_permutation_cluster_1d(data_baseline, data_cond, ERP_n_surrogate)
-
-                    xr_data[sujet_i, odor_i, chan_i, :] = mask
-
-            print(f'{sujet} done')
-
-        ######## PARALLELIZATION COMPUTATION ########
-        joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(get_cluster_based_perm_one_sujet)(sujet_i, sujet) for sujet_i, sujet in enumerate(sujet_list))
-
-        ######## SAVE ########
-        xr_cluster_based_perm = xr.DataArray(data=xr_data, dims=xr_coords.keys(), coords=xr_coords.values())
-
-        os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-        xr_cluster_based_perm.to_netcdf('cluster_stats_manual_perm_allsujet.nc')
-
-        os.chdir(path_memmap)
-        try:
-            os.remove(f'cluster_based_perm_allsujet.dat')
-            del xr_data
-        except:
-            pass
-
-    return xr_cluster_based_perm
 
 def get_df_mdp():
 
@@ -5141,6 +4875,18 @@ def plot_mean_respi():
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 def plot_ERP_mean_subject_wise(stretch=False):
 
     print('ERP PLOT', flush=True)
@@ -5165,9 +4911,10 @@ def plot_ERP_mean_subject_wise(stretch=False):
         time_vec = np.arange(stretch_point_TF)
     else:
         time_vec = np.arange(t_start_ERP, t_stop_ERP, 1/srate)
-        mask_time_vec_zoomin = (time_vec >= -0.5) & (time_vec < 0.5) 
 
     cond_sel_list = ['FR_CV_1', 'CO2']
+
+    ######## INTRA ########
 
     #group = sujet_group[0]
     for group in sujet_group:
@@ -5252,7 +4999,7 @@ def plot_ERP_mean_subject_wise(stretch=False):
             fig.set_figheight(10)
             fig.set_figwidth(10)
 
-            plt.suptitle(f'{nchan} intra')
+            plt.suptitle(f'{group} {nchan} intra')
 
             #cond_i, cond = 1, 'CO2'
             for cond_i, cond in enumerate(cond_sel_list):
@@ -5354,12 +5101,246 @@ def plot_ERP_mean_subject_wise(stretch=False):
             if stretch:
                 fig.savefig(f'stretch_{group}_{nchan}_intra.jpeg', dpi=150)
             else:
-                fig.savefig(f'{group}_{nchan}_intra.jpeg', dpi=150)
+                fig.savefig(f'nostretch_{group}_{nchan}_intra.jpeg', dpi=150)
 
             plt.close('all')
 
 
+    ######## INTER ########
 
+    #group = sujet_group[0]
+    for group in sujet_group:
+
+        ######## IDENTIFY MIN MAX ########
+
+        print(f'PLOT SUMMARY ERP {group}')
+
+        #### identify min max for allsujet
+
+        min, max = [], []
+
+        #nchan_i, nchan = 0, chan_list_eeg[0]
+        for nchan_i, nchan in enumerate(chan_list_eeg):
+
+            if group == 'allsujet':
+                min.append(xr_data.loc[:, cond_sel_list, :, nchan, :].min().values)
+                max.append(xr_data.loc[:, cond_sel_list, :, nchan, :].max().values) 
+            elif group == 'rep':
+                min.append(xr_data.loc[sujet_best_list_rev, cond_sel_list, :, nchan, :].min().values)
+                max.append(xr_data.loc[sujet_best_list_rev, cond_sel_list, :, nchan, :].max().values) 
+            elif group == 'non_rep':
+                min.append(xr_data.loc[sujet_no_respond_rev, cond_sel_list, :, nchan, :].min().values)
+                max.append(xr_data.loc[sujet_no_respond_rev, cond_sel_list, :, nchan, :].max().values) 
+
+        min, max = np.array(min).min(), np.array(max).max()
+
+        min_mean, max_mean = [], []
+
+        #nchan_i, nchan = 0, chan_list_eeg[0]
+        for nchan_i, nchan in enumerate(chan_list_eeg):
+
+            if group == 'allsujet':
+                min_mean.append(xr_data.loc[:, cond_sel_list, :, nchan, :].mean('sujet').min().values)
+                max_mean.append(xr_data.loc[:, cond_sel_list, :, nchan, :].mean('sujet').max().values) 
+            elif group == 'rep':
+                min_mean.append(xr_data.loc[sujet_best_list_rev, cond_sel_list, :, nchan, :].mean('sujet').min().values)
+                max_mean.append(xr_data.loc[sujet_best_list_rev, cond_sel_list, :, nchan, :].mean('sujet').max().values) 
+            elif group == 'non_rep':
+                min_mean.append(xr_data.loc[sujet_no_respond_rev, cond_sel_list, :, nchan, :].mean('sujet').min().values)
+                max_mean.append(xr_data.loc[sujet_no_respond_rev, cond_sel_list, :, nchan, :].mean('sujet').max().values) 
+
+        min_mean, max_mean = np.array(min_mean).min(), np.array(max_mean).max()
+
+        ######## SUMMARY NCHAN INTRA ########
+
+        if debug:
+            nchan = 'FC1' 
+            cond = 'CO2'
+            odor = 'o'
+
+            fig, ax = plt.subplots()
+
+            if group == 'allsujet':
+                _sujet_list = sujet_list
+            elif group == 'rep':
+                _sujet_list = sujet_best_list_rev
+            elif group == 'non_rep':
+                _sujet_list = sujet_no_respond_rev
+
+            for sujet in _sujet_list:
+
+                ax.plot(time_vec, xr_data.loc[sujet, cond, odor, nchan, :], label=sujet)
+
+            ax.invert_yaxis()
+            plt.legend()
+            plt.show()
+
+            for sujet in _sujet_list:
+
+                plt.plot(time_vec, xr_data.loc['12BD', cond, odor, nchan, :], label=sujet)
+                plt.title(sujet)
+                plt.show()
+
+        rep_state_colors = {True : 'g', False : 'r'}
+
+        #nchan_i, nchan = chan_list_eeg.index('FC1'), 'FC1'  
+        for nchan_i, nchan in enumerate(chan_list_eeg):
+
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel_list)+2)
+
+            fig.set_figheight(10)
+            fig.set_figwidth(10)
+
+            plt.suptitle(f'{group} {nchan} inter')
+
+            #cond_i, cond = 1, 'CO2'
+            for cond_i, cond in enumerate(cond_sel_list):
+
+                #odor_i, odor = 1, odor_list[1]
+                for odor_i, odor in enumerate(odor_list):
+
+                    ax = axs[odor_i, cond_i*2]
+
+                    if group == 'allsujet':
+                        data_mean = xr_data.loc[:, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'rep':
+                        data_mean = xr_data.loc[sujet_best_list_rev, cond, odor, nchan, :].mean('sujet').values
+                    elif group == 'non_rep':
+                        data_mean = xr_data.loc[sujet_no_respond_rev, cond, odor, nchan, :].mean('sujet').values
+
+                    ax.plot(time_vec, data_mean, color='k')
+
+                    if odor_i == 0 :
+                        ax.set_title(f"{cond}")
+
+                    if cond_i == 0:
+                        ax.set_ylabel(f"{odor}")
+
+                    if group == 'allsujet':
+                        _sujet_list = sujet_list
+                    elif group == 'rep':
+                        _sujet_list = sujet_best_list_rev
+                    elif group == 'non_rep':
+                        _sujet_list = sujet_no_respond_rev
+
+                    for sujet in _sujet_list:
+
+                        if sujet in sujet_best_list_rev:
+                            rep_state = True
+                        else:
+                            rep_state = False 
+
+                        ax.plot(time_vec, xr_data.loc[sujet, cond, odor, nchan, :], color=rep_state_colors[rep_state], alpha=0.2)
+
+                    if stretch:
+                        ax.vlines(stretch_point_TF/2, ymin=min, ymax=max, colors='k')
+                    else:
+                        ax.vlines(0, ymin=min, ymax=max, colors='k')  
+
+                    ax.set_ylim(min, max)
+
+                    ax.invert_yaxis()
+
+            cond_i, cond = 1, 'FR_CV_1_mean'
+
+            #odor_i, odor = 0, odor_list[0]
+            for odor_i, odor in enumerate(odor_list):
+
+                ax = axs[odor_i, cond_i]
+
+                if group == 'allsujet':
+                    data_mean = xr_data.loc[:, 'FR_CV_1', 'o', nchan, :].mean('sujet').values
+                elif group == 'rep':
+                    data_mean = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', 'o', nchan, :].mean('sujet').values
+                elif group == 'non_rep':
+                    data_mean = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', 'o', nchan, :].mean('sujet').values
+                ax.plot(time_vec, data_mean, color='b', label='o')
+
+                if group == 'allsujet':
+                    data_mean = xr_data.loc[:, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+                elif group == 'rep':
+                    data_mean = xr_data.loc[sujet_best_list_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+                elif group == 'non_rep':
+                    data_mean = xr_data.loc[sujet_no_respond_rev, 'FR_CV_1', odor, nchan, :].mean('sujet').values
+                ax.plot(time_vec, data_mean, color='r', label=odor)
+
+                if odor_i == 0 :
+                    ax.set_title(f"{cond}")
+
+                if cond_i == 0:
+                    ax.set_ylabel(f"{odor}")
+
+                if stretch:
+                    ax.vlines(stretch_point_TF/2, ymin=min_mean, ymax=max_mean, colors='k')
+                else:
+                    ax.vlines(0, ymin=min_mean, ymax=max_mean, colors='k')  
+
+                ax.set_ylim(min_mean, max_mean)
+
+                if odor != 'o':
+                    clusters = cluster_stats_inter.loc[group, nchan, odor, 'FR_CV_1',:].values
+                    ax.fill_between(time_vec, min_mean, max_mean, where=clusters.astype('int'), alpha=0.3, color='r')
+
+                ax.invert_yaxis()
+
+            plt.legend()
+
+            cond_i, cond = 3, 'CO2_mean'
+
+            #odor_i, odor = 0, odor_list[0]
+            for odor_i, odor in enumerate(odor_list):
+
+                ax = axs[odor_i, cond_i]
+
+                if group == 'allsujet':
+                    data_mean = xr_data.loc[:, 'CO2', 'o', nchan, :].mean('sujet').values
+                elif group == 'rep':
+                    data_mean = xr_data.loc[sujet_best_list_rev, 'CO2', 'o', nchan, :].mean('sujet').values
+                elif group == 'non_rep':
+                    data_mean = xr_data.loc[sujet_no_respond_rev, 'CO2', 'o', nchan, :].mean('sujet').values
+                ax.plot(time_vec, data_mean, color='b', label='o')
+
+                if group == 'allsujet':
+                    data_mean = xr_data.loc[:, 'CO2', odor, nchan, :].mean('sujet').values
+                elif group == 'rep':
+                    data_mean = xr_data.loc[sujet_best_list_rev, 'CO2', odor, nchan, :].mean('sujet').values
+                elif group == 'non_rep':
+                    data_mean = xr_data.loc[sujet_no_respond_rev, 'CO2', odor, nchan, :].mean('sujet').values
+                ax.plot(time_vec, data_mean, color='r', label=odor)
+
+                if odor_i == 0 :
+                    ax.set_title(f"{cond}")
+
+                if cond_i == 0:
+                    ax.set_ylabel(f"{odor}")
+
+                if stretch:
+                    ax.vlines(stretch_point_TF/2, ymin=min_mean, ymax=max_mean, colors='k')
+                else:
+                    ax.vlines(0, ymin=min_mean, ymax=max_mean, colors='k')  
+
+                ax.set_ylim(min_mean, max_mean)
+
+                if odor != 'o':
+                    clusters = cluster_stats_inter.loc[group, nchan, odor, 'CO2',:].values
+                    ax.fill_between(time_vec, min_mean, max_mean, where=clusters.astype('int'), alpha=0.3, color='r')
+
+                ax.invert_yaxis()
+
+            fig.tight_layout()
+            plt.legend()
+
+            # plt.show()
+
+            #### save
+            os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'summary_diff_subject_wise', 'inter', 'mean'))
+
+            if stretch:
+                fig.savefig(f'stretch_{group}_{nchan}_inter.jpeg', dpi=150)
+            else:
+                fig.savefig(f'nostretch_{group}_{nchan}_inter.jpeg', dpi=150)
+
+            plt.close('all')
 
 
 
@@ -5684,603 +5665,6 @@ def plot_PPI_proportion(xr_PPI_count):
 
 
     
-
-
-
-
-
-
-
-################################
-######## PERMUTATION ########
-################################
-
-
-
-
-def compute_topoplot_stats_allsujet_perm(xr_data, perm_type):
-
-    mask_params = dict(markersize=15, markerfacecolor='y')
-
-    ch_types = ['eeg'] * len(chan_list_eeg)
-    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
-    info.set_montage('standard_1020')
-
-    times = xr_data['time'].values
-
-    ######## INTRA ########
-    #### scale
-    min = np.array([])
-    max = np.array([])
-
-    for odor_i, odor in enumerate(['o', '+', '-']):
-
-        data_baseline = xr_data.loc[:, 'FR_CV_1', odor, :, :].values
-
-        for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
-
-            data_cond = xr_data.loc[:, cond, odor, :, :].values
-
-            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-            data_perm = data_cond_red - data_baseline_red 
-            data_perm_topo = data_perm.mean(axis=0)
-
-            min = np.append(min, data_perm_topo.min())
-            max = np.append(max, data_perm_topo.max())
-
-    min = min.min()
-    max = max.max()
-    vlim = np.array([max, min]).max()
-
-    #### plot
-    fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(15,15))
-
-    for odor_i, odor in enumerate(['o', '+', '-']):
-
-        data_baseline = xr_data.loc[:, 'FR_CV_1', odor, :, :].values
-
-        for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
-
-            print(perm_type, 'intra', odor, cond)
-
-            data_cond = xr_data.loc[:, cond, odor, :, :].values
-
-            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
-
-            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-            data_perm = data_cond_red - data_baseline_red 
-            data_perm_topo = data_perm.mean(axis=0)
-
-            #chan_i, chan = 0, chan_list_eeg[0]
-            for chan_i, chan in enumerate(chan_list_eeg):
-
-                data_baseline_chan = data_baseline[:, chan_i, :]
-                data_cond_chan = data_cond[:, chan_i, :] 
-
-                if perm_type == 'mne':
-
-                    data_perm = data_cond_chan - data_baseline_chan 
-
-                    T_obs, clusters, clusters_p_values, H0 = permutation_cluster_1samp_test(
-                        data_perm,
-                        n_permutations=1000,
-                        threshold=None,
-                        tail=0,
-                        n_jobs=4,
-                        out_type="mask",
-                        verbose=False
-                    )
-
-                    if (clusters_p_values < 0.05).any():
-                        
-                        mask_signi[chan_i] = True
-
-                else:
-
-                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
-
-                    if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
-                        mask_signi[chan_i] = True 
-
-            ax = axs[odor_i, cond_i]
-
-            ax.set_title(f"{cond} {odor}")
-
-            mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
-
-    plt.tight_layout()
-
-    plt.suptitle(f'ALLSUJET INTRA (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}')
-
-    os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_stats'))
-    fig.savefig(f"perm_{perm_type}_intra_allsujet.jpeg")
-
-    plt.close('all')
-    
-    # plt.show()
-
-    ######## INTER ########
-    #### scale
-    min = np.array([])
-    max = np.array([])
-
-    for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-        data_baseline = xr_data.loc[:, cond, 'o', :, :].values
-
-        for odor_i, odor in enumerate(['+', '-']):
-
-            data_cond = xr_data.loc[:, cond, odor, :, :].values
-
-            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-            data_perm = data_cond_red - data_baseline_red 
-            data_perm_topo = data_perm.mean(axis=0)
-
-            min = np.append(min, data_perm_topo.min())
-            max = np.append(max, data_perm_topo.max())
-
-    min = min.min()
-    max = max.max()
-    vlim = np.array([max, min]).max()
-
-    #### plot
-    fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,15))
-
-    for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-        data_baseline = xr_data.loc[:, cond, 'o', :, :].values
-
-        for odor_i, odor in enumerate(['+', '-']):
-
-            print(perm_type, 'inter', odor, cond)
-
-            data_cond = xr_data.loc[:, cond, odor, :, :].values
-
-            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
-
-            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-            data_perm = data_cond_red - data_baseline_red 
-            data_perm_topo = data_perm.mean(axis=0)
-
-            #chan_i, chan = 0, chan_list_eeg[0]
-            for chan_i, chan in enumerate(chan_list_eeg):
-
-                data_baseline_chan = data_baseline[:, chan_i, :]
-                data_cond_chan = data_cond[:, chan_i, :] 
-
-                if perm_type == 'mne':
-
-                    data_perm = data_cond_chan - data_baseline_chan 
-
-                    T_obs, clusters, clusters_p_values, H0 = permutation_cluster_1samp_test(
-                        data_perm,
-                        n_permutations=1000,
-                        threshold=None,
-                        tail=0,
-                        n_jobs=4,
-                        out_type="mask",
-                        verbose=False
-                    )
-
-                    if (clusters_p_values < 0.05).any():
-                            
-                        mask_signi[chan_i] = True
-
-                else:
-
-                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
-
-                    if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
-                        mask_signi[chan_i] = True 
-            
-            ax = axs[odor_i, cond_i]
-
-            ax.set_title(f"{cond} {odor}")
-
-            mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
-
-    plt.tight_layout()
-
-    plt.suptitle(f'ALLSUJET INTER (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}')
-
-    os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_stats'))
-    fig.savefig(f"perm_{perm_type}_inter_allsujet.jpeg")
-
-    plt.close('all')
-
-    # plt.show()
-
-
-
-
-
-
-
-def compute_topoplot_stats_repnorep_perm(xr_data, perm_type):
-
-    mask_params = dict(markersize=15, markerfacecolor='y')
-
-    sujet_no_respond_rev = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_no_respond])
-
-    ch_types = ['eeg'] * len(chan_list_eeg)
-    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
-    info.set_montage('standard_1020')
-
-    mat_adjacency = mne.channels.find_ch_adjacency(info, 'eeg')[0]
-
-    times = xr_data['time'].values
-
-    #sujet_sel = 'rep'
-    for sujet_sel in ['rep', 'no_rep']:
-
-        #### select data
-        if sujet_sel == 'rep':
-            xr_data_sel = xr_data.loc[sujet_best_list_rev, :, :, :, :]
-        elif sujet_sel == 'no_rep':
-            xr_data_sel = xr_data.loc[sujet_no_respond_rev, :, :, :, :]
-
-        ######## INTRA ########
-        #### scale
-        min = np.array([])
-        max = np.array([])
-
-        # for sujet_sel_vlim in ['rep', 'no_rep']:
-
-        #     if sujet_sel_vlim == 'rep':
-        #         xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
-        #     elif sujet_sel_vlim == 'no_rep':
-        #         xr_data_vlim = xr_data.loc[sujet_no_respond_rev, :, :, :, :]
-
-        #     for odor_i, odor in enumerate(['o', '+', '-']):
-
-        #         data_baseline = xr_data_vlim.loc[:, 'FR_CV_1', odor, :, :].values
-
-        #         for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
-
-        #             data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
-
-        #             data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-        #             data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-        #             data_perm = data_cond_red - data_baseline_red 
-        #             data_perm_topo = data_perm.mean(axis=0)
-
-        #             min = np.append(min, data_perm_topo.min())
-        #             max = np.append(max, data_perm_topo.max())
-
-        for odor_i, odor in enumerate(['o', '+', '-']):
-
-            data_baseline = xr_data_sel.loc[:, 'FR_CV_1', odor, :, :].values
-
-            for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
-
-                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
-
-                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-                data_perm = data_cond_red - data_baseline_red 
-                data_perm_topo = data_perm.mean(axis=0)
-
-                min = np.append(min, data_perm_topo.min())
-                max = np.append(max, data_perm_topo.max())
-
-        min = min.min()
-        max = max.max()
-        vlim = np.array([max, min]).max()
-
-        #### plot
-        fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(15,15))
-
-        for odor_i, odor in enumerate(['o', '+', '-']):
-
-            data_baseline = xr_data_sel.loc[:, 'FR_CV_1', odor, :, :].values
-
-            for cond_i, cond in enumerate(['MECA', 'CO2', 'FR_CV_2']):
-
-                print(perm_type, 'intra', odor, cond)
-
-                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
-
-                mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
-
-                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-                data_perm = data_cond_red - data_baseline_red 
-                data_perm_topo = data_perm.mean(axis=0)
-
-                #chan_i, chan = 0, chan_list_eeg[0]
-                for chan_i, chan in enumerate(chan_list_eeg):
-
-                    data_baseline_chan = data_baseline[:, chan_i, :]
-                    data_cond_chan = data_cond[:, chan_i, :] 
-
-                    if perm_type == 'mne':
-
-                        data_perm = data_cond_chan - data_baseline_chan 
-
-                        T_obs, clusters, clusters_p_values, H0 = permutation_cluster_1samp_test(
-                            data_perm,
-                            n_permutations=1000,
-                            threshold=None,
-                            tail=0,
-                            n_jobs=4,
-                            out_type="mask",
-                            verbose=False
-                        )
-
-                        if (clusters_p_values < 0.05).any():
-                            
-                            mask_signi[chan_i] = True
-
-                    else:
-
-                        perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
-
-                        if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
-                            mask_signi[chan_i] = True 
-
-                ax = axs[odor_i, cond_i]
-
-                ax.set_title(f"{cond} {odor}")
-
-                mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
-
-        plt.tight_layout()
-
-        plt.suptitle(f"{sujet_sel} INTRA (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}")
-
-        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_stats'))
-        fig.savefig(f"perm_{perm_type}_intra_{sujet_sel}.jpeg")
-        
-        # plt.show()
-
-        plt.close('all')
-
-        ######## INTER ########
-        #### scale
-        min = np.array([])
-        max = np.array([])
-
-        # for sujet_sel_vlim in ['rep', 'no_rep']:
-
-        #     if sujet_sel_vlim == 'rep':
-        #         xr_data_vlim = xr_data.loc[sujet_best_list_rev, :, :, :, :]
-        #     elif sujet_sel_vlim == 'no_rep':
-        #         xr_data_vlim = xr_data.loc[sujet_no_respond_rev, :, :, :, :]
-
-        #     for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-        #         data_baseline = xr_data_vlim.loc[:, cond, 'o', :, :].values
-
-        #         for odor_i, odor in enumerate(['+', '-']):
-
-        #             data_cond = xr_data_vlim.loc[:, cond, odor, :, :].values
-
-        #             data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-        #             data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-        #             data_perm = data_cond_red - data_baseline_red 
-        #             data_perm_topo = data_perm.mean(axis=0)
-
-        #             min = np.append(min, data_perm_topo.min())
-        #             max = np.append(max, data_perm_topo.max())
-
-        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-            data_baseline = xr_data_sel.loc[:, cond, 'o', :, :].values
-
-            for odor_i, odor in enumerate(['+', '-']):
-
-                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
-
-                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-                data_perm = data_cond_red - data_baseline_red 
-                data_perm_topo = data_perm.mean(axis=0)
-
-                min = np.append(min, data_perm_topo.min())
-                max = np.append(max, data_perm_topo.max())
-
-        min = min.min()
-        max = max.max()
-        vlim = np.array([max, min]).max()
-
-        #### plot
-        fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15,15))
-
-        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-            data_baseline = xr_data_sel.loc[:, cond, 'o', :, :].values
-
-            for odor_i, odor in enumerate(['+', '-']):
-
-                print(perm_type, 'inter', odor, cond)
-
-                data_cond = xr_data_sel.loc[:, cond, odor, :, :].values
-
-                mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
-
-                data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-                data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-                data_perm = data_cond_red - data_baseline_red 
-                data_perm_topo = data_perm.mean(axis=0)
-
-                #chan_i, chan = 0, chan_list_eeg[0]
-                for chan_i, chan in enumerate(chan_list_eeg):
-
-                    data_baseline_chan = data_baseline[:, chan_i, :]
-                    data_cond_chan = data_cond[:, chan_i, :]
-
-                    if perm_type == 'mne':
-
-                        data_perm = data_cond_chan - data_baseline_chan 
-
-                        T_obs, clusters, clusters_p_values, H0 = permutation_cluster_1samp_test(
-                            data_perm,
-                            n_permutations=1000,
-                            threshold=None,
-                            tail=0,
-                            n_jobs=4,
-                            out_type="mask",
-                            verbose=False
-                        )
-
-                        if (clusters_p_values < 0.05).any():
-                                
-                            mask_signi[chan_i] = True
-
-                    else:
-
-                        perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
-
-                        if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
-                            mask_signi[chan_i] = True 
-                
-                ax = axs[odor_i, cond_i]
-
-                ax.set_title(f"{cond} {odor}")
-
-                mne.viz.plot_topomap(data=data_perm_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
-
-        plt.tight_layout()
-
-        plt.suptitle(f"{sujet_sel} INTER (cond-baseline) {np.round(-vlim,2)}:{np.round(vlim,2)}")
-
-        os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_stats'))
-        fig.savefig(f"perm_{perm_type}_inter_{sujet_sel}.jpeg")
-
-        # plt.show()
-
-        plt.close('all')
-
-
-
-def compute_topoplot_stats_repnorep_diff_perm(xr_data, perm_type):
-
-    mask_params = dict(markersize=15, markerfacecolor='y')
-
-    sujet_no_respond_rev = np.array([f"{sujet[2:]}{sujet[:2]}" for sujet in sujet_no_respond])
-
-    ch_types = ['eeg'] * len(chan_list_eeg)
-    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
-    info.set_montage('standard_1020')
-
-    mat_adjacency = mne.channels.find_ch_adjacency(info, 'eeg')[0]
-
-    times = xr_data['time'].values
-
-    #### sel data
-    xr_data_rep = xr_data.loc[sujet_best_list_rev, :, :, :, :]
-    xr_data_norep = xr_data.loc[sujet_no_respond_rev, :, :, :, :]
-
-    #### scale
-    min = np.array([])
-    max = np.array([])
-
-    for odor_i, odor in enumerate(['o', '+', '-']):
-
-        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-            data_baseline = xr_data_rep.loc[:, cond, odor, :, :].values
-            data_cond = xr_data_norep.loc[:, cond, odor, :, :].values
-
-            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
-
-            min = np.append(min, data_topo.min())
-            max = np.append(max, data_topo.max())
-
-    min = min.min()
-    max = max.max()
-    vlim = np.array([max, min]).max()
-
-    #### plot
-    fig, axs = plt.subplots(nrows=3, ncols=4, figsize=(15,15))
-
-    for odor_i, odor in enumerate(['o', '+', '-']):
-
-        for cond_i, cond in enumerate(['FR_CV_1', 'MECA', 'CO2', 'FR_CV_2']):
-
-            print(perm_type, 'intra', odor, cond)
-
-            data_baseline = xr_data_rep.loc[:, cond, odor, :, :].values
-            data_cond = xr_data_norep.loc[:, cond, odor, :, :].values
-
-            mask_signi = np.zeros(len(chan_list_eeg)).astype('bool')
-
-            data_baseline_red = data_baseline.max(axis=2) - data_baseline.min(axis=2) 
-            data_cond_red = data_cond.max(axis=2) - data_cond.min(axis=2)
-
-            data_topo = data_cond_red.mean(axis=0) - data_baseline_red.mean(axis=0)
-
-            #chan_i, chan = 0, chan_list_eeg[0]
-            for chan_i, chan in enumerate(chan_list_eeg):
-
-                data_baseline_chan = data_baseline[:, chan_i, :]
-                data_cond_chan = data_cond[:, chan_i, :] 
-
-                if perm_type == 'mne':
-
-                    T_obs, clusters, clusters_p_values, H0 = permutation_cluster_test(
-                        [data_baseline_chan, data_cond_chan],
-                        n_permutations=1000,
-                        threshold=None,
-                        tail=0,
-                        n_jobs=4,
-                        out_type="mask",
-                        verbose=False
-                    )
-
-                    if (clusters_p_values < 0.05).any():
-                        
-                        mask_signi[chan_i] = True
-
-                else:
-
-                    perm_vec = get_permutation_cluster_1d(data_baseline_chan, data_cond_chan, ERP_n_surrogate)
-
-                    if perm_vec.sum() >= int(erp_time_cluster_thresh*1e-3*srate): 
-                        mask_signi[chan_i] = True 
-
-            ax = axs[odor_i, cond_i]
-
-            ax.set_title(f"{cond} {odor}")
-
-            mne.viz.plot_topomap(data=data_topo, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                            mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim))
-
-    # plt.tight_layout()
-
-    plt.suptitle(f"(norep - rep) {np.round(-vlim,2)}:{np.round(vlim,2)}")
-
-    os.chdir(os.path.join(path_results, 'allplot', 'ERP', 'topoplot_summary_stats'))
-    fig.savefig(f"perm_{perm_type}_repnorep.jpeg")
-    
-    # plt.show()
-
-    plt.close('all')
-
-
-
-
 
 
 ################################
@@ -7038,11 +6422,15 @@ def compute_topoplot_stats_repnorep_diff_minmax(xr_data):
 ################################
 
 
-def export_df_ERP():
+def export_df_ERP(stretch=False):
 
-    extract_time = {'inspi' : [-1, 0], 'expi' : [0, 1]}
-
-    xr_data, xr_data_sem = compute_ERP()
+    if stretch:
+        extract_time = {'expi' : [0, int(stretch_point_TF/2)], 'inspi' : [int(stretch_point_TF/2), stretch_point_TF]}
+        xr_data, xr_data_sem = compute_ERP_stretch()
+        xr_data = xr_data.rename({'phase' : 'phase_vec'})
+    else:
+        extract_time = {'inspi' : [-1, 0], 'expi' : [0, 1]}
+        xr_data, xr_data_sem = compute_ERP()
 
     chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
     cond_sel = ['FR_CV_1', 'CO2']
@@ -7050,14 +6438,21 @@ def export_df_ERP():
 
     df_ERP = pd.DataFrame()
     for phase in phase_list:
-        mask_time = xr_data['time'].values[(xr_data['time'].values < extract_time[phase][1]) & (xr_data['time'].values >= extract_time[phase][0])]
-        _df_ERP = xr_data.loc[:,cond_sel,:,chan_list_MI,mask_time].sum('time').to_dataframe(name='val').reset_index(drop=False)
+        if stretch:
+            mask_time = xr_data['phase_vec'].values[(xr_data['phase_vec'].values < extract_time[phase][1]) & (xr_data['phase_vec'].values >= extract_time[phase][0])]
+            _df_ERP = xr_data.loc[:,cond_sel,:,chan_list_MI,mask_time].sum('phase_vec').to_dataframe(name='val').reset_index(drop=False)
+        else:
+            mask_time = xr_data['time'].values[(xr_data['time'].values < extract_time[phase][1]) & (xr_data['time'].values >= extract_time[phase][0])]
+            _df_ERP = xr_data.loc[:,cond_sel,:,chan_list_MI,mask_time].sum('time').to_dataframe(name='val').reset_index(drop=False)
         _df_ERP = pd.pivot_table(_df_ERP, values='val', columns=['nchan'], index=['sujet', 'cond', 'odor']).reset_index(drop=False)
         _df_ERP['phase'] =  [phase]*_df_ERP.shape[0]
         df_ERP = pd.concat([df_ERP, _df_ERP])
 
     os.chdir(os.path.join(path_precompute, 'allsujet', 'ERP'))
-    df_ERP.to_excel('df_ERP_allsujet.xlsx')
+    if stretch:
+        df_ERP.to_excel('stretch_df_ERP_allsujet.xlsx')
+    else:
+        df_ERP.to_excel('nostretch_df_ERP_allsujet.xlsx')
 
 
 

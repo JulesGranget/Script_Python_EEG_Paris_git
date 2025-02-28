@@ -7,8 +7,8 @@ import scipy.signal
 import joblib
 import xarray as xr
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 debug = False
 
@@ -390,9 +390,7 @@ def get_MI(sujet, stretch=False):
 
 
 
-def export_df_MI():
-
-    stretch = False
+def export_df_MI(stretch=False):
 
     #### identify anat info
     chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
@@ -413,8 +411,8 @@ def export_df_MI():
     cond_sel = ['FR_CV_1', 'CO2']
 
     if stretch:
-        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
         time_vec = np.arange(stretch_point_TF)
+        MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
     else:
         time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
         MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'time' : time_vec}
@@ -464,7 +462,11 @@ def export_df_MI():
     df_MI = pd.pivot_table(df_MI, values='MI', columns=['pair'], index=['sujet', 'cond', 'odor', 'phase']).reset_index(drop=False)
 
     os.chdir(os.path.join(path_precompute, 'allsujet', 'FC'))
-    df_MI.to_excel('df_MI_allsujet.xlsx')
+
+    if stretch:
+        df_MI.to_excel('stretch_df_MI_allsujet.xlsx')
+    else:
+        df_MI.to_excel('nostretch_df_MI_allsujet.xlsx')
 
 
 
@@ -487,7 +489,8 @@ if __name__ == '__main__':
         get_MI(sujet, stretch=False)
         get_MI(sujet, stretch=True)
 
-    export_df_MI()
+    export_df_MI(stretch=False)
+    export_df_MI(stretch=True)
 
 
 

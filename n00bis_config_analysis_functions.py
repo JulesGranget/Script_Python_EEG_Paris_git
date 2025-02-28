@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.ndimage
 import scipy.signal
 import mne
 import pandas as pd
@@ -10,14 +11,17 @@ import sys
 import stat
 import subprocess
 import scipy.stats
+import scipy.stats
 import xarray as xr
 import physio
 import getpass
+import paramiko
+import cv2
 
-from bycycle.cyclepoints import find_extrema
+# from bycycle.cyclepoints import find_extrema
 import neurokit2 as nk
 
-from n0_config_params import *
+from n00_config_params import *
 
 
 debug = False
@@ -308,178 +312,130 @@ def generate_folder_structure(sujet):
 ################################################
 
 
-def sync_folders(local_folder, remote_folder, hostname, username, port):
+def sync_folders__push_to_mnt(clusterexecution=True):
 
-    hostname = '10.69.168.93'
-    port = 22
-    username = 'jules.granget'
+    #### need to be exectuted outside of cluster to work
+    folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
+                         path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'), path_main_workdir : os.path.join(path_mntdata, 'Script_Python_EEG_Paris_git'),
+                         path_slurm : os.path.join(path_mntdata, 'Script_slurm')}
 
-    local_folder = 'N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_slurm'
-    remote_folder = "/mnt/data/julesgranget/Olfadys/test"
+    if clusterexecution:
+            
+        #### We push from A to B
+        for folder_local, folder_remote in folder_to_push_to.items():
 
-    try:
+            subprocess.run([f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"], shell=True)
+
+    else:
+
+        hostname_local = '10.69.168.93'
+        port = 22
+        username = 'jules.granget'
+
+        # Create an SSH client
+        ssh_client = paramiko.SSHClient()
+        
+        # Automatically add the server's SSH key (if not already known)
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
         # Prompt for the SSH password
         password = getpass.getpass(prompt="Enter your SSH password: ")
-
-        # Build the rsync command
-        rsync_command = [
-            "rsync", "-avz",  # Flags for archive mode, verbose, and compression
-            "-e", f"ssh -p {port}",  # Use SSH for the connection and specify the port
-            f"{local_folder}/",  # Local folder (trailing slash ensures content syncing)
-            f"{username}@{hostname}:{remote_folder}"  # Remote destination
-        ]
         
-        print("Running rsync command...")
-        # Run the rsync command
-        process = subprocess.run(
-            rsync_command, 
-            input=password,  # Pass the password
-            text=True,  # Ensure the password is passed as a string
-            capture_output=True  # Capture the output for debugging
-        )
+        try:
+            # Connect to the remote machine
+            print(f"Connecting to {hostname_local}...")
+            ssh_client.connect(hostname_local, port=port, username=username, password=password)
+            print("Connection established.")
 
-        process = subprocess.run(['cd N:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'], shell=True, capture_output=True)
+            #### test
+            if debug:
 
-        process.stdout
-        
-        # Check the result
-        if process.returncode == 0:
-            print("Synchronization successful.")
-        else:
-            print(f"Rsync failed with error: {process.stderr}")
-    
-    except Exception as e:
-        print(f"An error occurred: {e}")
+                #### A to B
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_general, 'test')}/ {os.path.join(path_mntdata, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
 
-def ssh_connect(hostname, port, username, password, command):
-    """
-    Connects to a remote machine using SSH and executes a command.
-    
-    Parameters:
-    - hostname (str): IP address or hostname of the remote machine.
-    - port (int): SSH port (default is 22).
-    - username (str): SSH username.
-    - password (str): SSH password.
-    - command (str): Command to execute on the remote machine.
-    
-    Returns:
-    - str: Output of the executed command.
-    """
-    # Create an SSH client
-    ssh_client = paramiko.SSHClient()
-    
-    # Automatically add the server's SSH key (if not already known)
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    
-    try:
-        # Connect to the remote machine
-        print(f"Connecting to {hostname}...")
-        ssh_client.connect(hostname, port=port, username=username, password=password)
-        print("Connection established.")
-        
-        # Execute a command
-        print(f"Executing command: {command}")
-        stdin, stdout, stderr = ssh_client.exec_command(command)
-        
-        # Read the output and error
-        output = stdout.read().decode()
-        error = stderr.read().decode()
-        
-        # Print command output or error
-        if output:
-            print("Command Output:")
-            print(output)
-        if error:
-            print("Command Error:")
-            print(error)
-        
-        return output if output else error
-    
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
-    
-    finally:
-        # Close the connection
-        ssh_client.close()
-        print("Connection closed.")
+                #### B to A
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_mntdata, 'test')}/ {os.path.join(path_general, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+            #### We push from A to B
+            for folder_local, folder_remote in folder_to_push_to.items():
+
+                sync_from_remote_to_local = f"rsync -avz --delete -v {folder_local}/ {folder_remote}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+
+        except:
+            print(f"An error occurred")
 
 
 
+def sync_folders__push_to_crnldata(clusterexecution=True):
 
-def verify_data():
+    #### dont push scripts from mnt to crnldata
+    folder_to_push_to = {path_data : os.path.join(path_mntdata, 'Data'), path_precompute : os.path.join(path_mntdata, 'Analyses', 'precompute'), 
+                         path_prep : os.path.join(path_mntdata, 'Analyses', 'preprocessing'),
+                         path_slurm : os.path.join(path_mntdata, 'Script_slurm')}
 
-    hostname = '10.69.168.93'
-    port = 22
-    username = 'jules.granget'
-    path_remote_rawdata = "/mnt/data/julesgranget/Olfadys/rawdata"
-
-    origin_path = os.getcwd()
-
-    #### identify data in local
-    os.chdir(path_data)
-
-    local_files = {}
-    
-    for root, _, files in os.walk(path_data):
-        for file in files:
-            file_path = os.path.join(root, file)
-            relative_path = os.path.relpath(file_path, path_data)
-            local_files[relative_path] = compute_file_hash(file_path)
-
-    #### identify data in remote
-        #### connect
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    password = getpass.getpass(prompt="Enter your SSH password: ")
-    ssh_client.connect(hostname, port=port, username=username, password=password)
-    print(f"Connected to {hostname}")
-    sftp = ssh_client.open_sftp()
-
-        #### identify data
-    remote_files = {}
+    if clusterexecution:
             
-    def walk_remote_dir(path_remote_rawdata, relative_path=""):
+        #### We push from A to B
+        #folder_local, folder_remote = path_slurm, os.path.join(path_mntdata, 'Script_slurm')
+        for folder_local, folder_remote in folder_to_push_to.items():
 
-        file_list = sftp.listdir(path_remote_rawdata)
+            subprocess.run([f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"], shell=True)
+
+    else:
+
+        hostname_local = '10.69.168.93'
+        port = 22
+        username = 'jules.granget'
+
+        # Create an SSH client
+        ssh_client = paramiko.SSHClient()
         
-        for item in file_list:
-            full_path = os.path.join(path_remote_rawdata, item)
-            rel_path = os.path.join(relative_path, item)
-            
-            try:
-                if is_remote_directory(sftp, full_path):
-                    walk_remote_dir(full_path, rel_path)
-                else:
-                    remote_files[rel_path] = compute_remote_file_hash(sftp, full_path)
-            except IOError:
-                continue
+        # Automatically add the server's SSH key (if not already known)
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    walk_remote_dir(path_remote_rawdata)
-
-    #### compute differences
-    differences = {'not_in_remote' : [], 'different_from_local' : [], 'only_in_remote' : []}
+        # Prompt for the SSH password
+        password = getpass.getpass(prompt="Enter your SSH password: ")
         
-    for file in local_files:
-        if file not in remote_files:
-            differences['not_in_remote'].append(file)
-        elif local_files[file] != remote_files[file]:
-            differences['different_from_local'].append(file)
-    
-    for file in remote_files:
-        if file not in local_files:
-            differences['only_in_remote'].append(file)
+        try:
+            # Connect to the remote machine
+            print(f"Connecting to {hostname_local}...")
+            ssh_client.connect(hostname_local, port=port, username=username, password=password)
+            print("Connection established.")
 
-    #### balance local and remote
-    for file in differences['not_in_remote']:
+            #### test
+            if debug:
 
-        sftp.put(os.path.join(path_data, file), path_remote_rawdata)
+                #### A to B
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_general, 'test')}/ {os.path.join(path_mntdata, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
 
-    sftp.chdir(path_remote_rawdata)
-    sftp.getcwd()
-    
-    return is_same, differences
+                #### B to A
+                sync_from_remote_to_local = f"rsync -avz --delete -v {os.path.join(path_mntdata, 'test')}/ {os.path.join(path_general, 'test')}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
 
+            #### We push from A to B
+            for folder_local, folder_remote in folder_to_push_to.items():
+
+                sync_from_remote_to_local = f"rsync -avz --delete -v {folder_remote}/ {folder_local}/"
+                stdin, stdout, stderr = ssh_client.exec_command(sync_from_remote_to_local)
+                output = stdout.read().decode()
+                print(output)
+        
+        except:
+            print(f"An error occurred")
 
 
 
@@ -489,78 +445,14 @@ def verify_data():
 ######## SLURM EXECUTE ########
 ################################
 
-
-#name_script, name_function, params = 'test', 'slurm_test',  ['Pilote', 2]
-def execute_function_in_slurm(name_script, name_function, params):
-
+#params_one_script = [sujet]
+def write_script_slurm(name_script, name_function, params_one_script, n_core, mem):
+        
     python = sys.executable
 
     #### params to print in script
     params_str = ""
-    for params_i in params:
-        if isinstance(params_i, str):
-            str_i = f"'{params_i}'"
-        else:
-            str_i = str(params_i)
-
-        if params_i == params[0] :
-            params_str = params_str + str_i
-        else:
-            params_str = params_str + ' , ' + str_i
-
-    #### params to print in script name
-    params_str_name = ''
-    for params_i in params:
-
-        str_i = str(params_i)
-
-        if params_i == params[0] :
-            params_str_name = params_str_name + str_i
-        else:
-            params_str_name = params_str_name + '_' + str_i
-    
-    #### script text
-    lines = [f'#! {python}']
-    lines += ['import sys']
-    lines += [f"sys.path.append('{path_main_workdir}')"]
-    lines += [f'from {name_script} import {name_function}']
-    lines += [f'{name_function}({params_str})']
-
-    cpus_per_task = n_core_slurms
-    mem = mem_crnl_cluster
-        
-    #### write script and execute
-    os.chdir(path_slurm)
-    slurm_script_name =  f"run_function_{name_function}_{params_str_name}.py" #add params
-        
-    with open(slurm_script_name, 'w') as f:
-        f.writelines('\n'.join(lines))
-        os.fchmod(f.fileno(), mode = stat.S_IRWXU)
-        f.close()
-        
-    subprocess.Popen(['sbatch', f'{slurm_script_name}', f'-cpus-per-task={n_core_slurms}', f'-mem={mem_crnl_cluster}']) 
-
-    # wait subprocess to lauch before removing
-    #time.sleep(3)
-    #os.remove(slurm_script_name)
-
-    print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
-
-
-
-
-
-
-#name_script, name_function, params = 'n7_precompute_TF', 'precompute_tf', [cond, session_i, freq_band_list, band_prep_list]
-def execute_function_in_slurm_bash(name_script, name_function, params):
-
-    scritp_path = os.getcwd()
-    
-    python = sys.executable
-
-    #### params to print in script
-    params_str = ""
-    for i, params_i in enumerate(params):
+    for i, params_i in enumerate(params_one_script):
         if isinstance(params_i, str):
             str_i = f"'{params_i}'"
         else:
@@ -573,7 +465,7 @@ def execute_function_in_slurm_bash(name_script, name_function, params):
 
     #### params to print in script name
     params_str_name = ''
-    for i, params_i in enumerate(params):
+    for i, params_i in enumerate(params_one_script):
 
         str_i = str(params_i)
 
@@ -592,12 +484,9 @@ def execute_function_in_slurm_bash(name_script, name_function, params):
     #### script text
     lines = [f'#! {python}']
     lines += ['import sys']
-    lines += [f"sys.path.append('{path_main_workdir}')"]
+    lines += [f"sys.path.append('{os.path.join(path_mntdata, 'Script_Python_EEG_Paris_git')}')"]
     lines += [f'from {name_script} import {name_function}']
     lines += [f'{name_function}({params_str})']
-
-    cpus_per_task = n_core_slurms
-    mem = mem_crnl_cluster
         
     #### write script and execute
     os.chdir(path_slurm)
@@ -612,117 +501,62 @@ def execute_function_in_slurm_bash(name_script, name_function, params):
     lines = ['#!/bin/bash']
     lines += [f'#SBATCH --job-name={name_function}']
     lines += [f'#SBATCH --output=%slurm_{name_function}_{params_str_name}.log']
-    lines += [f'#SBATCH --cpus-per-task={n_core_slurms}']
-    lines += [f'#SBATCH --mem={mem_crnl_cluster}']
-    lines += [f'srun {python} {os.path.join(path_slurm, slurm_script_name)}']
+    lines += [f'#SBATCH --cpus-per-task={n_core}']
+    lines += [f'#SBATCH --mem={mem}']
+    lines += [f"srun {python} {os.path.join(path_mntdata, 'Script_slurm', slurm_script_name)}"]
         
     #### write script and execute
-    slurm_bash_script_name =  f"bash__{name_function}__{params_str_name}.batch" #add params
+    slurm_bash_script_name =  f"bash__{name_function}__{params_str_name}.sh" #add params
         
     with open(slurm_bash_script_name, 'w') as f:
         f.writelines('\n'.join(lines))
         os.fchmod(f.fileno(), mode = stat.S_IRWXU)
         f.close()
 
-    #### execute bash
-    print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
-    subprocess.Popen(['sbatch', f'{slurm_bash_script_name}']) 
+    return slurm_bash_script_name
 
-    # wait subprocess to lauch before removing
-    #time.sleep(4)
-    #os.remove(slurm_script_name)
-    #os.remove(slurm_bash_script_name)
-
-    #### get back to original path
-    os.chdir(scritp_path)
-
-
-
-
-#name_script, name_function, params = 'n9_fc_analysis', 'compute_pli_ispc_allband', [sujet]
-def execute_function_in_slurm_bash_mem_choice(name_script, name_function, params, mem_required):
-
-    scritp_path = os.getcwd()
-    
-    python = sys.executable
-
-    #### params to print in script
-    params_str = ""
-    for i, params_i in enumerate(params):
-        if isinstance(params_i, str):
-            str_i = f"'{params_i}'"
-        else:
-            str_i = str(params_i)
-
-        if i == 0 :
-            params_str = params_str + str_i
-        else:
-            params_str = params_str + ' , ' + str_i
-
-    #### params to print in script name
-    params_str_name = ''
-    for i, params_i in enumerate(params):
-
-        str_i = str(params_i)
-
-        if i == 0 :
-            params_str_name = params_str_name + str_i
-        else:
-            params_str_name = params_str_name + '_' + str_i
-
-    #### remove all txt that block name save
-    for txt_remove_i in ["'", "[", "]", "{", "}", ":", " ", ","]:
-        if txt_remove_i == " " or txt_remove_i == ",":
-            params_str_name = params_str_name.replace(txt_remove_i, '_')
-        else:
-            params_str_name = params_str_name.replace(txt_remove_i, '')
-    
-    #### script text
-    lines = [f'#! {python}']
-    lines += ['import sys']
-    lines += [f"sys.path.append('{path_main_workdir}')"]
-    lines += [f'from {name_script} import {name_function}']
-    lines += [f'{name_function}({params_str})']
-
-    cpus_per_task = n_core_slurms
-    mem = mem_crnl_cluster
-        
-    #### write script and execute
-    os.chdir(path_slurm)
-    slurm_script_name =  f"run__{name_function}__{params_str_name}.py" #add params
-        
-    with open(slurm_script_name, 'w') as f:
-        f.writelines('\n'.join(lines))
-        os.fchmod(f.fileno(), mode = stat.S_IRWXU)
-        f.close()
-    
-    #### script text
-    lines = ['#!/bin/bash']
-    lines += [f'#SBATCH --job-name={name_function}']
-    lines += [f'#SBATCH --output=%slurm_{name_function}_{params_str_name}.log']
-    lines += [f'#SBATCH --cpus-per-task={n_core_slurms}']
-    lines += [f'#SBATCH --mem={mem_required}']
-    lines += [f'srun {python} {os.path.join(path_slurm, slurm_script_name)}']
-        
-    #### write script and execute
-    slurm_bash_script_name =  f"bash__{name_function}__{params_str_name}.batch" #add params
-        
-    with open(slurm_bash_script_name, 'w') as f:
-        f.writelines('\n'.join(lines))
-        os.fchmod(f.fileno(), mode = stat.S_IRWXU)
-        f.close()
+def execute_script_slurm(slurm_bash_script_name):
 
     #### execute bash
-    print(f'#### slurm submission : from {name_script} execute {name_function}({params})')
-    subprocess.Popen(['sbatch', f'{slurm_bash_script_name}']) 
+    print(f'#### slurm submission : {slurm_bash_script_name}')
+    os.chdir(os.path.join(path_mntdata, 'Script_slurm'))
+    subprocess.run([f'sbatch {slurm_bash_script_name}'], shell=True) 
 
-    # wait subprocess to lauch before removing
-    #time.sleep(4)
-    #os.remove(slurm_script_name)
-    #os.remove(slurm_bash_script_name)
+
+#name_script, name_function, params = 'n05_precompute_Cxy', 'precompute_surrogates_coh', [sujet]
+def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15, mem='15G'):
+
+    script_path = os.getcwd()
+
+    if any(isinstance(i, list) for i in params):
+
+        slurm_bash_script_name_list = []
+
+        for one_param_set in params:
+            
+            _slurm_bash_script_name = write_script_slurm(name_script, name_function, one_param_set, n_core, mem)
+            slurm_bash_script_name_list.append(slurm_bash_script_name)
+
+    else:
+
+        slurm_bash_script_name = write_script_slurm(name_script, name_function, params, n_core, mem)
+
+    ###synchro
+    sync_folders__push_to_mnt()
+
+    if any(isinstance(i, list) for i in params):
+
+        for _slurm_bash_script_name in slurm_bash_script_name_list:
+            execute_script_slurm(_slurm_bash_script_name)
+            
+    else:
+
+        execute_script_slurm(slurm_bash_script_name)
 
     #### get back to original path
-    os.chdir(scritp_path)
+    os.chdir(script_path)
+
+
 
 
 
@@ -909,13 +743,13 @@ def extract_chanlist_srate_conditions_for_sujet(sujet_tmp, conditions_allsubject
     return conditions, chan_list, chan_list_ieeg, srate
 
 
-def load_data_sujet(sujet, cond, odor_i):
+def load_data_sujet(sujet, cond, odor):
 
     path_source = os.getcwd()
     
     os.chdir(os.path.join(path_prep, sujet, 'sections'))
 
-    raw = mne.io.read_raw_fif(f'{sujet}_{odor_i}_{cond}_wb.fif', preload=True, verbose='critical')
+    raw = mne.io.read_raw_fif(f'{sujet}_{odor}_{cond}_wb.fif', preload=True, verbose='critical')
 
     data = raw.get_data()
 
@@ -1513,13 +1347,13 @@ def rscore(x):
 
 
 
-def rscore_mat(x):
+def rscore_mat(x, axis=0):
 
-    mad = np.median(np.abs(x-np.median(x, axis=1).reshape(-1,1)), axis=1) # median_absolute_deviation
+    _mad = np.median(np.abs(x-np.median(x, axis=axis).reshape(-1,1)), axis=axis) # median_absolute_deviation
 
-    _rscore_mat = (x-np.median(x, axis=1).reshape(-1,1)) * 0.6745 / mad.reshape(-1,1)
+    _rscore = (x-np.median(x, axis=axis).reshape(-1,1)) * 0.6745 / _mad.reshape(-1,1)
 
-    return _rscore_mat
+    return _rscore
 
 
 
@@ -1762,53 +1596,53 @@ def get_fig_poincarre(RRI):
 #### DeltaHR
 
 #RRI, srate_resample, f_RRI, condition = result_struct[keys_result[0]][1], srate_resample, f_RRI, cond 
-def get_dHR(RRI_resample, srate_resample, f_RRI):
+# def get_dHR(RRI_resample, srate_resample, f_RRI):
     
-    times = np.arange(0,len(RRI_resample))/srate_resample
+#     times = np.arange(0,len(RRI_resample))/srate_resample
 
-        # stairs method
-    #RRI_stairs = np.array([])
-    #len_cR = len(cR) 
-    #for RR in range(len(cR)) :
-    #    if RR == 0 :
-    #        RRI_i = cR[RR+1]/srate - cR[RR]/srate
-    #        RRI_stairs = np.append(RRI_stairs, [RRI_i*1e3 for i in range(int(cR[RR+1]))])
-    #    elif RR != 0 and RR != len_cR-1 :
-    #        RRI_i = cR[RR+1]/srate - cR[RR]/srate
-    #        RRI_stairs = np.append(RRI_stairs, [RRI_i*1e3 for i in range(int(cR[RR+1] - cR[RR]))])
-    #    elif RR == len_cR-1 :
-    #        RRI_stairs = np.append(RRI_stairs, [RRI_i*1e3 for i in range(int(len(ecg) - cR[RR]))])
+#         # stairs method
+#     #RRI_stairs = np.array([])
+#     #len_cR = len(cR) 
+#     #for RR in range(len(cR)) :
+#     #    if RR == 0 :
+#     #        RRI_i = cR[RR+1]/srate - cR[RR]/srate
+#     #        RRI_stairs = np.append(RRI_stairs, [RRI_i*1e3 for i in range(int(cR[RR+1]))])
+#     #    elif RR != 0 and RR != len_cR-1 :
+#     #        RRI_i = cR[RR+1]/srate - cR[RR]/srate
+#     #        RRI_stairs = np.append(RRI_stairs, [RRI_i*1e3 for i in range(int(cR[RR+1] - cR[RR]))])
+#     #    elif RR == len_cR-1 :
+#     #        RRI_stairs = np.append(RRI_stairs, [RRI_i*1e3 for i in range(int(len(ecg) - cR[RR]))])
 
 
-    peaks, troughs = find_extrema(RRI_resample, srate_resample, f_RRI)
-    peaks_RRI, troughs_RRI = RRI_resample[peaks], RRI_resample[troughs]
-    peaks_troughs = np.stack((peaks_RRI, troughs_RRI), axis=1)
+#     peaks, troughs = find_extrema(RRI_resample, srate_resample, f_RRI)
+#     peaks_RRI, troughs_RRI = RRI_resample[peaks], RRI_resample[troughs]
+#     peaks_troughs = np.stack((peaks_RRI, troughs_RRI), axis=1)
 
-    fig_verif = plt.figure()
-    plt.plot(times, RRI_resample)
-    plt.vlines(peaks/srate_resample, ymin=min(RRI_resample), ymax=max(RRI_resample), colors='b')
-    plt.vlines(troughs/srate_resample, ymin=min(RRI_resample), ymax=max(RRI_resample), colors='r')
-    #plt.show()
+#     fig_verif = plt.figure()
+#     plt.plot(times, RRI_resample)
+#     plt.vlines(peaks/srate_resample, ymin=min(RRI_resample), ymax=max(RRI_resample), colors='b')
+#     plt.vlines(troughs/srate_resample, ymin=min(RRI_resample), ymax=max(RRI_resample), colors='r')
+#     #plt.show()
 
-    dHR = np.diff(peaks_troughs/srate_resample, axis=1)*1e3
+#     dHR = np.diff(peaks_troughs/srate_resample, axis=1)*1e3
 
-    fig_dHR = plt.figure()
-    ax = plt.subplot(211)
-    plt.plot(times, RRI_resample*1e3)
-    plt.title('RRI')
-    plt.ylabel('ms')
-    plt.subplot(212, sharex=ax)
-    plt.plot(troughs/srate_resample, dHR)
-    plt.hlines(np.median(dHR), xmin=min(times), xmax=max(times), colors='m', label='median = {:.3f}'.format(np.median(dHR)))
-    plt.legend()
-    plt.title('dHR')
-    plt.ylabel('ms')
-    plt.vlines(peaks/srate_resample, ymin=0, ymax=0.01, colors='b')
-    plt.vlines(troughs/srate_resample, ymin=0, ymax=0.01, colors='r')
-    plt.tight_layout()
-    #plt.show()
+#     fig_dHR = plt.figure()
+#     ax = plt.subplot(211)
+#     plt.plot(times, RRI_resample*1e3)
+#     plt.title('RRI')
+#     plt.ylabel('ms')
+#     plt.subplot(212, sharex=ax)
+#     plt.plot(troughs/srate_resample, dHR)
+#     plt.hlines(np.median(dHR), xmin=min(times), xmax=max(times), colors='m', label='median = {:.3f}'.format(np.median(dHR)))
+#     plt.legend()
+#     plt.title('dHR')
+#     plt.ylabel('ms')
+#     plt.vlines(peaks/srate_resample, ymin=0, ymax=0.01, colors='b')
+#     plt.vlines(troughs/srate_resample, ymin=0, ymax=0.01, colors='r')
+#     plt.tight_layout()
+#     #plt.show()
 
-    return fig_verif, fig_dHR
+#     return fig_verif, fig_dHR
 
 #ecg_allcond[cond][odor_i], ecg_cR_allcond[cond][odor_i], prms_hrv
 def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
@@ -1857,8 +1691,8 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
     #### for figures
 
     #### dHR
-    if fig_token:
-        fig_verif, fig_dHR = get_dHR(RRI_resample, srate_resample_hrv, f_RRI)
+    # if fig_token:
+    #     fig_verif, fig_dHR = get_dHR(RRI_resample, srate_resample_hrv, f_RRI)
 
     #### fig
     if fig_token:
@@ -1866,7 +1700,8 @@ def ecg_analysis_homemade(ecg_i, srate, srate_resample_hrv, fig_token=False):
         fig_PSD = get_fig_PSD_LF_HF(Pxx, hzPxx, VLF, LF, HF) 
         fig_poincarre = get_fig_poincarre(RRI)
 
-        fig_list = [fig_RRI, fig_PSD, fig_poincarre, fig_verif, fig_dHR]
+        # fig_list = [fig_RRI, fig_PSD, fig_poincarre, fig_verif, fig_dHR]
+        fig_list = [fig_RRI, fig_PSD, fig_poincarre]
 
         plt.close('all')
 
@@ -2060,31 +1895,123 @@ def nk_analysis(ecg_i, srate):
 
 
 
+
 ########################################
 ######## PERMUTATION STATS ######## 
 ########################################
 
 
-# data_baseline, data_cond = data_baseline_chan, data_cond_chan
-def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
+# data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
+def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax'):
+
+    if debug:
+        plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline')
+        plt.hist(data_cond, bins=50, alpha=0.5, label='cond')
+        plt.legend()
+        plt.show()
 
     n_trials_baselines = data_baseline.shape[0]
-    n_trials_cond = data_cond.shape[0]
-    n_trials_min = np.array([n_trials_baselines, n_trials_cond]).min()
 
     data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
     n_trial_tot = data_shuffle.shape[0]
 
-    ttest_vec_shuffle = np.zeros((n_surr, data_cond.shape[-1]))
+    if mode_grouped == 'mean':
+        obs_distrib = data_baseline.mean() - data_cond.mean()
+    elif mode_grouped == 'median':
+        obs_distrib = np.median(data_baseline) - np.median(data_cond)
 
-    pixel_based_distrib = np.zeros((n_surr, 2))
+    surr_distrib = np.zeros((n_surr, 2))
 
+    #surr_i = 0
     for surr_i in range(n_surr):
 
         #### shuffle
         random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
-        data_shuffle_baseline = data_shuffle[random_sel[:n_trials_min]]
-        data_shuffle_cond = data_shuffle[random_sel[n_trials_min:n_trials_min*2]]
+        data_shuffle_baseline = data_shuffle[random_sel[:n_trials_baselines]]
+        data_shuffle_cond = data_shuffle[random_sel[n_trials_baselines:]]
+
+        if mode_grouped == 'mean':
+            diff_shuffle = data_shuffle_cond.mean() - data_shuffle_baseline.mean()
+        elif mode_grouped == 'median':
+            diff_shuffle = np.median(data_shuffle_cond) - np.median(data_shuffle_baseline)
+
+        #### generate distrib
+        if mode_generate_surr == 'minmax':
+            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = diff_shuffle.min(), diff_shuffle.max()
+        elif mode_generate_surr == 'percentile':
+            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, 1), np.percentile(diff_shuffle, 99)    
+
+    if debug:
+        count, _, _ = plt.hist(surr_distrib[:,0], bins=50, color='k', alpha=0.5)
+        count, _, _ = plt.hist(surr_distrib[:,1], bins=50, color='k', alpha=0.5)
+        plt.vlines([obs_distrib], ymin=0, ymax=count.max(), label='obs', colors='g')
+
+        plt.vlines([np.percentile(surr_distrib[:,0], 0.5)], ymin=0, ymax=count.max(), label='perc_05_995', colors='r', linestyles='--')
+        plt.vlines([np.percentile(surr_distrib[:,1], 99.5)], ymin=0, ymax=count.max(), colors='r', linestyles='--')
+        plt.vlines([np.percentile(surr_distrib[:,0], 2.5)], ymin=0, ymax=count.max(), label='perc_025_975', colors='r', linestyles='-.')
+        plt.vlines([np.percentile(surr_distrib[:,1], 97.5)], ymin=0, ymax=count.max(), colors='r', linestyles='-.')
+        plt.legend()
+        plt.show()
+
+    #### thresh
+    # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 2.5, axis=0), np.percentile(surr_distrib[:,1], 97.5, axis=0)
+    surr_dw, surr_up = np.percentile(surr_distrib[:,0], 0.5, axis=0), np.percentile(surr_distrib[:,1], 99.5, axis=0)
+
+    if obs_distrib < surr_dw or obs_distrib > surr_up:
+        stats_res = True
+    else:
+        stats_res = False
+
+    return stats_res
+
+
+
+
+
+# data_baseline, data_cond, n_surr = data_baseline, data_cond, ERP_n_surrogate
+def get_permutation_cluster_1d(data_baseline, data_cond, n_surr, mode_grouped='median', size_thresh_alpha=0.01, size_thresh_smooth=0.01):
+
+    n_trials_baselines = data_baseline.shape[0]
+    len_sig = data_baseline.shape[-1]
+
+    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
+    n_trial_tot = data_shuffle.shape[0]
+
+    if mode_grouped == 'mean':
+        data_baseline_grouped = np.mean(data_baseline, axis=0)
+        data_cond_grouped = np.mean(data_cond, axis=0)
+    elif mode_grouped == 'median':
+        data_baseline_grouped = np.median(data_baseline, axis=0)
+        data_cond_grouped = np.median(data_cond, axis=0)
+
+    if debug:
+        time = np.arange(len_sig)
+        sem_baseline = data_baseline.std(axis=0)/np.sqrt(data_baseline.shape[0])
+        sem_cond = data_cond.std(axis=0)/np.sqrt(data_cond.shape[0])
+
+        plt.plot(time, data_baseline_grouped, label='baseline', color='c')
+        plt.fill_between(time, data_baseline_grouped-sem_baseline, data_baseline_grouped+sem_baseline, color='c', alpha=0.5)
+        plt.plot(time, data_cond_grouped, label='cond', color='g')
+        plt.fill_between(time, data_cond_grouped-sem_cond, data_cond_grouped+sem_cond, color='g', alpha=0.5)
+        plt.legend()
+        plt.show()
+
+    obs_distrib = data_cond_grouped - data_baseline_grouped
+
+    surr_distrib = np.zeros((n_surr, data_baseline.shape[-1]))
+
+    #surr_i = 0
+    for surr_i in range(n_surr):
+
+        #### shuffle
+        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
+        data_shuffle_baseline = data_shuffle[random_sel[:n_trials_baselines]]
+        data_shuffle_cond = data_shuffle[random_sel[n_trials_baselines:]]
+
+        if mode_grouped == 'mean':
+            surr_distrib[surr_i, :] = np.mean(data_shuffle_cond, axis=0) - np.mean(data_shuffle_baseline, axis=0)
+        elif mode_grouped == 'median':
+            surr_distrib[surr_i, :] = np.median(data_shuffle_cond, axis=0) - np.median(data_shuffle_baseline, axis=0)
 
         if debug:
             plt.plot(np.mean(data_shuffle_baseline, axis=0), label='baseline')
@@ -2092,74 +2019,531 @@ def get_permutation_cluster_1d(data_baseline, data_cond, n_surr):
             plt.legend()
             plt.show()
 
-            plt.plot(ttest_vec_shuffle[surr_i,:], label='shuffle')
-            plt.hlines(0.05, xmin=0, xmax=data_shuffle.shape[-1], color='r')
+            plt.hist(np.median(data_shuffle_baseline, axis=0), bins=50, label='baseline', alpha=0.5)
+            plt.hist(np.median(data_shuffle_cond, axis=0), bins=50, label='cond', alpha=0.5)
             plt.legend()
             plt.show()
 
-        #### extract max min
-        _min, _max = np.median(data_shuffle_cond, axis=0).min(), np.median(data_shuffle_cond, axis=0).max()
-        # _min, _max = np.percentile(np.median(tf_shuffle, axis=0), 1, axis=1), np.percentile(np.median(tf_shuffle, axis=0), 99, axis=1)
-        
-        pixel_based_distrib[surr_i, 0] = _min
-        pixel_based_distrib[surr_i, 1] = _max
+    if debug:
 
-    min, max = np.median(pixel_based_distrib[:,0]), np.median(pixel_based_distrib[:,1]) 
-    # min, max = np.percentile(pixel_based_distrib[:,0], 50), np.percentile(pixel_based_distrib[:,1], 50)
+        plt.plot(obs_distrib)
+        plt.plot(surr_distrib.max(axis=0), label='maxmin', color='k', linestyle='--')
+        plt.plot(surr_distrib.min(axis=0), color='k', linestyle='--')
+        plt.plot(np.percentile(surr_distrib, 1, axis=0), label='perc_1_99', color='r', linestyle='--')
+        plt.plot(np.percentile(surr_distrib, 99, axis=0), color='r', linestyle='--')
+        plt.plot(np.percentile(surr_distrib, 2.5, axis=0), label='perc_025_975', color='g', linestyle='-.')
+        plt.plot(np.percentile(surr_distrib, 97.5, axis=0), color='g', linestyle='-.')
+        plt.legend()
+        plt.show()
+
+    surr_dw, surr_up = np.percentile(surr_distrib, 2.5, axis=0), np.percentile(surr_distrib, 97.5, axis=0)
+
+    #### thresh data
+    mask = (obs_distrib < surr_dw) | (obs_distrib > surr_up)
 
     if debug:
-        plt.plot(np.mean(data_baseline, axis=0), label='baseline')
-        plt.plot(np.mean(data_cond, axis=0), label='cond')
-        plt.hlines(min, xmin=0, xmax=data_shuffle.shape[-1], color='r', label='min')
-        plt.hlines(max, xmin=0, xmax=data_shuffle.shape[-1], color='r', label='max')
+
+        plt.scatter(range(mask.size), mask)
+        plt.show()
+
+    if mask.sum() != 0:
+    
+        #### thresh cluster
+        mask_thresh = mask.astype('uint8')
+        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(mask_thresh)
+        #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+        sizes = stats[1:, -1]
+        nb_blobs -= 1
+        # min_size = np.percentile(sizes,size_thresh)  
+        min_size = len_sig*size_thresh_alpha  
+        min_size_smooth = int(len_sig*size_thresh_smooth) | 1
+
+        if debug:
+
+            count, _, _ = plt.hist(sizes, bins=50, cumulative=True)
+            plt.vlines(min_size, ymin=0, ymax=count.max(), colors='r')
+            plt.show()
+
+        corrected_mask = mask_thresh.copy()
+        corrected_mask[0] = corrected_mask[1]
+        transitions = np.where(np.diff(corrected_mask))[0].astype('int')+1
+        
+        #transi_i = transitions[0]
+        for transi_i in transitions:
+
+            if np.unique(corrected_mask[transi_i:transi_i+min_size_smooth]).shape[0] != 1:
+                corrected_mask[transi_i:transi_i+min_size_smooth] = corrected_mask[transi_i-1]
+
+        if debug:
+
+            plt.scatter(range(mask_thresh.size), mask, label='thresh')
+            plt.scatter(range(corrected_mask.size), corrected_mask, label='corrected')
+            plt.legend
+            plt.show()
+
+        corrected_mask = np.zeros_like(im_with_separated_blobs)
+        for blob in range(nb_blobs):
+            if sizes[blob] >= min_size:
+                corrected_mask[im_with_separated_blobs == blob + 1] = 1
+
+        corrected_mask = corrected_mask.reshape(-1)
+
+        if debug:
+
+            time = np.arange(data_baseline.shape[-1])
+            sem_baseline = data_baseline.std(axis=0)/np.sqrt(data_baseline.shape[0])
+            sem_cond = data_cond.std(axis=0)/np.sqrt(data_cond.shape[0])
+
+            plt.plot(time, data_baseline_grouped, label='baseline', color='c')
+            plt.fill_between(time, data_baseline_grouped-sem_baseline, data_baseline_grouped+sem_baseline, color='c', alpha=0.5)
+            plt.plot(time, data_cond_grouped, label='cond', color='g')
+            plt.fill_between(time, data_cond_grouped-sem_cond, data_cond_grouped+sem_cond, color='g', alpha=0.5)
+            plt.fill_between(time, data_baseline_grouped.min(), data_cond_grouped.max(), where=mask, color='r', alpha=0.5, label='not_thresh')
+            plt.fill_between(time, data_baseline_grouped.min(), data_cond_grouped.max(), where=corrected_mask, color='y', alpha=0.5, label='thresh')
+            plt.title('mask not threshed')
+            plt.legend()
+            plt.show()
+
+    else:
+
+        corrected_mask = mask
+
+    return corrected_mask
+
+
+
+
+# data_baseline, data_cond, n_surr = data_baseline, data_cond, ERP_n_surrogate
+def get_permutation_cluster_1d_DEBUG(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax', mode_select_thresh='median', size_thresh_alpha=0.05, size_thresh_smooth=0.01):
+
+    n_trials_baselines = data_baseline.shape[0]
+    len_sig = data_baseline.shape[-1]
+
+    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
+    n_trial_tot = data_shuffle.shape[0]
+
+    if mode_grouped == 'mean':
+        data_baseline_grouped = np.mean(data_baseline, axis=0)
+        data_cond_grouped = np.mean(data_cond, axis=0)
+    elif mode_grouped == 'median':
+        data_baseline_grouped = np.median(data_baseline, axis=0)
+        data_cond_grouped = np.median(data_cond, axis=0)
+
+    if debug:
+        time = np.arange(len_sig)
+        sem_baseline = data_baseline.std(axis=0)/np.sqrt(data_baseline.shape[0])
+        sem_cond = data_cond.std(axis=0)/np.sqrt(data_cond.shape[0])
+
+        plt.plot(time, data_baseline_grouped, label='baseline', color='c')
+        plt.fill_between(time, data_baseline_grouped-sem_baseline, data_baseline_grouped+sem_baseline, color='c', alpha=0.5)
+        plt.plot(time, data_cond_grouped, label='cond', color='g')
+        plt.fill_between(time, data_cond_grouped-sem_cond, data_cond_grouped+sem_cond, color='g', alpha=0.5)
+        plt.legend()
+        plt.show()
+
+    obs_distrib = data_cond_grouped - data_baseline_grouped
+
+    surr_distrib = np.zeros((n_surr, 2))
+
+    #surr_i = 0
+    for surr_i in range(n_surr):
+
+        #### shuffle
+        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
+        data_shuffle_baseline = data_shuffle[random_sel[:n_trials_baselines]]
+        data_shuffle_cond = data_shuffle[random_sel[n_trials_baselines:]]
+
+        if mode_grouped == 'mean':
+            diff_shuffle = np.mean(data_shuffle_cond, axis=0) - np.mean(data_shuffle_baseline, axis=0)
+        elif mode_grouped == 'median':
+            diff_shuffle = np.median(data_shuffle_cond, axis=0) - np.median(data_shuffle_baseline, axis=0)
+
+        if debug:
+            plt.plot(np.mean(data_shuffle_baseline, axis=0), label='baseline')
+            plt.plot(np.mean(data_shuffle_cond, axis=0), label='cond')
+            plt.legend()
+            plt.show()
+
+            plt.hist(np.median(data_shuffle_baseline, axis=0), bins=50, label='baseline', alpha=0.5)
+            plt.hist(np.median(data_shuffle_cond, axis=0), bins=50, label='cond', alpha=0.5)
+            plt.legend()
+            plt.show()
+
+        #### generate distrib
+        if mode_generate_surr == 'minmax':
+            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = diff_shuffle.min(), diff_shuffle.max()
+        elif mode_generate_surr == 'percentile':
+            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, 1), np.percentile(diff_shuffle, 99)    
+
+    if debug:
+        count, _, _ = plt.hist(surr_distrib[:,0], bins=50, color='k', alpha=0.5)
+        count, _, _ = plt.hist(surr_distrib[:,1], bins=50, color='k', alpha=0.5)
+        count, _, _ = plt.hist(obs_distrib, bins=50, label='obs', color='g')
+        plt.vlines([np.median(surr_distrib[:,0])], ymin=0, ymax=count.max(), label='median', colors='r')
+        plt.vlines([np.median(surr_distrib[:,1])], ymin=0, ymax=count.max(), colors='r')
+        plt.vlines([np.mean(surr_distrib[:,0])], ymin=0, ymax=count.max(), label='mean', colors='b')
+        plt.vlines([np.mean(surr_distrib[:,1])], ymin=0, ymax=count.max(), colors='b')
+        plt.vlines([np.percentile(surr_distrib[:,0], 1)], ymin=0, ymax=count.max(), label='perc_1_99', colors='r', linestyles='--')
+        plt.vlines([np.percentile(surr_distrib[:,1], 99)], ymin=0, ymax=count.max(), colors='r', linestyles='--')
+        plt.vlines([np.percentile(surr_distrib[:,0], 2.5)], ymin=0, ymax=count.max(), label='perc_025_975', colors='r', linestyles='-.')
+        plt.vlines([np.percentile(surr_distrib[:,1], 97.5)], ymin=0, ymax=count.max(), colors='r', linestyles='-.')
+        plt.legend()
+        plt.show()
+
+        plt.plot(obs_distrib)
+        plt.hlines([np.median(surr_distrib[:,0])], xmin=0, xmax=len_sig, label='median', colors='r')
+        plt.hlines([np.median(surr_distrib[:,1])], xmin=0, xmax=len_sig, colors='r')
+        plt.hlines([np.mean(surr_distrib[:,0])], xmin=0, xmax=len_sig, label='mean', colors='b')
+        plt.hlines([np.mean(surr_distrib[:,1])], xmin=0, xmax=len_sig, colors='b')
+        plt.hlines([np.percentile(surr_distrib[:,0], 1)], xmin=0, xmax=len_sig, label='perc_1_99', colors='r', linestyles='--')
+        plt.hlines([np.percentile(surr_distrib[:,1], 99)], xmin=0, xmax=len_sig, colors='r', linestyles='--')
+        plt.hlines([np.percentile(surr_distrib[:,0], 2.5)], xmin=0, xmax=len_sig, label='perc_025_975', colors='r', linestyles='-.')
+        plt.hlines([np.percentile(surr_distrib[:,1], 97.5)], xmin=0, xmax=len_sig, colors='r', linestyles='-.')
+        plt.legend()
+        plt.show()
+
+    if mode_select_thresh == 'percentile':
+        # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 2.5, axis=0), np.percentile(surr_distrib[:,1], 97.5, axis=0)
+        surr_dw, surr_up = np.percentile(surr_distrib[:,0], 1, axis=0), np.percentile(surr_distrib[:,1], 99, axis=0)
+    elif mode_select_thresh == 'mean':
+        surr_dw, surr_up = np.mean(surr_distrib[:,0], axis=0), np.median(surr_distrib[:,1], axis=0)
+    elif mode_select_thresh == 'median':
+        surr_dw, surr_up = np.median(surr_distrib[:,0], axis=0), np.median(surr_distrib[:,1], axis=0)
+
+    #### thresh data
+    mask = (obs_distrib < surr_dw) | (obs_distrib > surr_up)
+
+    if debug:
+
+        plt.scatter(range(mask.size), mask)
+        plt.show()
+
+    if mask.sum() != 0:
+    
+        #### thresh cluster
+        mask_thresh = mask.astype('uint8')
+        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(mask_thresh)
+        #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+        sizes = stats[1:, -1]
+        nb_blobs -= 1
+        # min_size = np.percentile(sizes,size_thresh)  
+        min_size = len_sig*size_thresh_alpha  
+        min_size_smooth = int(len_sig*size_thresh_smooth) | 1
+
+        if debug:
+
+            count, _, _ = plt.hist(sizes, bins=50, cumulative=True)
+            plt.vlines(min_size, ymin=0, ymax=count.max(), colors='r')
+            plt.show()
+
+        corrected_mask = mask_thresh.copy()
+        corrected_mask[0] = corrected_mask[1]
+        transitions = np.where(np.diff(corrected_mask))[0].astype('int')+1
+        
+        #transi_i = transitions[0]
+        for transi_i in transitions:
+
+            if np.unique(corrected_mask[transi_i:transi_i+min_size_smooth]).shape[0] != 1:
+                corrected_mask[transi_i:transi_i+min_size_smooth] = corrected_mask[transi_i-1]
+
+        if debug:
+
+            plt.scatter(range(mask_thresh.size), mask, label='thresh')
+            plt.scatter(range(corrected_mask.size), corrected_mask, label='corrected')
+            plt.legend
+            plt.show()
+
+        corrected_mask = np.zeros_like(im_with_separated_blobs)
+        for blob in range(nb_blobs):
+            if sizes[blob] >= min_size:
+                corrected_mask[im_with_separated_blobs == blob + 1] = 1
+
+        corrected_mask = corrected_mask.reshape(-1)
+
+        if debug:
+
+            time = np.arange(data_baseline.shape[-1])
+            sem_baseline = data_baseline.std(axis=0)/np.sqrt(data_baseline.shape[0])
+            sem_cond = data_cond.std(axis=0)/np.sqrt(data_cond.shape[0])
+
+            plt.plot(time, data_baseline_grouped, label='baseline', color='c')
+            plt.fill_between(time, data_baseline_grouped-sem_baseline, data_baseline_grouped+sem_baseline, color='c', alpha=0.5)
+            plt.plot(time, data_cond_grouped, label='cond', color='g')
+            plt.fill_between(time, data_cond_grouped-sem_cond, data_cond_grouped+sem_cond, color='g', alpha=0.5)
+            plt.fill_between(time, data_baseline_grouped.min(), data_cond_grouped.max(), where=mask, color='r', alpha=0.5, label='not_thresh')
+            plt.fill_between(time, data_baseline_grouped.min(), data_cond_grouped.max(), where=corrected_mask, color='y', alpha=0.5, label='thresh')
+            plt.title('mask not threshed')
+            plt.legend()
+            plt.show()
+
+    else:
+
+        corrected_mask = mask
+
+    return corrected_mask
+
+
+
+
+# data_baseline, data_cond, n_surr = tf_stretch_baseline_allsujet, tf_stretch_cond_allsujet, 100
+def get_permutation_cluster_2d_DEBUG(data_baseline, data_cond, n_surr, mode_grouped='median', mode_generate_surr='minmax', mode_select_thresh='median', size_thresh_alpha=0.01):
+
+    """
+    For data shape (trial,frequences,time)
+
+    """
+
+    #### define ncycle
+    n_trial_baselines = data_baseline.shape[0]
+    n_trial_cond = data_cond.shape[0]
+    n_trial_tot = n_trial_baselines + n_trial_cond
+    len_sig = data_baseline.shape[-1]
+
+    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
+
+    if mode_grouped == 'mean':
+        data_baseline_grouped = np.mean(data_baseline, axis=0)
+        data_cond_grouped = np.mean(data_cond, axis=0)
+    elif mode_grouped == 'median':
+        data_baseline_grouped = np.median(data_baseline, axis=0)
+        data_cond_grouped = np.median(data_cond, axis=0)
+
+    obs_distrib = data_cond_grouped - data_baseline_grouped
+
+    if debug:
+
+        plt.pcolormesh(obs_distrib)
+        plt.show()
+
+    #### space allocation
+    surr_distrib = np.zeros((nfrex, n_surr, 2), dtype=np.float32)
+
+    #surr_i = 0
+    for surr_i in range(n_surr):
+
+        print_advancement(surr_i, n_surr, steps=[25, 50, 75])
+
+        #### shuffle
+        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
+        data_shuffle_baseline = data_shuffle[random_sel[:n_trial_baselines]]
+        data_shuffle_cond = data_shuffle[random_sel[n_trial_baselines:]]
+
+        if mode_grouped == 'mean':
+            diff_shuffle = np.mean(data_shuffle_cond, axis=0) - np.mean(data_shuffle_baseline, axis=0)
+        elif mode_grouped == 'median':
+            diff_shuffle = np.median(data_shuffle_cond, axis=0) - np.median(data_shuffle_baseline, axis=0)
+
+        if debug:
+            plt.pcolormesh(diff_shuffle)
+            plt.show()
+
+        #### generate distrib
+        if mode_generate_surr == 'minmax':
+            surr_distrib[:, surr_i, 0], surr_distrib[:, surr_i, 1] = diff_shuffle.min(axis=1), diff_shuffle.max(axis=1)
+        elif mode_generate_surr == 'percentile':
+            surr_distrib[:, surr_i, 0], surr_distrib[:, surr_i, 1] = np.percentile(diff_shuffle, 1, axis=1), np.percentile(diff_shuffle, 99, axis=1)    
+
+    if mode_select_thresh == 'percentile':
+        # surr_dw, surr_up = np.percentile(surr_distrib[:,:,0], 2.5, axis=1), np.percentile(surr_distrib[:,:,1], 97.5, axis=1)
+        surr_dw, surr_up = np.percentile(surr_distrib[:,:,0], 1, axis=1), np.percentile(surr_distrib[:,:,1], 99, axis=1)
+    elif mode_select_thresh == 'mean':
+        surr_dw, surr_up = np.mean(surr_distrib[:,:,0], axis=1), np.median(surr_distrib[:,:,1], axis=1)
+    elif mode_select_thresh == 'median':
+        surr_dw, surr_up = np.median(surr_distrib[:,:,0], axis=1), np.median(surr_distrib[:,:,1], axis=1)
+
+    if debug:
+
+        bins=50
+        counts = np.zeros((obs_distrib.shape[0], bins))
+        values = np.zeros((obs_distrib.shape[0], bins+1))
+        for row_i in range(obs_distrib.shape[0]):
+            counts[row_i,:], values[row_i,:], _ = plt.hist(obs_distrib[row_i,:], bins=bins)
+        plt.close('all')
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        X, Y = np.meshgrid(values[0, :-1], np.arange(obs_distrib.shape[0]))  # Mesh grid for pcolormesh
+
+        c = ax.pcolormesh(X, Y, counts, cmap='viridis', shading='auto')
+
+        ax.plot(surr_dw, np.arange(150), color='red', linewidth=2, label="surr_dw")
+        ax.plot(surr_up, np.arange(150), color='blue', linewidth=2, label="surr_up")
+
+        ax.set_xlabel("Value Distribution")
+        ax.set_ylabel("150 Points")
+        ax.set_title("Distribution of Values with Vector Overlays")
+        ax.legend()
+
+        fig.colorbar(c, ax=ax, label="Density")
+
+        plt.show()
+
+    #### thresh data
+    mask = np.zeros((obs_distrib.shape), dtype='bool')
+    for row_i in range(obs_distrib.shape[0]):
+        mask[row_i,:] = (obs_distrib[row_i,:] < surr_dw[row_i]) | (obs_distrib[row_i,:] > surr_up[row_i])
+
+    if debug:
+
+        plt.pcolormesh(mask)
+        plt.show()
+
+    if mask.sum() != 0:
+    
+        #### thresh cluster
+        mask_thresh = mask.astype('uint8')
+        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(mask_thresh)
+        #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+        sizes = stats[1:, -1]
+        nb_blobs -= 1
+        # min_size = np.percentile(sizes,size_thresh)  
+        min_size = len_sig*size_thresh_alpha  
+
+        if debug:
+
+            count, _, _ = plt.hist(sizes, bins=50, cumulative=True)
+            plt.vlines(min_size, ymin=0, ymax=count.max(), colors='r')
+            plt.show()
+
+        mask_thresh = np.zeros_like(im_with_separated_blobs)
+        for blob in range(nb_blobs):
+            if sizes[blob] >= min_size:
+                mask_thresh[im_with_separated_blobs == blob + 1] = 1
+
+        if debug:
+
+            fig, ax = plt.subplots()
+
+            time_vec = np.arange(len_sig)
+
+            ax.pcolormesh(obs_distrib, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            ax.contour(mask_thresh, levels=0, colors='g')
+
+            plt.show()
+
+    else:
+
+        mask_thresh = mask
+
+    return mask_thresh
+
+
+# data_baseline, data_cond, n_surr = tf_stretch_baselines[0,:,:,:], tf_stretch_cond[0,:,:,:], 1000
+def get_permutation_cluster_2d(data_baseline, data_cond, n_surr, mode_grouped='mean', size_thresh_alpha=0.01):
+
+    """
+    For data shape (trial,frequences,time)
+
+    """
+
+    #### define ncycle
+    n_trial_baselines = data_baseline.shape[0]
+    n_trial_cond = data_cond.shape[0]
+    n_trial_tot = n_trial_baselines + n_trial_cond
+    len_sig = data_baseline.shape[-1]
+
+    data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
+
+    if mode_grouped == 'mean':
+        data_baseline_grouped = np.mean(data_baseline, axis=0)
+        data_cond_grouped = np.mean(data_cond, axis=0)
+    elif mode_grouped == 'median':
+        data_baseline_grouped = np.median(data_baseline, axis=0)
+        data_cond_grouped = np.median(data_cond, axis=0)
+
+    obs_distrib = data_cond_grouped - data_baseline_grouped
+
+    if debug:
+
+        plt.pcolormesh(obs_distrib)
+        plt.show()
+
+    #### space allocation
+    surr_distrib = np.zeros((n_surr, nfrex, len_sig), dtype=np.float32)
+
+    #surr_i = 0
+    for surr_i in range(n_surr):
+
+        print_advancement(surr_i, n_surr, steps=[25, 50, 75])
+
+        #### shuffle
+        random_sel = np.random.choice(n_trial_tot, size=n_trial_tot, replace=False)
+        data_shuffle_baseline = data_shuffle[random_sel[:n_trial_baselines]]
+        data_shuffle_cond = data_shuffle[random_sel[n_trial_baselines:]]
+
+        if mode_grouped == 'mean':
+            diff_shuffle = np.mean(data_shuffle_cond, axis=0) - np.mean(data_shuffle_baseline, axis=0)
+        elif mode_grouped == 'median':
+            diff_shuffle = np.median(data_shuffle_cond, axis=0) - np.median(data_shuffle_baseline, axis=0)
+
+        surr_distrib[surr_i,:,:] = diff_shuffle
+
+        if debug:
+            plt.pcolormesh(diff_shuffle)
+            plt.show()
+
+    surr_dw, surr_up = np.percentile(surr_distrib, 1, axis=0), np.percentile(surr_distrib, 99, axis=0)
+
+    if debug:
+
+        wavelets_i = 50
+
+        plt.plot(obs_distrib[wavelets_i,:])
+        plt.plot(np.percentile(surr_distrib[wavelets_i,:], 1, axis=0), label='perc_1_99', color='r', linestyle='--')
+        plt.plot(np.percentile(surr_distrib[wavelets_i,:], 99, axis=0), color='r', linestyle='--')
+        plt.plot(np.percentile(surr_distrib[wavelets_i,:], 2.5, axis=0), label='perc_025_975', color='g', linestyle='-.')
+        plt.plot(np.percentile(surr_distrib[wavelets_i,:], 97.5, axis=0), color='g', linestyle='-.')
         plt.legend()
         plt.show()
 
     #### thresh data
-    data_thresh = np.mean(data_cond, axis=0).copy()
-
-    _mask = np.logical_or(data_thresh < min, data_thresh > max)
-    _mask = _mask*1
-
-    if debug:
-
-        plt.plot(_mask)
-        plt.show()
-
-    #### thresh cluster
-    mask = np.zeros(data_cond.shape[-1])
-
-    _mask[0], _mask[-1] = 0, 0 # to ensure np.diff detection
-
-    if _mask.sum() != 0:
- 
-        start, stop = np.where(np.diff(_mask) != 0)[0][::2], np.where(np.diff(_mask) != 0)[0][1::2] 
-        
-        sizes = stop - start
-        min_size = np.percentile(sizes, tf_stats_percentile_cluster_manual_perm)
-        if min_size < erp_time_cluster_thresh:
-            min_size = erp_time_cluster_thresh
-        cluster_signi = sizes >= min_size
-
-        mask = np.zeros(data_cond.shape[-1])
-
-        for cluster_i, cluster_p in enumerate(cluster_signi):
-
-            if cluster_p:
-
-                mask[start[cluster_i]:stop[cluster_i]] = 1
-
-    mask = mask.astype('bool')
+    mask = np.zeros((obs_distrib.shape), dtype='bool')
+    for row_i in range(obs_distrib.shape[0]):
+        mask[row_i,:] = (obs_distrib[row_i,:] < surr_dw[row_i]) | (obs_distrib[row_i,:] > surr_up[row_i])
 
     if debug:
 
-        plt.plot(mask)
+        plt.pcolormesh(mask)
         plt.show()
 
-    return mask
+    if mask.sum() != 0:
+    
+        #### thresh cluster
+        mask_thresh = mask.astype('uint8')
+        nb_blobs, im_with_separated_blobs, stats, _ = cv2.connectedComponentsWithStats(mask_thresh)
+        #### nb_blobs, im_with_separated_blobs, stats = nb clusters, clusters image with labeled clusters, info on clusters
+        sizes = stats[1:, -1]
+        nb_blobs -= 1
+        # min_size = np.percentile(sizes,size_thresh)  
+        min_size = len_sig*size_thresh_alpha  
 
+        if debug:
 
+            count, _, _ = plt.hist(sizes, bins=50, cumulative=True)
+            plt.vlines(min_size, ymin=0, ymax=count.max(), colors='r')
+            plt.show()
 
+        mask_thresh = np.zeros_like(im_with_separated_blobs)
+        for blob in range(nb_blobs):
+            if sizes[blob] >= min_size:
+                mask_thresh[im_with_separated_blobs == blob + 1] = 1
+
+        if debug:
+
+            fig, ax = plt.subplots()
+
+            time_vec = np.arange(len_sig)
+
+            ax.pcolormesh(obs_distrib, shading='gouraud', cmap=plt.get_cmap('seismic'))
+            ax.contour(mask_thresh, levels=0, colors='g')
+
+            plt.show()
+
+    else:
+
+        mask_thresh = mask
+
+    return mask_thresh
 
 
 ########################################

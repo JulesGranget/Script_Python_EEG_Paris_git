@@ -9,8 +9,8 @@ import seaborn as sns
 import pickle
 import gc
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 
 debug = False

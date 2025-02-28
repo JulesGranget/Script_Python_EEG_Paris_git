@@ -7,11 +7,11 @@ import scipy.signal
 import mne
 import pandas as pd
 
-from bycycle.cyclepoints import find_extrema, find_zerox
-from bycycle.plts import plot_cyclepoints_array
+# from bycycle.cyclepoints import find_extrema, find_zerox
+# from bycycle.plts import plot_cyclepoints_array
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 debug = False
 
@@ -591,6 +591,83 @@ def export_cycle_count(sujet, respfeatures_allcond):
 
 
 
+####################################
+######## PLOT MEAN RESPI ########
+####################################
+
+def plot_mean_respi(sujet):
+
+    print(sujet)
+
+    time_vec = np.arange(stretch_point_TF)
+    colors_respi = {'FR_CV_1' : 'b', 'MECA' : 'r', 'CO2' : 'g', 'FR_CV_2' : 'tab:purple'}
+    colors_respi_sem = {'FR_CV_1' : 'c', 'MECA' : 'm', 'CO2' : 'y', 'FR_CV_2' : 'tab:pink'}
+
+    respfeatures = load_respfeatures(sujet)
+    respi_allcond = {}
+    sem_allcond = {}
+    lim = {'min' : np.array([]), 'max' : np.array([])} 
+
+    odor_zscore_params = {}
+
+    for odor in odor_list:
+
+        _respi = np.array([])
+
+        for cond in conditions:
+
+            x = load_data_sujet(sujet, cond, odor)[chan_list.index('PRESS'),:]
+            _respi = np.concat([_respi, x], axis=0)
+
+        odor_zscore_params[odor] = {'mean' : _respi.mean(), 'std' : _respi.std()}
+
+    #### load
+    #cond = 'VS'
+    for cond in conditions:
+
+        respi_allcond[cond] = {}
+        sem_allcond[cond] = {}
+
+        for odor in odor_list:
+
+            x = load_data_sujet(sujet, cond, odor)[chan_list.index('PRESS'),:]
+            x = scipy.signal.detrend(x, type='linear')
+            x = iirfilt(x, srate, lowcut=0.05, highcut=None)
+            x = iirfilt(x, srate, lowcut=None, highcut=45)
+            data_stretch, mean_inspi_ratio = stretch_data(respfeatures[cond][odor], stretch_point_TF, x, srate)
+            data_stretch = (data_stretch - odor_zscore_params[odor]['mean'])/odor_zscore_params[odor]['std']
+            respi_allcond[cond][odor] = data_stretch.mean(axis=0)
+            sem_allcond[cond][odor] = data_stretch.std(axis=0)/np.sqrt(data_stretch.shape[0])
+            lim['min'], lim['max'] = np.append(lim['min'], respi_allcond[cond][odor].min()-sem_allcond[cond][odor]), np.append(lim['max'], respi_allcond[cond][odor].max()+sem_allcond[cond][odor])
+
+    #### plot
+    fig, axs = plt.subplots(ncols=3)
+
+    for odor_i, odor in enumerate(odor_list):
+
+        ax = axs[odor_i]
+
+        #cond = 'VS'
+        for cond in conditions:
+
+            ax.plot(time_vec, respi_allcond[cond][odor], color=colors_respi[cond], label=cond)
+            ax.fill_between(time_vec, respi_allcond[cond][odor]+sem_allcond[cond][odor], respi_allcond[cond][odor]-sem_allcond[cond][odor], alpha=0.25, color=colors_respi_sem[cond])
+
+        ax.vlines(stretch_point_TF/2, ymin=lim['min'].min(), ymax=lim['max'].max(), color='r')
+        ax.set_title(odor)
+        plt.ylim(lim['min'].min(), lim['max'].max())
+
+    plt.suptitle(sujet)
+    plt.legend()
+    # plt.show()
+
+    os.chdir(os.path.join(path_results, 'allplot', 'RESPI', 'mean_respi_allsujet'))
+    plt.savefig(f"{sujet}_respi_mean.png")
+
+    plt.close('all')
+
+
+
 
 
 
@@ -709,6 +786,15 @@ if __name__ == '__main__':
                 respfeatures_allcond[cond][odor_i][1].savefig(f"{sujet}_{cond}_{odor_i}_fig0.jpeg")
                 respfeatures_allcond[cond][odor_i][2].savefig(f"{sujet}_{cond}_{odor_i}_fig1.jpeg")
 
+        
+    ################################
+    ######## PLOT ########
+    ################################
+    
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
+
+        plot_mean_respi(sujet)
 
         
 

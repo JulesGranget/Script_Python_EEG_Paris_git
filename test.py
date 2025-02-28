@@ -32,10 +32,10 @@ import pandas as pd
 
 import gc
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
-from n1bis_prep_info import *
-from n4_precompute_hrv import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
+from n01bis_prep_info import *
+from n04_precompute_hrv import *
 
 debug = False
 

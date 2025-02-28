@@ -9,8 +9,8 @@ import joblib
 import mne_connectivity
 import copy
 
-from n0_config_params import *
-from n0bis_config_analysis_functions import *
+from n00_config_params import *
+from n00bis_config_analysis_functions import *
 
 debug = False
 
@@ -542,9 +542,7 @@ def process_fc_res(FR_CV_normalized, plot_circle_dfc=False, plot_verif=False):
 ######## MI ########
 ################################
 
-def plot_MI():
-
-    stretch = False
+def plot_MI(stretch=False):
 
     #### identify anat info
     chan_list_MI = ['C3', 'Cz', 'C4', 'FC1', 'FC2']
@@ -565,8 +563,8 @@ def plot_MI():
     cond_sel = ['FR_CV_1', 'CO2']
 
     if stretch:
+        time_vec = np.arange(stretch_point_surrogates)
         MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'phase' : time_vec}
-        time_vec = np.arange(stretch_point_TF)
     else:
         time_vec = np.arange(ERP_time_vec[0], ERP_time_vec[1], 1/srate)
         MI_dict = {'sujet' : sujet_list, 'pair' : pairs_to_compute, 'cond' : cond_sel, 'odor' : odor_list, 'time' : time_vec}
@@ -719,10 +717,16 @@ def plot_MI():
                     ax.set_xticklabels(chan_list_MI)
 
             fig.colorbar(im, orientation='vertical', fraction = 0.05)
-            plt.suptitle(f'{phase}_{group}')
+            if stretch:
+                plt.suptitle(f'stretch_{phase}_{group}')
+            else:
+                plt.suptitle(f'nostretch_{phase}_{group}')
 
             os.chdir(os.path.join(path_results, 'allplot', 'FC', 'summary_MI'))
-            fig.savefig(f'{phase}_{group}.png')
+            if stretch:
+                fig.savefig(f'stretch_{phase}_{group}.png')
+            else:
+                fig.savefig(f'nostretch_{phase}_{group}.png')
 
             # plt.show()
 
@@ -769,10 +773,16 @@ def plot_MI():
 
         fig.colorbar(im, orientation='vertical', fraction = 0.05)
 
-        plt.suptitle(f"{group}")
+        if stretch:
+            plt.suptitle(f"stretch_{group}")
+        else:
+            plt.suptitle(f"nostretch_{group}")
 
         os.chdir(os.path.join(path_results, 'allplot', 'FC', 'summary_MI'))
-        fig.savefig(f'diff_{group}.png')
+        if stretch:
+            fig.savefig(f'diff_stretch_{group}.png')
+        else:
+            fig.savefig(f'diff_nostretch_{group}.png')
 
         # plt.show()
 
@@ -801,7 +811,8 @@ if __name__ == '__main__':
 
     ######## MI ########
 
-    plot_MI()
+    plot_MI(stretch=False)
+    plot_MI(stretch=True)
 
     ######## OTHERS ########
 
