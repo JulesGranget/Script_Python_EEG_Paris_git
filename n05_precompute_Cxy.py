@@ -45,7 +45,6 @@ def compute_surrogates_coh_n_chan(n_chan, data_tmp, respi, mask_hzCxy, n_surroga
 
 
 
-
 def precompute_surrogates_coh(sujet):
 
     save_path = os.path.join(path_precompute, 'allsujet', 'PSD_Coh')
@@ -89,6 +88,194 @@ def precompute_surrogates_coh(sujet):
 
     print('Done')
 
+
+#sujet = sujet_list[0]
+def precompute_surrogates_coh_permutations():
+
+    save_path = os.path.join(path_precompute, 'allsujet', 'PSD_Coh')
+    if os.path.exists(os.path.join(save_path, f"perm_intra_Cxy.nc")) and os.path.exists(os.path.join(save_path, f"surr_Cxy_perm_intra.nc")):
+        print(f'ALREADY COMPUTED {sujet}')
+        return
+    
+    nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
+
+    # Precompute frequency bins and mask
+    hzCxy = np.linspace(0, srate / 2, int(nfft / 2 + 1))
+    mask_hzCxy = (hzCxy >= freq_surrogates[0]) & (hzCxy < freq_surrogates[1])
+    hzCxy_respi = hzCxy[mask_hzCxy]
+    
+    #### intra
+    print('intra')
+    cond_sel = ['MECA', 'CO2', 'FR_CV_2']
+    odor_sel = ['o', '+', '-']
+
+    xr_data = np.zeros((2, len(cond_sel), len(odor_sel), len(chan_list_eeg)))
+
+    for cond_i, cond in enumerate(cond_sel):
+
+        for odor_i, odor in enumerate(odor_sel):
+
+            data_Cxy_baseline = np.zeros((len(sujet_list), len(chan_list_eeg)))
+            data_Cxy_cond = np.zeros((len(sujet_list), len(chan_list_eeg)))
+
+            for sujet_i, sujet in enumerate(sujet_list):
+
+                print_advancement(sujet_i, len(sujet_list), steps=[25,50,75])
+
+                respfeatures_allcond = load_respfeatures(sujet)
+
+                median_resp_baseline = np.median(respfeatures_allcond['FR_CV_1'][odor]['cycle_freq'])
+                mask_cxy_hzpxx_baseline = (hzCxy > (median_resp_baseline - around_respi_Cxy)) & (hzCxy < (median_resp_baseline + around_respi_Cxy))
+
+                median_resp_cond = np.median(respfeatures_allcond[cond][odor]['cycle_freq'])
+                mask_cxy_hzpxx_cond = (hzCxy > (median_resp_cond - around_respi_Cxy)) & (hzCxy < (median_resp_cond + around_respi_Cxy))
+
+                data_baseline = load_data_sujet(sujet, 'FR_CV_1', odor)
+                baseline_respi = data_baseline[chan_list.index('PRESS'), :]
+
+                data_cond = load_data_sujet(sujet, cond, odor)
+                cond_respi = data_baseline[chan_list.index('PRESS'), :]
+
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    x_baseline = data_baseline[chan_i, :]
+                    Cxy_baseline = scipy.signal.coherence(x_baseline, baseline_respi, fs=srate, window=hannw, 
+                                                                                            nperseg=nwind, noverlap=noverlap, nfft=nfft)[1][mask_cxy_hzpxx_baseline]
+
+                    y_cond = data_cond[chan_i, :]
+                    Cxy_cond = scipy.signal.coherence(y_cond, cond_respi, fs=srate, window=hannw, 
+                                                                                        nperseg=nwind, noverlap=noverlap, nfft=nfft)[1][mask_cxy_hzpxx_cond]
+                    
+                    data_Cxy_baseline[sujet_i, chan_i] = np.median(Cxy_baseline)
+                    data_Cxy_cond[sujet_i, chan_i] = np.median(Cxy_cond)
+
+            if debug:
+
+                chan_i = 0
+                plt.hist(data_Cxy_baseline[:,chan_i], label='baseline', bins=25)
+                plt.hist(data_Cxy_cond[:,chan_i], label='cond', bins=25)
+                plt.legend()
+                plt.show()
+
+            Cxy_diff = np.median(data_Cxy_cond - data_Cxy_baseline, axis=0)
+
+            clusters = np.zeros((len(chan_list_eeg)))
+
+            for chan_i, chan in enumerate(chan_list_eeg):
+                
+                clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline[:, chan_i], data_Cxy_cond[:, chan_i], n_surrogates_coh, 
+                                                           mode_diff='median', mode_generate_surr='minmax', percentile_thresh=[0.5, 99.5])
+
+            if debug:
+
+                ch_types = ['eeg'] * len(chan_list_eeg)
+                info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+                info.set_montage('standard_1020')
+                mask_params = dict(markersize=10, markerfacecolor='y')
+                vlim = np.abs(Cxy_diff).max()
+
+                fig, ax = plt.subplots()
+                im, _ = mne.viz.plot_topomap(data=Cxy_diff, axes=ax, show=False, names=chan_list_eeg, pos=info, vlim=(-vlim, vlim),
+                                                mask=clusters.astype('bool'), mask_params=mask_params, cmap='seismic')
+                fig.colorbar(im, ax=ax, orientation='vertical')
+                plt.title(odor)
+                plt.show()
+
+            xr_data[0, cond_i, odor_i, :], xr_data[1, cond_i, odor_i, :] = Cxy_diff, clusters
+
+    xr_dict = {'type' : ['Cxy_diff', 'cluster'], 'cond' : cond_sel, 'odor' : odor_sel, 'chan' : chan_list_eeg}
+    xr_intra = xr.DataArray(data=xr_data, dims=xr_dict.keys(), coords=xr_dict)
+
+    #### save intra
+    os.chdir(save_path)
+    xr_intra.to_netcdf('perm_intra_Cxy.nc')
+
+    #### inter
+    print('inter')
+
+    cond_sel = conditions
+    odor_sel = ['+', '-']
+    xr_data = np.zeros((2, len(cond_sel), len(odor_sel), len(chan_list_eeg)))
+
+    for cond_i, cond in enumerate(cond_sel):
+
+        for odor_i, odor in enumerate(odor_sel):
+
+            data_Cxy_baseline = np.zeros((len(sujet_list), len(chan_list_eeg)))
+            data_Cxy_cond = np.zeros((len(sujet_list), len(chan_list_eeg)))
+
+            for sujet_i, sujet in enumerate(sujet_list):
+
+                print_advancement(sujet_i, len(sujet_list), steps=[25,50,75])
+
+                respfeatures_allcond = load_respfeatures(sujet)
+
+                median_resp_baseline = np.median(respfeatures_allcond[cond]['o']['cycle_freq'])
+                mask_cxy_hzpxx_baseline = (hzCxy > (median_resp_baseline - around_respi_Cxy)) & (hzCxy < (median_resp_baseline + around_respi_Cxy))
+
+                median_resp_cond = np.median(respfeatures_allcond[cond][odor]['cycle_freq'])
+                mask_cxy_hzpxx_cond = (hzCxy > (median_resp_cond - around_respi_Cxy)) & (hzCxy < (median_resp_cond + around_respi_Cxy))
+
+                data_baseline = load_data_sujet(sujet, cond, 'o')
+                baseline_respi = data_baseline[chan_list.index('PRESS'), :]
+
+                data_cond = load_data_sujet(sujet, cond, odor)
+                cond_respi = data_baseline[chan_list.index('PRESS'), :]
+
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    x_baseline = data_baseline[chan_i, :]
+                    Cxy_baseline = scipy.signal.coherence(x_baseline, baseline_respi, fs=srate, window=hannw, 
+                                                                                            nperseg=nwind, noverlap=noverlap, nfft=nfft)[1][mask_cxy_hzpxx_baseline]
+
+                    y_cond = data_cond[chan_i, :]
+                    Cxy_cond = scipy.signal.coherence(y_cond, cond_respi, fs=srate, window=hannw, 
+                                                                                        nperseg=nwind, noverlap=noverlap, nfft=nfft)[1][mask_cxy_hzpxx_cond]
+                    
+                    data_Cxy_baseline[sujet_i, chan_i] = np.median(Cxy_baseline)
+                    data_Cxy_cond[sujet_i, chan_i] = np.median(Cxy_cond)
+
+                    
+            if debug:
+
+                plt.plot(hzCxy_respi, np.median(data_Cxy_baseline[:,0,:], axis=0), label='baseline')
+                plt.plot(hzCxy_respi, np.median(data_Cxy_cond[:,0,:], axis=0), label='cond')
+                plt.legend()
+                plt.show()
+
+            Cxy_diff = np.median(data_Cxy_cond - data_Cxy_baseline, axis=0)
+
+            clusters = np.zeros((len(chan_list_eeg)))
+
+            for chan_i, chan in enumerate(chan_list_eeg):
+            
+                clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline[:, chan_i], data_Cxy_cond[:, chan_i], n_surrogates_coh, 
+                                                           mode_diff='median', mode_generate_surr='minmax', percentile_thresh=[0.5, 99.5])
+            if debug:
+
+                ch_types = ['eeg'] * len(chan_list_eeg)
+                info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+                info.set_montage('standard_1020')
+                mask_params = dict(markersize=10, markerfacecolor='y')
+                vlim = np.abs(Cxy_diff).max()
+
+                fig, ax = plt.subplots()
+                im, _ = mne.viz.plot_topomap(data=Cxy_diff, axes=ax, show=False, names=chan_list_eeg, pos=info, vlim=(-vlim, vlim),
+                                                mask=clusters.astype('bool'), mask_params=mask_params, cmap='seismic')
+                fig.colorbar(im, ax=ax, orientation='vertical')
+                plt.title(odor)
+                plt.show()
+
+            xr_data[0,cond_i,odor_i,:], xr_data[1,cond_i,odor_i,:] = Cxy_diff, clusters
+
+    xr_dict = {'type' : ['Cxy_diff', 'cluster'], 'cond' : cond_sel, 'odor' : odor_sel, 'chan' : chan_list_eeg}
+    xr_inter = xr.DataArray(data=xr_data, dims=xr_dict.keys(), coords=xr_dict)
+
+    #### save inter
+    os.chdir(save_path)
+    xr_inter.to_netcdf('perm_inter_Cxy.nc')
+
+    print('Done')
 
 
 
@@ -292,13 +479,13 @@ def precompute_MVL(sujet, band_prep, cond):
 
 if __name__ == '__main__':
 
-    #sujet = sujet_list[0]
-    for sujet in sujet_list:
 
+    # precompute_surrogates_coh(sujet)
+    execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh', [[sujet] for sujet in sujet_list])
+    # sync_folders__push_to_crnldata()  
 
-
-        # precompute_surrogates_coh(sujet)
-        execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh', [[sujet] for sujet in sujet_list])
+    # precompute_surrogates_coh(sujet)
+    execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh_permutations', [])
     # sync_folders__push_to_crnldata()  
 
 

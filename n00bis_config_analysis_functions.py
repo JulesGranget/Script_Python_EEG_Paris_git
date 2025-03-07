@@ -528,6 +528,7 @@ def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15
 
     script_path = os.getcwd()
 
+    #### write process
     if any(isinstance(i, list) for i in params):
 
         slurm_bash_script_name_list = []
@@ -535,15 +536,16 @@ def execute_function_in_slurm_bash(name_script, name_function, params, n_core=15
         for one_param_set in params:
             
             _slurm_bash_script_name = write_script_slurm(name_script, name_function, one_param_set, n_core, mem)
-            slurm_bash_script_name_list.append(slurm_bash_script_name)
+            slurm_bash_script_name_list.append(_slurm_bash_script_name)
 
     else:
 
         slurm_bash_script_name = write_script_slurm(name_script, name_function, params, n_core, mem)
 
-    ###synchro
+    #### synchro
     sync_folders__push_to_mnt()
 
+    #### exec
     if any(isinstance(i, list) for i in params):
 
         for _slurm_bash_script_name in slurm_bash_script_name_list:
@@ -1901,8 +1903,8 @@ def nk_analysis(ecg_i, srate):
 ########################################
 
 
-# data_baseline, data_cond, n_surr = data_baseline, data_cond, n_surr_fc
-def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean', mode_generate_surr='minmax'):
+# data_baseline, data_cond, n_surr = data_Cxy_baseline[:, chan_i], data_Cxy_cond[:, chan_i], n_surrogates_coh
+def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_diff='median', mode_generate_surr='minmax', percentile_thresh=[0.5, 99.5]):
 
     if debug:
         plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline')
@@ -1915,9 +1917,9 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
     data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
     n_trial_tot = data_shuffle.shape[0]
 
-    if mode_grouped == 'mean':
+    if mode_diff == 'mean':
         obs_distrib = data_baseline.mean() - data_cond.mean()
-    elif mode_grouped == 'median':
+    elif mode_diff == 'median':
         obs_distrib = np.median(data_baseline) - np.median(data_cond)
 
     surr_distrib = np.zeros((n_surr, 2))
@@ -1930,9 +1932,9 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
         data_shuffle_baseline = data_shuffle[random_sel[:n_trials_baselines]]
         data_shuffle_cond = data_shuffle[random_sel[n_trials_baselines:]]
 
-        if mode_grouped == 'mean':
+        if mode_diff == 'mean':
             diff_shuffle = data_shuffle_cond.mean() - data_shuffle_baseline.mean()
-        elif mode_grouped == 'median':
+        elif mode_diff == 'median':
             diff_shuffle = np.median(data_shuffle_cond) - np.median(data_shuffle_baseline)
 
         #### generate distrib
@@ -1955,7 +1957,7 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='mean
 
     #### thresh
     # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 2.5, axis=0), np.percentile(surr_distrib[:,1], 97.5, axis=0)
-    surr_dw, surr_up = np.percentile(surr_distrib[:,0], 0.5, axis=0), np.percentile(surr_distrib[:,1], 99.5, axis=0)
+    surr_dw, surr_up = np.percentile(surr_distrib[:,0], percentile_thresh[0], axis=0), np.percentile(surr_distrib[:,1], percentile_thresh[1], axis=0)
 
     if obs_distrib < surr_dw or obs_distrib > surr_up:
         stats_res = True

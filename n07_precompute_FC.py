@@ -512,7 +512,7 @@ if __name__ == '__main__':
         for cond in conditions:
 
             # get_wpli_ispc_fc_dfc(sujet, cond, band_prep, band, freq, monopol)
-            execute_function_in_slurm_bash_mem_choice('n7_precompute_FC', 'get_wpli_ispc_fc_dfc', [sujet, cond], '35G')
+            execute_function_in_slurm_bash('n7_precompute_FC', 'get_wpli_ispc_fc_dfc', [sujet, cond], '35G')
 
 
 

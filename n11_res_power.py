@@ -28,130 +28,6 @@ debug = False
 
 
 
-#dict2reduce = cyclefreq_binned_allcond
-def reduce_data(dict2reduce, prms):
-
-    #### identify count
-    dict_count = {}
-        #### for cyclefreq & Pxx
-    if list(dict2reduce.keys())[0] in band_prep_list:
-
-        for cond in prms['conditions']:
-            dict_count[cond] = len(dict2reduce[band_prep_list[0]][cond])
-        #### for surrogates
-    elif len(list(dict2reduce.keys())) == 4 and list(dict2reduce.keys())[0] not in prms['conditions']:
-
-        for cond in prms['conditions']:
-            dict_count[cond] = len(dict2reduce[list(dict2reduce.keys())[0]][cond])
-        #### for Cxy & MVL
-    else:
-
-        for cond in prms['conditions']:
-            dict_count[cond] = len(dict2reduce[cond])    
-
-    #### for Pxx & Cyclefreq reduce
-    if np.sum([True for i in list(dict2reduce.keys()) if i in band_prep_list]) > 0:
-    
-        #### generate dict
-        dict_reduced = {}
-
-        for band_prep in band_prep_list:
-            dict_reduced[band_prep] = {}
-
-            for cond in prms['conditions']:
-                dict_reduced[band_prep][cond] = np.zeros(( dict2reduce[band_prep][cond][0].shape ))
-
-        #### fill
-        for band_prep in band_prep_list:
-
-            for cond in prms['conditions']:
-
-                for session_i in range(dict_count[cond]):
-
-                    dict_reduced[band_prep][cond] += dict2reduce[band_prep][cond][session_i]
-
-                dict_reduced[band_prep][cond] /= dict_count[cond]
-
-    #### for Cxy & MVL reduce
-    elif np.sum([True for i in list(dict2reduce.keys()) if i in prms['conditions']]) > 0:
-
-        #### generate dict
-        dict_reduced = {}
-
-        for cond in prms['conditions']:
-
-            dict_reduced[cond] = np.zeros(( dict2reduce[cond][0].shape ))
-
-        #### fill
-        for cond in prms['conditions']:
-
-            for session_i in range(dict_count[cond]):
-
-                dict_reduced[cond] += dict2reduce[cond][session_i]
-
-            dict_reduced[cond] /= dict_count[cond]
-
-    #### for surrogates
-    else:
-        
-        #### generate dict
-        dict_reduced = {}
-        for key in list(dict2reduce.keys()):
-            dict_reduced[key] = {}
-            for cond in prms['conditions']:
-                dict_reduced[key][cond] = np.zeros(( dict2reduce[key][cond][0].shape ))
-
-        #### fill
-        #key = 'Cxy'
-        for key in list(dict2reduce.keys()):
-
-            for cond in prms['conditions']:
-
-                for session_i in range(dict_count[cond]):
-
-                    dict_reduced[key][cond] += dict2reduce[key][cond][session_i]
-
-                dict_reduced[key][cond] /= dict_count[cond]
-
-    #### verify
-        #### for cyclefreq & Pxx
-    if list(dict2reduce.keys())[0] in band_prep_list:
-
-        for band_prep in band_prep_list:
-            for cond in prms['conditions']:
-                try: 
-                    _ = dict_reduced[band_prep][cond].shape
-                except:
-                    raise ValueError('reducing wrong')
-        
-        #### for surrogates
-    elif len(list(dict2reduce.keys())) == 4 and list(dict2reduce.keys())[0] not in prms['conditions']:
-
-        list_surr = list(dict2reduce.keys())
-
-        for surr_i in list_surr:
-        
-            for cond in prms['conditions']:
-                try: 
-                    _ = dict_reduced[surr_i][cond].shape
-                except:
-                    raise ValueError('reducing wrong')
-    
-        #### for Cxy & MVL
-    else:
-
-        for cond in prms['conditions']:
-            try: 
-                _ = dict_reduced[cond].shape
-            except:
-                raise ValueError('reducing wrong')
-
-    return dict_reduced
-
-
-
-
-
 
 def load_surrogates(sujet):
 
@@ -185,7 +61,7 @@ def load_surrogates(sujet):
 
 
 #### compute Pxx & Cxy & Cyclefreq
-def compute_PxxCxyCyclefreq_for_cond_session(sujet, cond, odor_i, band_prep):
+def compute_PxxCxyCyclefreq_for_cond_session(sujet, cond, odor_i):
     
     print(cond, odor_i, flush=True)
 
@@ -288,7 +164,7 @@ def compute_PxxCxyCyclefreq_for_cond_session(sujet, cond, odor_i, band_prep):
 
 
 
-def compute_all_PxxCxyCyclefreq(sujet, band_prep):
+def compute_all_PxxCxyCyclefreq(sujet):
 
     data_allcond = {}
 
@@ -310,7 +186,7 @@ def compute_all_PxxCxyCyclefreq(sujet, band_prep):
 
             data_allcond[data_type][cond][odor_i] = []        
 
-            Pxx_for_cond, Cxy_for_cond, cyclefreq_for_cond, MVL_for_cond = compute_PxxCxyCyclefreq_for_cond_session(sujet, cond, odor_i, band_prep)
+            Pxx_for_cond, Cxy_for_cond, cyclefreq_for_cond, MVL_for_cond = compute_PxxCxyCyclefreq_for_cond_session(sujet, cond, odor_i)
 
             data_allcond['Pxx'][cond][odor_i] = Pxx_for_cond
             data_allcond['Cxy'][cond][odor_i] = Cxy_for_cond
@@ -322,7 +198,7 @@ def compute_all_PxxCxyCyclefreq(sujet, band_prep):
 
 
 
-def compute_PxxCxyCyclefreqSurrogates(sujet, band_prep):
+def compute_PxxCxyCyclefreqSurrogates(sujet):
 
     #### load params
     surrogates_allcond = load_surrogates(sujet)
@@ -336,7 +212,7 @@ def compute_PxxCxyCyclefreqSurrogates(sujet, band_prep):
     if compute_token:
     
         #### compute metrics
-        data_allcond = compute_all_PxxCxyCyclefreq(sujet, band_prep)
+        data_allcond = compute_all_PxxCxyCyclefreq(sujet)
 
         #### save 
         os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
@@ -406,8 +282,11 @@ def get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet):
 
 
 
+
+
+
 #n_chan, chan_name = 0, chan_list_eeg[0]
-def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name, band_prep):
+def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name):
 
     #### load data
     Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
@@ -475,7 +354,7 @@ def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name, band_prep):
 
         #### save
         os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'summary'))
-        fig.savefig(f'{sujet}_{chan_name}_odor_{odor_i}_{band_prep}.jpeg', dpi=150)
+        fig.savefig(f'{sujet}_{chan_name}_odor_{odor_i}.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
@@ -533,7 +412,7 @@ def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name, band_prep):
 
         #### save
         os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'summary'))
-        fig.savefig(f'{sujet}_{chan_name}_cond_{cond}_{band_prep}.jpeg', dpi=150)
+        fig.savefig(f'{sujet}_{chan_name}_cond_{cond}.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
@@ -555,7 +434,7 @@ def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name, band_prep):
 
 
 #n_chan, chan_name = 0, chan_list_eeg[0]
-def plot_save_Cxy_TOPOPLOT(sujet, band_prep):
+def plot_save_Cxy_TOPOPLOT():
 
     #### create montage
     ch_types = ['eeg'] * len(chan_list_eeg)
@@ -565,73 +444,66 @@ def plot_save_Cxy_TOPOPLOT(sujet, band_prep):
     mask_params = dict(markersize=15, markerfacecolor='y')
 
     #### load data
-    Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh'))
+    xr_intra = xr.open_dataarray(f"perm_intra_Cxy.nc")
+    xr_inter = xr.open_dataarray(f"perm_inter_Cxy.nc")
     prms = get_params()
-    respfeatures_allcond = load_respfeatures(sujet)
 
     #### params
-    hzPxx = np.linspace(0,srate/2,int(prms['nfft']/2+1))
     hzCxy = np.linspace(0,srate/2,int(prms['nfft']/2+1))
     mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
     hzCxy = hzCxy[mask_hzCxy]
 
-    cond_sel = ['FR_CV_1', 'CO2']
+    #### INTRA plot Cxy
+    vlim = np.abs(np.array([xr_intra.loc['Cxy_diff', :, :].values.min(), xr_intra.loc['Cxy_diff', :, :].values.max()])).max()
 
-    #### reduce data
-    topoplot_data = {}
-
-    for cond in cond_sel:
-
-        topoplot_data[cond] = {}
-
-        for odor_i in odor_list:
-
-            topoplot_data[cond][odor_i] = {}
-
-            mean_resp = respfeatures_allcond[cond][odor_i]['cycle_freq'].mean()
-            hzCxy_mask = (hzCxy > (mean_resp - around_respi_Cxy)) & (hzCxy < (mean_resp + around_respi_Cxy))
-
-            Cxy_allchan_i = Cxy_allcond[cond][odor_i][:,hzCxy_mask].mean(axis=1)
-            topoplot_data[cond][odor_i]['Cxy'] = Cxy_allchan_i
-
-            Cxy_allchan_surr_i = surrogates_allcond['Cxy'][cond][odor_i][:len(chan_list_eeg),hzCxy_mask].mean(axis=1)
-            topoplot_data[cond][odor_i]['Cxy_surr_val'] = Cxy_allchan_surr_i
-            topoplot_data[cond][odor_i]['Cxy_surr'] = np.array(Cxy_allchan_i > Cxy_allchan_surr_i)*1
-
-    #### check val
-    if debug:
-
-        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel))
-        plt.suptitle(f'{sujet}_Cxy')
-        fig.set_figheight(10)
-        fig.set_figwidth(10) 
-
-        for c, cond in enumerate(cond_sel):
-
-            #r, odor_i = 0, odor_list[0]
-            for r, odor_i in enumerate(odor_list):
-
-                ax = axs[r, c]
-
-                ax.plot(topoplot_data[cond][odor_i]['Cxy'], label='Cxy')
-                ax.plot(topoplot_data[cond][odor_i]['Cxy_surr_val'], label='Cxy_surr')
-                ax.set_ylim(0,1)
-        
-        plt.legend()
-        plt.show()
-
-
-    #### plot Cxy
-    fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel))
-    plt.suptitle(f'{sujet}_Cxy')
+    cond_sel = ['CO2']
+    odor_sel = odor_list
+    fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+    plt.suptitle(f'intra_Cxy')
     fig.set_figheight(10)
     fig.set_figwidth(10)
 
     #c, cond = 0, 'FR_CV_1'
     for c, cond in enumerate(cond_sel):
 
-        #r, odor_i = 0, odor_list[0]
-        for r, odor_i in enumerate(odor_list):
+        #r, odor = 0, odor_list[0]
+        for r, odor in enumerate(odor_sel):
+
+            #### plot
+            ax = axs[r]
+
+            if r == 0:
+                ax.set_title(cond, fontweight='bold', rotation=0)
+            if c == 0:
+                ax.set_ylabel(f'{odor}')
+
+            topoplot_data = xr_intra.loc['Cxy_diff', odor, :].values
+            mask_signi = xr_intra.loc['cluster', odor, :].values.astype('bool')
+
+            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
+            
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label('Amplitude')
+
+    # plt.show() 
+
+    #### INTER plot Cxy
+    vlim = np.abs(np.array([xr_inter.loc['Cxy_diff', :, :, :].values.min(), xr_inter.loc['Cxy_diff', :, :, :].values.max()])).max()
+
+    cond_sel = ['FR_CV_1', 'CO2']
+    odor_sel = ['+', '-']
+    fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+    plt.suptitle(f'inter_Cxy')
+    fig.set_figheight(10)
+    fig.set_figwidth(10)
+
+    #c, cond = 0, 'FR_CV_1'
+    for c, cond in enumerate(cond_sel):
+
+        #r, odor = 0, odor_list[0]
+        for r, odor in enumerate(odor_sel):
 
             #### plot
             ax = axs[r, c]
@@ -639,15 +511,16 @@ def plot_save_Cxy_TOPOPLOT(sujet, band_prep):
             if r == 0:
                 ax.set_title(cond, fontweight='bold', rotation=0)
             if c == 0:
-                ax.set_ylabel(f'{odor_i}')
+                ax.set_ylabel(f'{odor}')
 
-            mask_signi = topoplot_data[cond][odor_i][f'Cxy_surr'].astype('bool')
+            topoplot_data = xr_inter.loc['Cxy_diff', cond, odor, :].values
+            mask_signi = xr_inter.loc['cluster', cond, odor, :].values.astype('bool')
 
-            im, _ = mne.viz.plot_topomap(data=topoplot_data[cond][odor_i][f'Cxy'], axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                    mask=mask_signi, mask_params=mask_params, vlim=(0, 1), cmap='OrRd')
+            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
             
-    cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label('Amplitude')
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label('Amplitude')
 
     # plt.show() 
 
@@ -663,7 +536,7 @@ def plot_save_Cxy_TOPOPLOT(sujet, band_prep):
 
 
 #n_chan, chan_name = 0, chan_list_eeg[0]
-def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
+def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet):
 
     #### create montage
     ch_types = ['eeg'] * len(chan_list_eeg)
@@ -801,9 +674,9 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
 
         #### save
         os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
-        fig.savefig(f'{sujet}_Pxx_{band}_{band_prep}_topo.jpeg', dpi=150)
+        fig.savefig(f'{sujet}_Pxx_{band}_topo.jpeg', dpi=150)
         os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet'))
-        fig.savefig(f'Pxx_{band}_{sujet}_{band_prep}_topo.jpeg', dpi=150)
+        fig.savefig(f'Pxx_{band}_{sujet}_topo.jpeg', dpi=150)
         fig.clf()
         plt.close('all')
         gc.collect()
@@ -850,9 +723,9 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep):
 
             #### save
             os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
-            fig.savefig(f'{sujet}_{metric_type}_{data_type}_{band_prep}_topo.jpeg', dpi=150)
+            fig.savefig(f'{sujet}_{metric_type}_{data_type}_topo.jpeg', dpi=150)
             os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet'))
-            fig.savefig(f'{data_type}_{metric_type}_{sujet}_{band_prep}_topo.jpeg', dpi=150)
+            fig.savefig(f'{data_type}_{metric_type}_{sujet}_topo.jpeg', dpi=150)
             fig.clf()
             plt.close('all')
             gc.collect()
@@ -893,38 +766,37 @@ def compute_TF_ITPC(sujet):
         #### load file with reducing to one TF
         tf_stretch_allcond = {}
 
-        #band_prep = 'wb'
-        for band_prep in band_prep_list:
+        band_prep = 'wb'
 
-            tf_stretch_allcond[band_prep] = {}
+        tf_stretch_allcond[band_prep] = {}
 
-            #### chose nfrex
-            _, nfrex = get_wavelets(band_prep, list(freq_band_dict[band_prep].values())[0])  
+        #### chose nfrex
+        _, nfrex = get_wavelets(band_prep, list(freq_band_dict[band_prep].values())[0])  
 
-            #cond = 'FR_CV'
-            for cond in conditions:
+        #cond = 'FR_CV'
+        for cond in conditions:
 
-                tf_stretch_allcond[band_prep][cond] = {}
+            tf_stretch_allcond[band_prep][cond] = {}
 
-                for odor_i in odor_list:
+            for odor_i in odor_list:
 
-                    tf_stretch_allcond[band_prep][cond][odor_i] = {}
+                tf_stretch_allcond[band_prep][cond][odor_i] = {}
 
-                    #### impose good order in dict
-                    for band, freq in freq_band_dict[band_prep].items():
-                        tf_stretch_allcond[band_prep][cond][odor_i][band] = np.zeros(( len(chan_list_eeg), nfrex, stretch_point_TF ))
+                #### impose good order in dict
+                for band, freq in freq_band_dict[band_prep].items():
+                    tf_stretch_allcond[band_prep][cond][odor_i][band] = np.zeros(( len(chan_list_eeg), nfrex, stretch_point_TF ))
 
-                    #### load file
-                    for band, freq in freq_band_dict[band_prep].items():
-                        
-                        for file_i in os.listdir(): 
+                #### load file
+                for band, freq in freq_band_dict[band_prep].items():
+                    
+                    for file_i in os.listdir(): 
 
-                            if file_i.find(f'{freq[0]}_{freq[1]}_{cond}_{odor_i}') != -1 and file_i.find('STATS') == -1:
-                                file_to_load = file_i
-                            else:
-                                continue
-                        
-                        tf_stretch_allcond[band_prep][cond][odor_i][band] += np.load(file_to_load)
+                        if file_i.find(f'{freq[0]}_{freq[1]}_{cond}_{odor_i}') != -1 and file_i.find('STATS') == -1:
+                            file_to_load = file_i
+                        else:
+                            continue
+                    
+                    tf_stretch_allcond[band_prep][cond][odor_i][band] += np.load(file_to_load)
                
         #### save
         if tf_mode == 'TF':
@@ -1005,11 +877,11 @@ def get_tf_stats(tf, pixel_based_distrib):
     
 
 
-def compilation_compute_TF_ITPC(sujet, band_prep, stats_plot):
+def compilation_compute_TF_ITPC(sujet, stats_plot):
 
     # compute_TF_ITPC(sujet)
 
-    # if os.path.exists(os.path.join(path_results, sujet, 'TF', 'summary', f'{sujet}_Fp1_inter_{band_prep}.jpeg')):
+    # if os.path.exists(os.path.join(path_results, sujet, 'TF', 'summary', f'{sujet}_Fp1_inter.jpeg')):
     #     print('TF PLOT ALREADY COMPUTED', flush=True)
     #     return
     
@@ -1169,9 +1041,9 @@ def compilation_compute_TF_ITPC(sujet, band_prep, stats_plot):
                     os.chdir(os.path.join(path_results, sujet, 'ITPC', 'summary'))
 
                 if tf_stats_type == 'inter':
-                    fig.savefig(f'{sujet}_{chan_name}_inter_{band_prep}.jpeg', dpi=150)
+                    fig.savefig(f'{sujet}_{chan_name}_inter.jpeg', dpi=150)
                 if tf_stats_type == 'intra':
-                    fig.savefig(f'{sujet}_{chan_name}_intra_{band_prep}.jpeg', dpi=150)
+                    fig.savefig(f'{sujet}_{chan_name}_intra.jpeg', dpi=150)
 
                 #### save for allsujet
                 if tf_mode == 'TF':
@@ -1180,9 +1052,9 @@ def compilation_compute_TF_ITPC(sujet, band_prep, stats_plot):
                     os.chdir(os.path.join(path_results, 'allplot', 'ITPC', 'allsujet', chan_name))
 
                 if tf_stats_type == 'inter':
-                    fig.savefig(f'{sujet}_{chan_name}_inter_{band_prep}.jpeg', dpi=150)
+                    fig.savefig(f'{sujet}_{chan_name}_inter.jpeg', dpi=150)
                 if tf_stats_type == 'intra':
-                    fig.savefig(f'{sujet}_{chan_name}_intra_{band_prep}.jpeg', dpi=150)
+                    fig.savefig(f'{sujet}_{chan_name}_intra.jpeg', dpi=150)
                     
                 fig.clf()
                 plt.close('all')
@@ -1197,26 +1069,26 @@ def compilation_compute_TF_ITPC(sujet, band_prep, stats_plot):
 ######## COMPILATION FUNCTION ########
 ########################################
 
-def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep):
+def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet):
 
     #### compute & reduce surrogates
     print('######## COMPUTE PSD AND COH ########', flush=True)
-    compute_PxxCxyCyclefreqSurrogates(sujet, band_prep)
+    compute_PxxCxyCyclefreqSurrogates(sujet)
     
     #### compute joblib
     print('######## PLOT & SAVE PSD AND COH ########', flush=True)
-    # if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'summary', f'{sujet}_Fp1_odor_o_{band_prep}.jpeg')):
+    # if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'summary', f'{sujet}_Fp1_odor_o.jpeg')):
     #     print('NCHAN PLOT ALREADY COMPUTED', flush=True)
     # else:    
-    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(plot_save_PSD_Cxy_CF_MVL)(sujet, n_chan, chan_name, band_prep) for n_chan, chan_name in enumerate(chan_list_eeg))
+    joblib.Parallel(n_jobs = n_core, prefer = 'processes')(joblib.delayed(plot_save_PSD_Cxy_CF_MVL)(sujet, n_chan, chan_name) for n_chan, chan_name in enumerate(chan_list_eeg))
 
     print('######## PLOT & SAVE TOPOPLOT ########', flush=True)
-    # if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', f'{sujet}_Cxy_raw_{band_prep}_topo.jpeg')) and os.path.exists(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet', f'raw_Cxy_{sujet}_{band_prep}_topo.jpeg')):
+    # if os.path.exists(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot', f'{sujet}_Cxy_raw_topo.jpeg')) and os.path.exists(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet', f'raw_Cxy_{sujet}_{band_prep}_topo.jpeg')):
     #     print('TOPOPLOT ALREADY COMPUTED', flush=True)
     # else:    
     
-    # plot_save_Cxy_TOPOPLOT(sujet, band_prep)
-    # plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet, band_prep)
+    # plot_save_Cxy_TOPOPLOT(sujet)
+    # plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(sujet)
 
     print('done', flush=True)
 
@@ -1231,7 +1103,8 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep):
 
 if __name__ == '__main__':
 
-    band_prep = 'wb'
+    plot_save_Cxy_TOPOPLOT()
+
     # stats_plot = False
 
     #sujet = sujet_list[0]
@@ -1240,14 +1113,14 @@ if __name__ == '__main__':
         print(sujet, flush=True)
 
         #### Cxy
-        plot_save_Cxy_TOPOPLOT(sujet, band_prep)
+        plot_save_Cxy_TOPOPLOT(sujet)
 
         #### Pxx CycleFreq
-        # compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet, band_prep)
-        # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet, band_prep], '15G')
+        # compilation_compute_Pxx_Cxy_Cyclefreq_MVL(sujet)
+        # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [sujet], '15G')
 
         #### TF & ITPC
-        # compilation_compute_TF_ITPC(sujet, band_prep, stats_plot)
-        # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_TF_ITPC', [sujet, band_prep, stats_plot], '15G')
+        # compilation_compute_TF_ITPC(sujet, stats_plot)
+        # execute_function_in_slurm_bash_mem_choice('n11_res_power', 'compilation_compute_TF_ITPC', [sujet, stats_plot], '15G')
 
 

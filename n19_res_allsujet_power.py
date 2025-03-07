@@ -92,6 +92,8 @@ def get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet):
 
 
 
+
+
 def get_Cxy_Surrogates_allcond(sujet):
 
     source_path = os.getcwd()
@@ -256,6 +258,49 @@ def compute_Cxy_Surrogates_allsujet():
 
     
     return xr_allsujet
+
+
+
+def compute_Cxy_Surrogates_allsujet():
+
+    metric_to_load = ['Cxy', 'Cxy_surr']
+    xr_data = np.zeros(( len(sujet_list), len(metric_to_load), len(conditions), len(odor_list), len(chan_list_eeg)))
+    xr_dict = {'sujet' : sujet_list, 'metric' : metric_to_load, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg}
+    xr_allsujet = xr.DataArray(xr_data, dims=xr_dict.keys(), coords=xr_dict.values())  
+
+    #sujet = sujet_list[0]
+    for sujet in sujet_list:
+
+        #### load data
+        Pxx_allcond, Cxy_allcond, surrogates_allcond, cyclefreq_allcond, MVL_allcond = get_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allcond(sujet)
+        prms = get_params()
+        respfeatures_allcond = load_respfeatures(sujet)
+
+        #### params
+        hzPxx = np.linspace(0,srate/2,int(prms['nfft']/2+1))
+        hzCxy = np.linspace(0,srate/2,int(prms['nfft']/2+1))
+        mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
+        hzCxy = hzCxy[mask_hzCxy]
+
+        #### reduce data
+        for cond in conditions:
+
+            for odor_i in odor_list:
+
+                mean_resp = respfeatures_allcond[cond][odor_i]['cycle_freq'].mean()
+                hzCxy_mask = (hzCxy > (mean_resp - around_respi_Cxy)) & (hzCxy < (mean_resp + around_respi_Cxy))
+
+                Cxy_allchan_i = Cxy_allcond[cond][odor_i][:,hzCxy_mask].mean(axis=1)
+                xr_allsujet.loc[sujet, 'Cxy', cond, odor_i, :] = Cxy_allchan_i
+
+                Cxy_allchan_surr_i = surrogates_allcond['Cxy'][cond][odor_i][:len(chan_list_eeg),hzCxy_mask].mean(axis=1)
+                xr_allsujet.loc[sujet, 'Cxy_surr', cond, odor_i, :] = np.array(Cxy_allchan_i > Cxy_allchan_surr_i)*1
+
+    
+    return xr_allsujet
+
+
+
 
     
 
@@ -441,48 +486,65 @@ def plot_save_Cxy_TOPOPLOT_allsujet():
 
     montage = mne.channels.make_standard_montage('standard_1020')
     pos = montage.get_positions()['ch_pos']
-    xy_coords = np.array([pos[ch] for ch in info.ch_names])  # Get x, y positions of each electrode
 
     #### load data
-    xr_allsujet = compute_Cxy_Surrogates_allsujet()
-    prms = get_params()
+    # xr_allsujet = compute_Cxy_Surrogates_allsujet()
 
-    #### params
-    hzPxx = np.linspace(0,srate/2,int(prms['nfft']/2+1))
-    hzCxy = np.linspace(0,srate/2,int(prms['nfft']/2+1))
-    mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
-    hzCxy = hzCxy[mask_hzCxy]
+    nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
+    hzCxy = np.linspace(0, srate / 2, int(nfft / 2 + 1))
+    mask_hzCxy = (hzCxy >= freq_surrogates[0]) & (hzCxy < freq_surrogates[1])
+    hzCxy_respi = hzCxy[mask_hzCxy]
+    data_cxy = np.zeros((2, len(sujet_list), len(conditions), len(odor_list), len(chan_list_eeg)))
 
-    cond_sel = ['FR_CV_1', 'CO2']
+    #sujet = sujet_list[0]
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        respfeatures_allcond = load_respfeatures(sujet)
+
+        os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh'))
+        
+        _surr_cxy = np.load(f"{sujet}_surr_Cxy.npy")[:,:,:len(chan_list_eeg),:]
+
+        os.chdir(os.path.join(path_precompute, sujet, 'PSD_Coh'))
+
+        with open(f'allcond_{sujet}_Cxy.pkl', 'rb') as f:
+            Cxy_allcond = pickle.load(f)
+
+        for cond_i, cond in enumerate(conditions):
+
+            for odor_i, odor in enumerate(odor_list):
+                
+                median_resp = np.median(respfeatures_allcond[cond][odor]['cycle_freq'])
+                mask_cxy_hzpxx = (hzCxy_respi > (median_resp - around_respi_Cxy)) & (hzCxy_respi < (median_resp + around_respi_Cxy))
+
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    data_cxy[0, sujet_i,cond_i,odor_i,chan_i] = np.median(Cxy_allcond[cond][odor][chan_i,mask_cxy_hzpxx])
+                    data_cxy[1, sujet_i,cond_i,odor_i,chan_i] = np.median(_surr_cxy[cond_i,odor_i,chan_i,mask_cxy_hzpxx])
+
+                if debug:
+
+                    plt.plot(hzCxy_respi, Cxy_allcond[cond][odor][0,:], label='Cxy')
+                    plt.plot(hzCxy_respi, data_cxy[1,sujet_i,cond_i,odor_i,0,:], label='Cxy_surr', color='r', linestyle='--')
+                    plt.ylim(0,1)
+                    plt.legend()
+                    plt.show()
+
+    xr_dict = {'type' : ['Cxy', 'surr'], 'sujet' : sujet_list, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg}
+    xr_Cxy = xr.DataArray(data=data_cxy, dims=xr_dict.keys(), coords=xr_dict)
+
     sujet_group_list = {'allsujet' : sujet_list, 'rep' : sujet_best_list_rev, 'norep' : sujet_no_respond_rev}
 
-    #### reduce data
-    topoplot_data = {}
-    vlim = np.array([])
-
-    for sujet_group in sujet_group_list:
-
-        topoplot_data[sujet_group] = {}
-
-        for cond in cond_sel:
-
-            topoplot_data[sujet_group][cond] = {}
-
-            for odor in odor_list:
-
-                topoplot_data[sujet_group][cond][odor] = {}
-
-                topoplot_data[sujet_group][cond][odor]['Cxy'] = xr_allsujet.loc[sujet_group_list[sujet_group], 'Cxy', cond, odor, :].mean('sujet').values
-                topoplot_data[sujet_group][cond][odor]['Cxy_surr'] = xr_allsujet.loc[sujet_group_list[sujet_group], 'Cxy_surr', cond, odor, :].sum('sujet').values/sujet_group_list[sujet_group].size *100
-
-                vlim = np.append(vlim, xr_allsujet.loc[sujet_group_list[sujet_group], 'Cxy', cond, odor, :].mean('sujet').values)
-
-    max = vlim.max()
+    cond_sel = ['FR_CV_1', 'CO2']
+    vlim = {sujet_group : xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond_sel, :, :].median('sujet').max().values for sujet_group in sujet_group_list}
+    vlim = np.max(list(vlim.values()))
 
     #### plot Cxy
+    #sujet_group = 'allsujet'
     for sujet_group in sujet_group_list:
 
-        cond_to_plot = ['FR_CV_1', 'FR_CV_1_surr', 'CO2', 'CO2_surr']
+        # cond_to_plot = ['FR_CV_1', 'FR_CV_1_surr', 'CO2', 'CO2_surr']
+        cond_to_plot = ['FR_CV_1', 'FR_CV_1_nsigni', 'CO2', 'CO2_nsigni']
         fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_to_plot))
         plt.suptitle(f'{sujet_group} Cxy n:{sujet_group_list[sujet_group].size}')
         fig.set_figheight(10)
@@ -492,7 +554,7 @@ def plot_save_Cxy_TOPOPLOT_allsujet():
         for c, cond in enumerate(cond_to_plot):
 
             #r, odor_i = 0, odor_list[0]
-            for r, odor_i in enumerate(odor_list):
+            for r, odor in enumerate(odor_list):
 
                 #### plot
                 ax = axs[r, c]
@@ -500,15 +562,16 @@ def plot_save_Cxy_TOPOPLOT_allsujet():
                 if r == 0:
                         ax.set_title(cond, fontweight='bold', rotation=0)
                 if c == 0:
-                    ax.set_ylabel(f'{odor_i}')
+                    ax.set_ylabel(f'{odor}')
 
                 if c in [0,2]:
 
-                    mask_signi = np.zeros((len(chan_list_eeg)))
-                    im, _ = mne.viz.plot_topomap(data=topoplot_data[sujet_group][cond][odor_i][f'Cxy'], axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                            mask=mask_signi, mask_params=mask_params, vlim=(0, max), cmap='OrRd')
+                    topoplot_data = xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond, odor, :].median('sujet').values
+                    topoplot_data_mask = topoplot_data > xr_Cxy.loc['surr', sujet_group_list[sujet_group], cond, odor, :].median('sujet').values
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            mask=topoplot_data_mask, mask_params=mask_params, vlim=(0, vlim), cmap='viridis')
                     
-                    if r == 2 and c == 2:
+                    if r == 2:
                         cbar1 = fig.colorbar(im, ax=ax, orientation='horizontal')
                         cbar1.set_label('Cxy')
                     
@@ -517,13 +580,14 @@ def plot_save_Cxy_TOPOPLOT_allsujet():
                     if r == 0:
                         ax.set_title(f"cond surr count", fontweight='bold', rotation=0)
 
-                    mask_signi = np.ones((len(chan_list_eeg)))
-                    im, _ = mne.viz.plot_topomap(data=topoplot_data[sujet_group][cond_to_plot[c-1]][odor_i][f'Cxy_surr'], axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                            mask=mask_signi, mask_params=mask_params, vlim=(0, 100), cmap='OrRd')
+                    topoplot_data = (xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond[:-7], odor, :] > xr_Cxy.loc['surr', sujet_group_list[sujet_group], cond[:-7], odor, :]).sum('sujet').values
+                    topoplot_data = topoplot_data / sujet_group_list[sujet_group].size * 100
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            vlim=(0, 100), cmap='viridis')
                     
-                    if r == 2 and c == 3:
+                    if r == 2:
                         cbar1 = fig.colorbar(im, ax=ax, orientation='horizontal')
-                        cbar1.set_label('Cxy count')
+                        cbar1.set_label('Cxy count %')
 
 
         # plt.show() 
@@ -536,6 +600,89 @@ def plot_save_Cxy_TOPOPLOT_allsujet():
         gc.collect()
 
 
+
+
+#n_chan, chan_name = 0, chan_list_eeg[0]
+def plot_save_Cxy_TOPOPLOT_allsujet_perm():
+
+    #### create montage
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mask_params = dict(markersize=10, markerfacecolor='y')
+
+    #### load data
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh'))
+    xr_Cxy_intra = xr.open_dataarray(f"perm_intra_Cxy.nc")
+    xr_Cxy_inter = xr.open_dataarray(f"perm_inter_Cxy.nc")
+
+    #### INTRA
+
+    cond_sel = ['CO2']
+    odor_sel = odor_list
+    vlim = {sujet_group : xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond_sel, :, :].median('sujet').max().values for sujet_group in sujet_group_list}
+    vlim = np.max(list(vlim.values()))
+
+    #### plot Cxy
+    #sujet_group = 'allsujet'
+    for sujet_group in sujet_group_list:
+
+        # cond_to_plot = ['FR_CV_1', 'FR_CV_1_surr', 'CO2', 'CO2_surr']
+        cond_to_plot = ['FR_CV_1', 'FR_CV_1_nsigni', 'CO2', 'CO2_nsigni']
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_to_plot))
+        plt.suptitle(f'{sujet_group} Cxy n:{sujet_group_list[sujet_group].size}')
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
+
+        #c, cond = 0, 'FR_CV_1'
+        for c, cond in enumerate(cond_to_plot):
+
+            #r, odor_i = 0, odor_list[0]
+            for r, odor in enumerate(odor_list):
+
+                #### plot
+                ax = axs[r, c]
+
+                if r == 0:
+                        ax.set_title(cond, fontweight='bold', rotation=0)
+                if c == 0:
+                    ax.set_ylabel(f'{odor}')
+
+                if c in [0,2]:
+
+                    topoplot_data = xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond, odor, :].median('sujet').values
+                    topoplot_data_mask = topoplot_data > xr_Cxy.loc['surr', sujet_group_list[sujet_group], cond, odor, :].median('sujet').values
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            mask=topoplot_data_mask, mask_params=mask_params, vlim=(0, vlim), cmap='viridis')
+                    
+                    if r == 2:
+                        cbar1 = fig.colorbar(im, ax=ax, orientation='horizontal')
+                        cbar1.set_label('Cxy')
+                    
+                if c in [1,3]:
+
+                    if r == 0:
+                        ax.set_title(f"cond surr count", fontweight='bold', rotation=0)
+
+                    topoplot_data = (xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond[:-7], odor, :] > xr_Cxy.loc['surr', sujet_group_list[sujet_group], cond[:-7], odor, :]).sum('sujet').values
+                    topoplot_data = topoplot_data / sujet_group_list[sujet_group].size * 100
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            vlim=(0, 100), cmap='viridis')
+                    
+                    if r == 2:
+                        cbar1 = fig.colorbar(im, ax=ax, orientation='horizontal')
+                        cbar1.set_label('Cxy count %')
+
+
+        # plt.show() 
+
+        #### save
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_summary'))
+        fig.savefig(f'Cxy_{sujet_group}_topo.jpeg', dpi=150)
+        fig.clf()
+        plt.close('all')
+        gc.collect()
 
 
 
@@ -804,14 +951,13 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL():
 
 if __name__ == '__main__':
 
-    band_prep = 'wb'
-
     #### Pxx Cxy CycleFreq
     # compilation_compute_Pxx_Cxy_Cyclefreq_MVL()
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [nchan, nchan_name, band_prep], 15)
 
     #### Cxy TOPOPLOT
     plot_save_Cxy_TOPOPLOT_allsujet()
+    plot_save_Cxy_TOPOPLOT_allsujet_perm()
 
     #### TF & ITPC
     compilation_compute_TF_ITPC()
