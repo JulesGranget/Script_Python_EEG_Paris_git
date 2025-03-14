@@ -433,7 +433,10 @@ def plot_save_PSD_Cxy_CF_MVL(sujet, n_chan, chan_name):
 ################################
 
 
-#n_chan, chan_name = 0, chan_list_eeg[0]
+
+
+
+
 def plot_save_Cxy_TOPOPLOT():
 
     #### create montage
@@ -441,12 +444,15 @@ def plot_save_Cxy_TOPOPLOT():
     info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
     info.set_montage('standard_1020')
 
-    mask_params = dict(markersize=15, markerfacecolor='y')
+    mask_params = dict(markersize=10, markerfacecolor='y')
+
+    sujet_group_list = ['allsujet', 'rep', 'norep']
 
     #### load data
     os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh'))
     xr_intra = xr.open_dataarray(f"perm_intra_Cxy.nc")
     xr_inter = xr.open_dataarray(f"perm_inter_Cxy.nc")
+    xr_repnorep = xr.open_dataarray(f"perm_repnorep_Cxy.nc")
     prms = get_params()
 
     #### params
@@ -455,49 +461,104 @@ def plot_save_Cxy_TOPOPLOT():
     hzCxy = hzCxy[mask_hzCxy]
 
     #### INTRA plot Cxy
-    vlim = np.abs(np.array([xr_intra.loc['Cxy_diff', :, :].values.min(), xr_intra.loc['Cxy_diff', :, :].values.max()])).max()
+    vlim = {}
 
-    cond_sel = ['CO2']
-    odor_sel = odor_list
-    fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
-    plt.suptitle(f'intra_Cxy')
-    fig.set_figheight(10)
-    fig.set_figwidth(10)
+    for sujet_group in sujet_group_list:
+        vlim[sujet_group] = np.abs(np.array([xr_intra.loc['Cxy_diff', sujet_group,:, :].values.min(), xr_intra.loc['Cxy_diff', sujet_group,:, :].values.max()])).max()
 
-    #c, cond = 0, 'FR_CV_1'
-    for c, cond in enumerate(cond_sel):
+    cond_sel = xr_intra['cond'].values.tolist()
+    odor_sel = xr_intra['odor'].values.tolist()
 
-        #r, odor = 0, odor_list[0]
-        for r, odor in enumerate(odor_sel):
+    for sujet_group in sujet_group_list:
 
-            #### plot
-            ax = axs[r]
+        fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+        plt.suptitle(f'intra_{sujet_group}_Cxy')
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
 
-            if r == 0:
-                ax.set_title(cond, fontweight='bold', rotation=0)
-            if c == 0:
-                ax.set_ylabel(f'{odor}')
+        #c, cond = 0, 'FR_CV_1'
+        for c, cond in enumerate(cond_sel):
 
-            topoplot_data = xr_intra.loc['Cxy_diff', odor, :].values
-            mask_signi = xr_intra.loc['cluster', odor, :].values.astype('bool')
+            #r, odor = 0, odor_list[0]
+            for r, odor in enumerate(odor_sel):
 
-            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                    mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
-            
-            cbar = fig.colorbar(im, ax=ax)
-            cbar.set_label('Amplitude')
+                #### plot
+                ax = axs[r, c]
 
-    # plt.show() 
+                if r == 0:
+                    ax.set_title(cond, fontweight='bold', rotation=0)
+                if c == 0:
+                    ax.set_ylabel(f'{odor}')
+
+                topoplot_data = xr_intra.loc['Cxy_diff', sujet_group, cond, odor, :].values
+                mask_signi = xr_intra.loc['cluster', sujet_group, cond, odor, :].values.astype('bool')
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        mask=mask_signi, mask_params=mask_params, vlim=(-vlim[sujet_group], vlim[sujet_group]), cmap='seismic')
+                
+                cbar = fig.colorbar(im, ax=ax)
+
+        # plt.show() 
+
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+        fig.savefig(f'intra_{sujet_group}_topo_Cxy.jpeg', dpi=150)
+        plt.close('all')
 
     #### INTER plot Cxy
-    vlim = np.abs(np.array([xr_inter.loc['Cxy_diff', :, :, :].values.min(), xr_inter.loc['Cxy_diff', :, :, :].values.max()])).max()
+    vlim = {}
 
-    cond_sel = ['FR_CV_1', 'CO2']
-    odor_sel = ['+', '-']
+    for sujet_group in sujet_group_list:
+        vlim[sujet_group] = np.abs(np.array([xr_inter.loc['Cxy_diff', sujet_group,:, :].values.min(), xr_inter.loc['Cxy_diff', sujet_group,:, :].values.max()])).max()
+
+    cond_sel = xr_inter['cond'].values.tolist()
+    odor_sel = xr_inter['odor'].values.tolist()
+
+    for sujet_group in sujet_group_list:
+
+        fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+        plt.suptitle(f'inter_{sujet_group}_Cxy')
+        fig.set_figheight(10)
+        fig.set_figwidth(16)
+
+        #c, cond = 0, 'FR_CV_1'
+        for c, cond in enumerate(cond_sel):
+
+            #r, odor = 0, odor_list[0]
+            for r, odor in enumerate(odor_sel):
+
+                #### plot
+                ax = axs[r, c]
+
+                if r == 0:
+                    ax.set_title(cond, fontweight='bold', rotation=0)
+                if c == 0:
+                    ax.set_ylabel(f'{odor}')
+
+                topoplot_data = xr_inter.loc['Cxy_diff', sujet_group, cond, odor, :].values
+                mask_signi = xr_inter.loc['cluster', sujet_group, cond, odor, :].values.astype('bool')
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        mask=mask_signi, mask_params=mask_params, vlim=(-vlim[sujet_group], vlim[sujet_group]), cmap='seismic')
+                
+                cbar = fig.colorbar(im, ax=ax)
+
+        # plt.show() 
+
+        #### save
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+        fig.savefig(f'inter_{sujet_group}_topo_Cxy.jpeg', dpi=150)
+        plt.close('all')
+
+    #### REPNOREP plot Cxy
+    vlim = np.abs(np.array([xr_repnorep.loc['Cxy_diff', :, :].values.min(), xr_repnorep.loc['Cxy_diff', :, :].values.max()])).max()
+
+    cond_sel = xr_repnorep['cond'].values.tolist()
+    odor_sel = xr_repnorep['odor'].values.tolist()
+
     fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
-    plt.suptitle(f'inter_Cxy')
+    plt.suptitle(f'repnorep_Cxy')
     fig.set_figheight(10)
-    fig.set_figwidth(10)
+    fig.set_figwidth(16)
 
     #c, cond = 0, 'FR_CV_1'
     for c, cond in enumerate(cond_sel):
@@ -513,25 +574,25 @@ def plot_save_Cxy_TOPOPLOT():
             if c == 0:
                 ax.set_ylabel(f'{odor}')
 
-            topoplot_data = xr_inter.loc['Cxy_diff', cond, odor, :].values
-            mask_signi = xr_inter.loc['cluster', cond, odor, :].values.astype('bool')
+            topoplot_data = xr_repnorep.loc['Cxy_diff', cond, odor, :].values
+            mask_signi = xr_repnorep.loc['cluster', cond, odor, :].values.astype('bool')
 
             im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
                                     mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
             
             cbar = fig.colorbar(im, ax=ax)
-            cbar.set_label('Amplitude')
 
     # plt.show() 
 
     #### save
-    os.chdir(os.path.join(path_results, sujet, 'PSD_Coh', 'topoplot'))
-    fig.savefig(f'{sujet}_Cxy_topo.jpeg', dpi=150)
-    os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet'))
-    fig.savefig(f'Cxy_{sujet}_topo.jpeg', dpi=150)
-    fig.clf()
+    os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+    fig.savefig(f'repnorep_topo_Cxy.jpeg', dpi=150)
     plt.close('all')
-    gc.collect()
+
+
+
+
+
 
 
 

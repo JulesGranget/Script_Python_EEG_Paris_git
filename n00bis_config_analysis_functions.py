@@ -1904,11 +1904,13 @@ def nk_analysis(ecg_i, srate):
 
 
 # data_baseline, data_cond, n_surr = data_Cxy_baseline[:, chan_i], data_Cxy_cond[:, chan_i], n_surrogates_coh
-def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_diff='median', mode_generate_surr='minmax', percentile_thresh=[0.5, 99.5]):
+def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5]):
 
     if debug:
-        plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline')
-        plt.hist(data_cond, bins=50, alpha=0.5, label='cond')
+        count_baseline, _, _ = plt.hist(data_baseline, bins=50, alpha=0.5, label='baseline', color='b')
+        count_cond, _, _ = plt.hist(data_cond, bins=50, alpha=0.5, label='cond', color='r')
+        plt.vlines([np.median(data_cond)], ymin=0, ymax=count_cond.max(), color='m', linestyles='--')
+        plt.vlines([np.median(data_baseline)], ymin=0, ymax=count_baseline.max(), color='c', linestyles='--')
         plt.legend()
         plt.show()
 
@@ -1917,10 +1919,10 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_diff='median'
     data_shuffle = np.concatenate((data_baseline, data_cond), axis=0)
     n_trial_tot = data_shuffle.shape[0]
 
-    if mode_diff == 'mean':
-        obs_distrib = data_baseline.mean() - data_cond.mean()
-    elif mode_diff == 'median':
-        obs_distrib = np.median(data_baseline) - np.median(data_cond)
+    if mode_grouped == 'mean':
+        obs_distrib = np.mean(data_baseline - data_cond)
+    elif mode_grouped == 'median':
+        obs_distrib = np.median(data_cond - data_baseline)
 
     surr_distrib = np.zeros((n_surr, 2))
 
@@ -1932,16 +1934,16 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_diff='median'
         data_shuffle_baseline = data_shuffle[random_sel[:n_trials_baselines]]
         data_shuffle_cond = data_shuffle[random_sel[n_trials_baselines:]]
 
-        if mode_diff == 'mean':
+        if mode_grouped == 'mean':
             diff_shuffle = data_shuffle_cond.mean() - data_shuffle_baseline.mean()
-        elif mode_diff == 'median':
+        elif mode_grouped == 'median':
             diff_shuffle = np.median(data_shuffle_cond) - np.median(data_shuffle_baseline)
 
         #### generate distrib
         if mode_generate_surr == 'minmax':
             surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = diff_shuffle.min(), diff_shuffle.max()
         elif mode_generate_surr == 'percentile':
-            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, 1), np.percentile(diff_shuffle, 99)    
+            surr_distrib[surr_i, 0], surr_distrib[surr_i, 1] = np.percentile(diff_shuffle, percentile_thresh[0]), np.percentile(diff_shuffle, percentile_thresh[1])    
 
     if debug:
         count, _, _ = plt.hist(surr_distrib[:,0], bins=50, color='k', alpha=0.5)
@@ -1957,6 +1959,7 @@ def get_permutation_2groups(data_baseline, data_cond, n_surr, mode_diff='median'
 
     #### thresh
     # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 2.5, axis=0), np.percentile(surr_distrib[:,1], 97.5, axis=0)
+    # surr_dw, surr_up = np.percentile(surr_distrib[:,0], 0.5, axis=0), np.percentile(surr_distrib[:,1], 99.5, axis=0)
     surr_dw, surr_up = np.percentile(surr_distrib[:,0], percentile_thresh[0], axis=0), np.percentile(surr_distrib[:,1], percentile_thresh[1], axis=0)
 
     if obs_distrib < surr_dw or obs_distrib > surr_up:
