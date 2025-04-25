@@ -1,23 +1,9 @@
 
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.signal
-import pandas as pd
-import joblib
-from sklearn import linear_model
-import gc
-import xarray as xr
-import seaborn as sns
-import pickle
-import cv2
 
 from n00_config_params import *
 from n00bis_config_analysis_functions import *
 from n00ter_stats import *
-from n08_precompute_ERP import *
 from n21bis_res_allsujet_ERP import *
-
 
 debug = False
 
@@ -32,7 +18,7 @@ debug = False
 ################################
 
 if __name__ == '__main__':
-
+    
     ######## MAIN WORKFLOW ########
 
     # plot_ERP_diff(stretch=False) # used for analysis

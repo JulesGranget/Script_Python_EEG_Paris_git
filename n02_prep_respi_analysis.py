@@ -669,9 +669,33 @@ def plot_mean_respi(sujet):
 
 
 
+def generate_df_cycle_count():
 
+    df_data = {'sujet' : [], 'cond' : [], 'odor' : [], 'ncycle' : []}
 
+    for sujet_i, sujet in enumerate(sujet_list):
 
+        respfeature_sujet = load_respfeatures(sujet)
+        
+        for cond_i, cond in enumerate(conditions):
+
+            for odor_i, odor in enumerate(odor_list):
+
+                df_data['sujet'].append(sujet)
+                df_data['cond'].append(cond)
+                df_data['odor'].append(odor)
+                df_data['ncycle'].append(respfeature_sujet[cond][odor].query(f"select == 1").shape[0])
+
+    df_ncycle = pd.DataFrame(df_data)
+
+    ncycle_thresh = 40
+
+    for ncycle_thresh in np.arange(30, 60, 5):
+        df_thresh = df_ncycle.query(f"cond not in ['MECA', 'FR_CV_2'] and ncycle >= {ncycle_thresh}")
+        _, counts = np.unique(df_thresh['sujet'], return_counts=True)   
+        allcond_count = len(['FR_CV_1', 'CO2']) * len(odor_list)
+        sujet_list_thresh = sujet_list[counts == 6]
+        print(f"ncycle:{ncycle_thresh}, nsujet:{sujet_list_thresh.size}")
 
 
 
@@ -795,6 +819,12 @@ if __name__ == '__main__':
     for sujet in sujet_list:
 
         plot_mean_respi(sujet)
+
+    ################################
+    ######## CYCLE COUNT ########
+    ################################
+
+    generate_df_cycle_count()
 
         
 

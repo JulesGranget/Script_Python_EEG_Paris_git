@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -206,7 +205,7 @@ def compute_normalization_params():
     xr_normal_params.to_netcdf('allsujet_ERP_normalization_params.nc')
     
 
-def compute_ERP_stretch(normalization='rscore'):
+def compute_ERP_stretch_sujet(normalization='rscore'):
 
     if os.path.exists(os.path.join(path_precompute, 'allsujet', 'ERP', 'allsujet_ERP_data_stretch.nc')):
 
@@ -949,35 +948,21 @@ def get_cluster_stats_manual_prem_subject_wise():
 
 if __name__ == '__main__':
 
-    compute_normalization_params()
-    compute_ERP_stretch(normalization='rscore')
-    get_cluster_stats_manual_prem(stretch=True)
-    get_cluster_stats_manual_prem_subject_wise()
     
-    #sujet = sujet_list[0]
-    # for sujet in sujet_list:
+    sujet = sujet_list[0]
+    for sujet in sujet_list:
 
-    #     print(f'#### {sujet} ####', flush=True)
-    #     print(f'COMPUTE', flush=True)
+        print(f'#### {sujet} ####', flush=True)
+        print(f'COMPUTE', flush=True)
 
-        # data_chunk_allcond, data_value_microV = compute_ERP(sujet)
-        # lm_data = compute_lm_on_ERP(data_chunk_allcond, cond_erp)
+        data_chunk_allcond, data_value_microV = compute_ERP(sujet)
+        lm_data = compute_lm_on_ERP(data_chunk_allcond)
 
-        # shuffle_way = 'inter_cond'
-        # shuffle_way = 'intra_cond'
-        # shuffle_way = 'linear_based'
+        shuffle_way = 'inter_cond'
+        shuffle_way = 'intra_cond'
+        shuffle_way = 'linear_based'
 
-        # ERP_surr = compute_surr_ERP(data_chunk_allcond, shuffle_way)
+        ERP_surr = compute_surr_ERP(data_chunk_allcond, shuffle_way)
         
-
-
-
-    
-
-    
-
-
-
-
 
 

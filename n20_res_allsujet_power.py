@@ -602,7 +602,6 @@ def plot_save_Cxy_TOPOPLOT_allsujet():
 
 
 
-#n_chan, chan_name = 0, chan_list_eeg[0]
 def plot_save_Cxy_TOPOPLOT_allsujet_perm():
 
     #### create montage
@@ -612,79 +611,148 @@ def plot_save_Cxy_TOPOPLOT_allsujet_perm():
 
     mask_params = dict(markersize=10, markerfacecolor='y')
 
+    sujet_group_list = ['allsujet', 'rep', 'norep']
+
     #### load data
     os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh'))
-    xr_Cxy_intra = xr.open_dataarray(f"perm_intra_Cxy.nc")
-    xr_Cxy_inter = xr.open_dataarray(f"perm_inter_Cxy.nc")
+    xr_intra = xr.open_dataarray(f"perm_intra_Cxy.nc")
+    xr_inter = xr.open_dataarray(f"perm_inter_Cxy.nc")
+    xr_repnorep = xr.open_dataarray(f"perm_repnorep_Cxy.nc")
+    prms = get_params()
 
-    #### INTRA
+    #### params
+    hzCxy = np.linspace(0,srate/2,int(prms['nfft']/2+1))
+    mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
+    hzCxy = hzCxy[mask_hzCxy]
 
-    cond_sel = ['CO2']
-    odor_sel = odor_list
-    vlim = {sujet_group : xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond_sel, :, :].median('sujet').max().values for sujet_group in sujet_group_list}
-    vlim = np.max(list(vlim.values()))
+    #### INTRA plot Cxy
+    vlim = {}
 
-    #### plot Cxy
-    #sujet_group = 'allsujet'
+    for sujet_group in sujet_group_list:
+        vlim[sujet_group] = np.abs(np.array([xr_intra.loc['Cxy_diff', sujet_group,:, :].values.min(), xr_intra.loc['Cxy_diff', sujet_group,:, :].values.max()])).max()
+
+    cond_sel = xr_intra['cond'].values.tolist()
+    odor_sel = xr_intra['odor'].values.tolist()
+
     for sujet_group in sujet_group_list:
 
-        # cond_to_plot = ['FR_CV_1', 'FR_CV_1_surr', 'CO2', 'CO2_surr']
-        cond_to_plot = ['FR_CV_1', 'FR_CV_1_nsigni', 'CO2', 'CO2_nsigni']
-        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_to_plot))
-        plt.suptitle(f'{sujet_group} Cxy n:{sujet_group_list[sujet_group].size}')
+        fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+        plt.suptitle(f'intra_{sujet_group}_Cxy')
         fig.set_figheight(10)
         fig.set_figwidth(10)
 
         #c, cond = 0, 'FR_CV_1'
-        for c, cond in enumerate(cond_to_plot):
+        for c, cond in enumerate(cond_sel):
 
-            #r, odor_i = 0, odor_list[0]
-            for r, odor in enumerate(odor_list):
+            #r, odor = 0, odor_list[0]
+            for r, odor in enumerate(odor_sel):
 
                 #### plot
                 ax = axs[r, c]
 
                 if r == 0:
-                        ax.set_title(cond, fontweight='bold', rotation=0)
+                    ax.set_title(cond, fontweight='bold', rotation=0)
                 if c == 0:
                     ax.set_ylabel(f'{odor}')
 
-                if c in [0,2]:
+                topoplot_data = xr_intra.loc['Cxy_diff', sujet_group, cond, odor, :].values
+                mask_signi = xr_intra.loc['cluster', sujet_group, cond, odor, :].values.astype('bool')
 
-                    topoplot_data = xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond, odor, :].median('sujet').values
-                    topoplot_data_mask = topoplot_data > xr_Cxy.loc['surr', sujet_group_list[sujet_group], cond, odor, :].median('sujet').values
-                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                            mask=topoplot_data_mask, mask_params=mask_params, vlim=(0, vlim), cmap='viridis')
-                    
-                    if r == 2:
-                        cbar1 = fig.colorbar(im, ax=ax, orientation='horizontal')
-                        cbar1.set_label('Cxy')
-                    
-                if c in [1,3]:
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        mask=mask_signi, mask_params=mask_params, vlim=(-vlim[sujet_group], vlim[sujet_group]), cmap='seismic')
+                
+                cbar = fig.colorbar(im, ax=ax)
 
-                    if r == 0:
-                        ax.set_title(f"cond surr count", fontweight='bold', rotation=0)
+        # plt.show() 
 
-                    topoplot_data = (xr_Cxy.loc['Cxy', sujet_group_list[sujet_group], cond[:-7], odor, :] > xr_Cxy.loc['surr', sujet_group_list[sujet_group], cond[:-7], odor, :]).sum('sujet').values
-                    topoplot_data = topoplot_data / sujet_group_list[sujet_group].size * 100
-                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
-                                            vlim=(0, 100), cmap='viridis')
-                    
-                    if r == 2:
-                        cbar1 = fig.colorbar(im, ax=ax, orientation='horizontal')
-                        cbar1.set_label('Cxy count %')
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+        fig.savefig(f'intra_{sujet_group}_topo_Cxy.jpeg', dpi=150)
+        plt.close('all')
 
+    #### INTER plot Cxy
+    vlim = {}
+
+    for sujet_group in sujet_group_list:
+        vlim[sujet_group] = np.abs(np.array([xr_inter.loc['Cxy_diff', sujet_group,:, :].values.min(), xr_inter.loc['Cxy_diff', sujet_group,:, :].values.max()])).max()
+
+    cond_sel = xr_inter['cond'].values.tolist()
+    odor_sel = xr_inter['odor'].values.tolist()
+
+    for sujet_group in sujet_group_list:
+
+        fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+        plt.suptitle(f'inter_{sujet_group}_Cxy')
+        fig.set_figheight(10)
+        fig.set_figwidth(16)
+
+        #c, cond = 0, 'FR_CV_1'
+        for c, cond in enumerate(cond_sel):
+
+            #r, odor = 0, odor_list[0]
+            for r, odor in enumerate(odor_sel):
+
+                #### plot
+                ax = axs[r, c]
+
+                if r == 0:
+                    ax.set_title(cond, fontweight='bold', rotation=0)
+                if c == 0:
+                    ax.set_ylabel(f'{odor}')
+
+                topoplot_data = xr_inter.loc['Cxy_diff', sujet_group, cond, odor, :].values
+                mask_signi = xr_inter.loc['cluster', sujet_group, cond, odor, :].values.astype('bool')
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        mask=mask_signi, mask_params=mask_params, vlim=(-vlim[sujet_group], vlim[sujet_group]), cmap='seismic')
+                
+                cbar = fig.colorbar(im, ax=ax)
 
         # plt.show() 
 
         #### save
-        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_summary'))
-        fig.savefig(f'Cxy_{sujet_group}_topo.jpeg', dpi=150)
-        fig.clf()
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+        fig.savefig(f'inter_{sujet_group}_topo_Cxy.jpeg', dpi=150)
         plt.close('all')
-        gc.collect()
 
+    #### REPNOREP plot Cxy
+    vlim = np.abs(np.array([xr_repnorep.loc['Cxy_diff', :, :].values.min(), xr_repnorep.loc['Cxy_diff', :, :].values.max()])).max()
 
+    cond_sel = xr_repnorep['cond'].values.tolist()
+    odor_sel = xr_repnorep['odor'].values.tolist()
+
+    fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+    plt.suptitle(f'repnorep_Cxy')
+    fig.set_figheight(10)
+    fig.set_figwidth(16)
+
+    #c, cond = 0, 'FR_CV_1'
+    for c, cond in enumerate(cond_sel):
+
+        #r, odor = 0, odor_list[0]
+        for r, odor in enumerate(odor_sel):
+
+            #### plot
+            ax = axs[r, c]
+
+            if r == 0:
+                ax.set_title(cond, fontweight='bold', rotation=0)
+            if c == 0:
+                ax.set_ylabel(f'{odor}')
+
+            topoplot_data = xr_repnorep.loc['Cxy_diff', cond, odor, :].values
+            mask_signi = xr_repnorep.loc['cluster', cond, odor, :].values.astype('bool')
+
+            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    mask=mask_signi, mask_params=mask_params, vlim=(-vlim, vlim), cmap='seismic')
+            
+            cbar = fig.colorbar(im, ax=ax)
+
+    # plt.show() 
+
+    #### save
+    os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+    fig.savefig(f'repnorep_topo_Cxy.jpeg', dpi=150)
+    plt.close('all')
 
 
 
@@ -763,59 +831,92 @@ def get_tf_stats(tf, pixel_based_distrib):
 
 
 
-def compilation_compute_TF_ITPC():
+def compilation_compute_TF():
 
-    #tf_mode = 'TF'
-    for tf_mode in ['TF', 'ITPC']:
+    #chan_i, chan = 0, chan_list_eeg[0]
+    for chan_i, chan in enumerate(chan_list_eeg):
+
+        print(f'PLOT {chan}', flush=True)
         
-        if tf_mode == 'ITPC':
-            continue
+        #### load
+        tf_conv = np.zeros((len(sujet_list), len(conditions), len(odor_list), nfrex, stretch_point_TF))
 
-        print('COMPUTE', flush=True)
+        for sujet_i, sujet in enumerate(sujet_list):
 
-        os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
-        xr_allsujet = xr.open_dataarray(f'allsujet_{tf_mode}.nc')
+            os.chdir(os.path.join(path_precompute, 'allsujet', 'TF', 'conv'))
+            tf_conv[sujet_i] = np.load(f'{sujet}_tf_conv_allcond.npy')[:,:,chan_i]
 
-        group_list = ['allsujet', 'rep', 'no_rep']
-        stats_plot = True
-    
-        print('PLOT', flush=True)
+        xr_dict = {'sujet' : sujet_list, 'cond' : conditions, 'odor' : odor_list, 'nfrex' : np.arange(nfrex), 'phase' : np.arange(stretch_point_TF)}
+        xr_tf = xr.DataArray(data=tf_conv, dims=xr_dict.keys(), coords=xr_dict)
+
+        os.chdir(os.path.join(path_precompute, 'allsujet', 'TF', 'stats'))
+        xr_intra = xr.open_dataarray(f'tf_STATS_chan{chan}_intra.nc')
+        xr_inter = xr.open_dataarray(f'tf_STATS_chan{chan}_inter.nc')
+        xr_repnorep = xr.open_dataarray(f'tf_STATS_chan{chan}_repnorep.nc')
+
+        group_list = ['allsujet', 'rep', 'norep']
 
         #### scale
-        vmin = np.array([])
-        vmax = np.array([])
+        vmin = {}
+        vmax = {}
 
-        for nchan, nchan_name in enumerate(chan_list_eeg):
-        
-            vals = np.array([])
+        for tf_stats_type in ['inter', 'intra']:
 
-            for cond in conditions:
+            vmin[tf_stats_type] = {}
+            vmax[tf_stats_type] = {}
 
-                for odor_i in odor_list:
+            for group_i, group in enumerate(group_list):
 
-                    vals = np.append(vals, xr_allsujet.loc[nchan_name, 'allsujet', cond, odor_i, :, :].values.reshape(-1))
+                vals = np.array([])
+            
+                for cond in conditions:
 
-            median_diff = np.percentile(np.abs(vals - np.median(vals)), tf_plot_percentile_scale)
+                    for odor in odor_list:
 
-            vmin = np.append(vmin, np.median(vals) - median_diff)
-            vmax = np.append(vmax, np.median(vals) + median_diff)
+                        if group == 'allsujet':
+                            if tf_stats_type == 'inter':
+                                tf_baseline = xr_tf.loc[:, cond, 'o', :,:].values
+                                tf_cond = xr_tf.loc[:, cond, odor, :,:].values
+                            elif tf_stats_type == 'intra':
+                                tf_baseline = xr_tf.loc[:, 'FR_CV_1', odor, :,:].values
+                                tf_cond = xr_tf.loc[:, cond, odor, :,:].values
+                        elif group == 'rep':
+                            if tf_stats_type == 'inter':
+                                tf_baseline = xr_tf.loc[sujet_best_list_rev, cond, 'o', :,:].values
+                                tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].values
+                            elif tf_stats_type == 'intra':
+                                tf_baseline = xr_tf.loc[sujet_best_list_rev, 'FR_CV_1', odor, :,:].values
+                                tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].values
+                        elif group == 'norep':
+                            if tf_stats_type == 'inter':
+                                tf_baseline = xr_tf.loc[sujet_no_respond_rev, cond, 'o', :,:].values
+                                tf_cond = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].values
+                            elif tf_stats_type == 'intra':
+                                tf_baseline = xr_tf.loc[sujet_no_respond_rev, 'FR_CV_1', odor, :,:].values
+                                tf_cond = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].values
 
-            del vals
+                        tf_median = np.median(tf_cond - tf_baseline, axis=0)
+
+                        vals = np.append(vals, tf_median.reshape(-1))
+
+                vmin[tf_stats_type][group], vmax[tf_stats_type][group] = vals.min(), vals.max()
+
+                del vals
 
         #### inspect stats
         if debug:
 
             tf_stats_type = 'intra'
-            n_chan, chan_name = 0, chan_list_eeg[0]
-            r, odor_i = 0, odor_list[0]
+            n_chan, chan = 0, chan_list_eeg[0]
+            r, odor = 0, odor_list[0]
             c, cond = 1, conditions[1] 
             _vmin, _vmax = vmin[n_chan], vmax[n_chan]
 
-            tf_plot = xr_allsujet.loc[nchan_name, 'allsujet', cond, odor_i, :, :].values
-            time = xr_allsujet['times'].values
+            tf_plot = xr_tf.loc['allsujet', cond, odor, :, :].values
+            time = xr_tf['times'].values
 
             os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
-            pixel_based_distrib = np.load(f'allsujet_{tf_mode.lower()}_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy')[n_chan]
+            pixel_based_distrib = np.load(f'allsujet_tf_STATS_nchan{chan}_{cond}_{odor}_intra.npy')[n_chan]
 
             fig, ax = plt.subplots()
             ax.pcolormesh(time, frex, tf_plot, vmin=_vmin, vmax=_vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
@@ -843,85 +944,173 @@ def compilation_compute_TF_ITPC():
 
 
         #### plot
-        os.chdir(os.path.join(path_results, 'allplot', tf_mode))
+        os.chdir(os.path.join(path_results, 'allplot', 'TF'))
 
         #tf_stats_type = 'inter'
         for tf_stats_type in ['inter', 'intra']:
 
-            #group = group_list[1]
+            #group = group_list[2]
             for group in group_list:
 
                 print(f"{tf_stats_type} {group}", flush=True)
 
-                #n_chan, chan_name = 0, chan_list_eeg[0]
-                for n_chan, chan_name in enumerate(chan_list_eeg):
+                if tf_stats_type == 'inter':
+                    cond_sel = conditions
+                    odor_sel = ['+', '-']
+                elif tf_stats_type == 'intra':
+                    cond_sel = ['MECA', 'CO2', 'FR_CV_2']
+                    odor_sel = odor_list
 
-                    print_advancement(n_chan, len(chan_list_eeg), steps=[25, 50, 75])
+                #### plot
+                fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
 
-                    #### plot
-                    fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+                plt.suptitle(f'{group}_{chan}')
 
-                    plt.suptitle(f'allsujet_{chan_name}')
+                fig.set_figheight(10)
+                fig.set_figwidth(15)
 
-                    fig.set_figheight(10)
-                    fig.set_figwidth(15)
+                time = range(stretch_point_TF)
 
-                    time = range(stretch_point_TF)
+                #r, odor_i = 0, odor_list[0]
+                for r, odor in enumerate(odor_sel):
 
-                    #r, odor_i = 0, odor_list[0]
-                    for r, odor_i in enumerate(odor_list):
+                    #c, cond = 1, conditions[1]
+                    for c, cond in enumerate(cond_sel):
 
-                        #c, cond = 1, conditions[1]
-                        for c, cond in enumerate(conditions):
+                        if group == 'allsujet':
+                            if tf_stats_type == 'inter':
+                                tf_baseline = xr_tf.loc[:, cond, 'o', :,:].values
+                                tf_cond = xr_tf.loc[:, cond, odor, :,:].values
+                            elif tf_stats_type == 'intra':
+                                tf_baseline = xr_tf.loc[:, 'FR_CV_1', odor, :,:].values
+                                tf_cond = xr_tf.loc[:, cond, odor, :,:].values
+                        elif group == 'rep':
+                            if tf_stats_type == 'inter':
+                                tf_baseline = xr_tf.loc[sujet_best_list_rev, cond, 'o', :,:].values
+                                tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].values
+                            elif tf_stats_type == 'intra':
+                                tf_baseline = xr_tf.loc[sujet_best_list_rev, 'FR_CV_1', odor, :,:].values
+                                tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].values
+                        elif group == 'norep':
+                            if tf_stats_type == 'inter':
+                                tf_baseline = xr_tf.loc[sujet_no_respond_rev, cond, 'o', :,:].values
+                                tf_cond = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].values
+                            elif tf_stats_type == 'intra':
+                                tf_baseline = xr_tf.loc[sujet_no_respond_rev, 'FR_CV_1', odor, :,:].values
+                                tf_cond = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].values
 
-                            tf_plot = xr_allsujet.loc[chan_name, group, cond, odor_i, :, :].values
-                        
-                            ax = axs[r,c]
+                        tf_plot = np.median(tf_cond - tf_baseline, axis=0)
+                    
+                        ax = axs[r,c]
 
-                            if r == 0 :
-                                ax.set_title(cond, fontweight='bold', rotation=0)
+                        if r == 0 :
+                            ax.set_title(cond, fontweight='bold', rotation=0)
 
-                            if c == 0:
-                                ax.set_ylabel(odor_i)
+                        if c == 0:
+                            ax.set_ylabel(odor)
 
-                            ax.pcolormesh(time, frex, tf_plot, vmin=vmin[nchan], vmax=vmax[nchan], shading='gouraud', cmap=plt.get_cmap('seismic'))
-                            ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
-                            ax.set_yscale('log')
+                        ax.pcolormesh(time, frex, tf_plot, vmin=vmin[tf_stats_type][group], vmax=vmax[tf_stats_type][group], shading='gouraud', cmap=plt.get_cmap('seismic'))
+                        ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
+                        ax.set_yscale('log')
 
-                            if stats_plot:
+                        if tf_stats_type == 'intra':
+                            
+                            ax.contour(time, frex, xr_intra.loc[group, cond, odor, :, :].values, levels=0, colors='g')
 
-                                if tf_mode == 'TF' and cond != 'FR_CV_1' and tf_stats_type == 'intra':
-                                    os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
+                        if tf_stats_type == 'inter':
 
-                                    pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_intra.npy'), axis=1)
-                                    
-                                    if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
-                                        ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
+                            ax.contour(time, frex, xr_inter.loc[group, cond, odor, :, :].values, levels=0, colors='g')
 
-                                if tf_mode == 'TF' and odor_i != 'o' and tf_stats_type == 'inter':
-                                    os.chdir(os.path.join(path_precompute, 'allsujet', tf_mode))
+                        ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
 
-                                    pixel_based_distrib = np.median(np.load(f'allsujet_tf_STATS_nchan{nchan}_{cond}_{odor_i}_inter.npy'), axis=1)
-                                    
-                                    if get_tf_stats(tf_plot, pixel_based_distrib).sum() != 0:
-                                        ax.contour(time, frex, get_tf_stats(tf_plot, pixel_based_distrib), levels=0, colors='g')
+                #plt.show()
 
-                            ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+                #### save
+                os.chdir(os.path.join(path_results, 'allplot', 'TF'))
+                fig.savefig(f'{group}_{chan}_{tf_stats_type}.jpeg', dpi=150)
 
-                    #plt.show()
+                os.chdir(os.path.join(path_results, 'allplot', 'TF', tf_stats_type))
+                fig.savefig(f'{group}_{chan}_{tf_stats_type}.jpeg', dpi=150)
+                    
+                fig.clf()
+                plt.close('all')
+                gc.collect()
 
-                    os.chdir(os.path.join(path_results, 'allplot', tf_mode))
+        #### scale repnorep
+        vals = np.array([])
+    
+        for cond in conditions:
 
-                    #### save
-                    if tf_stats_type == 'inter':
-                        fig.savefig(f'allsujet_{chan_name}_{group}_inter.jpeg', dpi=150)
-                    if tf_stats_type == 'intra':
-                        fig.savefig(f'allsujet_{chan_name}_{group}_intra.jpeg', dpi=150)
-                        
-                    fig.clf()
-                    plt.close('all')
-                    gc.collect()
+            for odor in odor_list:
 
+                tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].median('sujet').values
+                tf_baseline = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].median('sujet').values
+
+                tf_med = tf_cond - tf_baseline
+
+                vals = np.append(vals, tf_med.reshape(-1))
+
+        vmin, vmax = vals.min(), vals.max()
+
+        del vals
+
+        #### plot repnorep
+        tf_stats_type = 'repnorep'
+
+        print(f"{tf_stats_type}", flush=True)
+
+        cond_sel = conditions
+        odor_sel = odor_list
+
+        #### plot
+        fig, axs = plt.subplots(nrows=len(odor_sel), ncols=len(cond_sel))
+
+        plt.suptitle(f'{chan}')
+
+        fig.set_figheight(10)
+        fig.set_figwidth(15)
+
+        time = range(stretch_point_TF)
+
+        #r, odor_i = 0, odor_list[0]
+        for r, odor in enumerate(odor_sel):
+
+            #c, cond = 1, conditions[1]
+            for c, cond in enumerate(cond_sel):
+
+                tf_baseline = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].median('sujet').values
+                tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].median('sujet').values
+
+                tf_plot = tf_cond - tf_baseline
+            
+                ax = axs[r,c]
+
+                if r == 0 :
+                    ax.set_title(cond, fontweight='bold', rotation=0)
+
+                if c == 0:
+                    ax.set_ylabel(odor)
+
+                ax.pcolormesh(time, frex, tf_plot, vmin=vmin, vmax=vmax, shading='gouraud', cmap=plt.get_cmap('seismic'))
+                ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
+                ax.set_yscale('log')
+                    
+                ax.contour(time, frex, xr_repnorep.loc[cond, odor, :, :].values, levels=0, colors='g')
+
+                ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+
+        #plt.show()
+
+        #### save
+        os.chdir(os.path.join(path_results, 'allplot', 'TF'))
+        fig.savefig(f'{group}_{chan}_{tf_stats_type}.jpeg', dpi=150)
+
+        os.chdir(os.path.join(path_results, 'allplot', 'TF', tf_stats_type))
+        fig.savefig(f'{group}_{chan}_{tf_stats_type}.jpeg', dpi=150)
+            
+        fig.clf()
+        plt.close('all')
+        gc.collect()
 
 
 
@@ -945,6 +1134,9 @@ def compilation_compute_Pxx_Cxy_Cyclefreq_MVL():
 
 
 
+
+
+
 ################################
 ######## EXECUTE ########
 ################################
@@ -956,11 +1148,11 @@ if __name__ == '__main__':
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_Pxx_Cxy_Cyclefreq_MVL', [nchan, nchan_name, band_prep], 15)
 
     #### Cxy TOPOPLOT
-    plot_save_Cxy_TOPOPLOT_allsujet()
+    # plot_save_Cxy_TOPOPLOT_allsujet()
     plot_save_Cxy_TOPOPLOT_allsujet_perm()
 
     #### TF & ITPC
-    compilation_compute_TF_ITPC()
-    # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_TF_ITPC', [nchan, nchan_name, band_prep], 15)
+    compilation_compute_TF()
+    # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_TF', [nchan, nchan_name, band_prep], 15)
 
 

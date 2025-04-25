@@ -15,7 +15,6 @@ import cv2
 from n00_config_params import *
 from n00bis_config_analysis_functions import *
 from n00ter_stats import *
-from n08_precompute_ERP import *
 from n21bis_res_allsujet_ERP import *
 
 

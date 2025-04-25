@@ -93,8 +93,8 @@ def precompute_surrogates_coh(sujet):
 def precompute_surrogates_coh_permutations():
 
     save_path = os.path.join(path_precompute, 'allsujet', 'PSD_Coh')
-    if os.path.exists(os.path.join(save_path, f"perm_intra_Cxy.nc")) and os.path.exists(os.path.join(save_path, f"surr_Cxy_perm_intra.nc")):
-        print(f'ALREADY COMPUTED {sujet}')
+    if os.path.exists(os.path.join(save_path, f"perm_intra_Cxy.nc")) and os.path.exists(os.path.join(save_path, f"perm_inter_Cxy.nc")) and os.path.exists(os.path.join(save_path, f"perm_repnorep_Cxy.nc")):
+        print(f'PERM Cxy ALREADY COMPUTED')
         return
     
     nwind, nfft, noverlap, hannw = get_params_spectral_analysis(srate)
@@ -153,6 +153,17 @@ def precompute_surrogates_coh_permutations():
             for sujet_i, sujet in enumerate(sujet_list):
 
                 data_Cxy[sujet_i,cond_i,odor_i,:] = res[sujet_i]
+
+    xr_data = np.zeros((len(sujet_list), len(conditions), len(odor_list), len(chan_list_eeg)))
+    dict_Cxy_allsujet = {'sujet' : sujet_list, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg}
+    xr_Cxy_allsujet = xr.DataArray(data=data_Cxy, dims=dict_Cxy_allsujet.keys(), coords=dict_Cxy_allsujet)
+    df_Cxy_allsujet = xr_Cxy_allsujet.to_dataframe(name='Cxy').reset_index(drop=False)
+
+    mask_repnorep = [_sujet in sujet_best_list_rev for _sujet in df_Cxy_allsujet['sujet'].values]
+    df_Cxy_allsujet['REP'] = mask_repnorep
+
+    os.chdir(save_path)
+    df_Cxy_allsujet.to_excel('Cxy_allsujet.xlsx')
     
     #### intra
     print('intra')
@@ -188,8 +199,9 @@ def precompute_surrogates_coh_permutations():
                 #chan_i, chan = 11, chan_list_eeg[11]
                 for chan_i, chan in enumerate(chan_list_eeg):
                 
-                    clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline_chunk, data_Cxy_cond_chunk, n_surrogates_coh, 
-                                                            mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
+                    clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline_chunk[:,chan_i], data_Cxy_cond_chunk[:,chan_i], n_surrogates_coh, 
+                                                        mode_grouped=mode_grouped_ERP_STATS, mode_generate_surr=mode_generate_surr_ERP_STATS, 
+                                                        stat_design='within', percentile_thresh=percentile_thresh_ERP_STATS)
                 if debug:
 
                     ch_types = ['eeg'] * len(chan_list_eeg)
@@ -226,6 +238,7 @@ def precompute_surrogates_coh_permutations():
 
         print(cond)
 
+        #odor_i, odor = 0, odor_sel[0]
         for odor_i, odor in enumerate(odor_sel):
 
             #sujet_group_i, sujet_group = 0, sujet_group_list[0]
@@ -249,8 +262,9 @@ def precompute_surrogates_coh_permutations():
                 #chan_i, chan = 11, chan_list_eeg[11]
                 for chan_i, chan in enumerate(chan_list_eeg):
                 
-                    clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline_chunk, data_Cxy_cond_chunk, n_surrogates_coh, 
-                                                            mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
+                    clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline_chunk[:,chan_i], data_Cxy_cond_chunk[:,chan_i], n_surrogates_coh, 
+                                                        mode_grouped=mode_grouped_ERP_STATS, mode_generate_surr=mode_generate_surr_ERP_STATS, 
+                                                        stat_design='within', percentile_thresh=percentile_thresh_ERP_STATS)
                 if debug:
 
                     ch_types = ['eeg'] * len(chan_list_eeg)
@@ -302,8 +316,9 @@ def precompute_surrogates_coh_permutations():
             #chan_i, chan = 11, chan_list_eeg[11]
             for chan_i, chan in enumerate(chan_list_eeg):
             
-                clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline_chunk, data_Cxy_cond_chunk, n_surrogates_coh, 
-                                                        mode_grouped='median', mode_generate_surr='percentile', percentile_thresh=[0.5, 99.5])
+                clusters[chan_i] = get_permutation_2groups(data_Cxy_baseline_chunk[:,chan_i], data_Cxy_cond_chunk[:,chan_i], n_surrogates_coh, 
+                                                        mode_grouped=mode_grouped_ERP_STATS, mode_generate_surr=mode_generate_surr_ERP_STATS, 
+                                                        stat_design='between', percentile_thresh=percentile_thresh_ERP_STATS)
             if debug:
 
                 ch_types = ['eeg'] * len(chan_list_eeg)
@@ -536,11 +551,11 @@ if __name__ == '__main__':
     precompute_surrogates_coh_permutations()
 
     # precompute_surrogates_coh(sujet)
-    execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh', [[sujet] for sujet in sujet_list])
+    # execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh', [[sujet] for sujet in sujet_list])
     # sync_folders__push_to_crnldata()  
 
     # precompute_surrogates_coh_permutations()
-    execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh_permutations', [])
+    # execute_function_in_slurm_bash('n05_precompute_Cxy', 'precompute_surrogates_coh_permutations', [])
     # sync_folders__push_to_crnldata()  
 
 

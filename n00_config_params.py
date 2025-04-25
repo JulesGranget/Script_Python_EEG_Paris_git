@@ -219,7 +219,7 @@ path_data = os.path.join(path_general, 'Data')
 path_prep = os.path.join(path_general, 'Analyses', 'preprocessing')
 path_precompute = os.path.join(path_general, 'Analyses', 'precompute') 
 path_results = os.path.join(path_general, 'Analyses', 'results') 
-path_respfeatures = os.path.join(path_general, 'Analyses', 'results') 
+path_respfeatures = os.path.join(path_precompute, 'allsujet', 'RESPI') 
 path_anatomy = os.path.join(path_general, 'Analyses', 'anatomy')
 path_slurm = os.path.join(path_general, 'Script_slurm')
 
@@ -348,6 +348,15 @@ allplot_erp_ylim = (-0.3, 0.3)
 
 ERP_n_surrogate = 1000
 
+mode_grouped_ERP_STATS='median'
+mode_generate_surr_ERP_STATS='percentile_time'
+# percentile_thresh_ERP_STATS=[0.5, 99.5]
+percentile_thresh_ERP_STATS=[2.5, 97.5]
+percentile_thresh_TF_STATS=[0.5, 99.5]
+# percentile_thresh_TF_STATS=[2.5, 97.5]
+mode_select_thresh_ERP_STATS='percentile_time'
+size_thresh_alpha_ERP_STATS=0.01
+
 
 
 
@@ -412,6 +421,7 @@ Pxx_wavelet_norm = 1000
 
 
 #### STATS
+ncycle_for_TF = 30
 n_surrogates_tf = 500
 tf_percentile_sel_stats_dw = 5 
 tf_percentile_sel_stats_up = 95 
