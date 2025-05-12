@@ -826,6 +826,37 @@ if __name__ == '__main__':
 
     generate_df_cycle_count()
 
+    ################################
+    ######## AGGREGATES ########
+    ################################
+
+    df_respi_allsujet = pd.DataFrame({'sujet' : [], 'cond' : [], 'odor' : [], 
+                                      'inspi_duration' : [], 'expi_duration' : [], 'cycle_freq' : [], 'inspi_volume' : [], 
+                                      'expi_volume' : [], 'total_amplitude' : [], 'inspi_amplitude' : [], 'expi_amplitude' : [], })
+    
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        print(sujet)
+
+        respfeatures = load_respfeatures(sujet)
+
+        for cond in conditions:
+
+            for odor in odor_list:
+
+                _df = respfeatures[cond][odor]
+
+                _df_respi_allsujet = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'odor' : [odor], 
+                                      'inspi_duration' : [np.median(_df['inspi_duration'])], 'expi_duration' : [np.median(_df['expi_duration'])], 
+                                      'cycle_freq' : [np.median(_df['cycle_freq'])], 'inspi_volume' : [np.median(_df['inspi_volume'])], 
+                                      'expi_volume' : [np.median(_df['expi_volume'])], 'total_amplitude' : [np.median(_df['total_amplitude'])], 
+                                      'inspi_amplitude' : [np.median(_df['inspi_amplitude'])], 'expi_amplitude' : [np.median(_df['expi_amplitude'])], })
+                
+                df_respi_allsujet = pd.concat([df_respi_allsujet, _df_respi_allsujet])
+
+    os.chdir(os.path.join(path_results, 'allplot', 'RESPI'))
+    df_respi_allsujet.to_excel('allsujet_df_respi.xlsx')
+
         
 
 

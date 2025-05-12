@@ -143,13 +143,13 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet():
 
                 Cxy_allchan_i = Cxy_allcond[cond][odor_i][:,hzCxy_mask].mean(axis=1)
                 xr_allsujet.loc[sujet, 'Cxy', cond, odor_i, :] = Cxy_allchan_i
-                MVL_allchan_i = MVL_allcond[cond][odor_i]
-                xr_allsujet.loc[sujet, 'MVL', cond, odor_i, :] = MVL_allchan_i
+                # MVL_allchan_i = MVL_allcond[cond][odor_i]
+                # xr_allsujet.loc[sujet, 'MVL', cond, odor_i, :] = MVL_allchan_i
 
                 Cxy_allchan_surr_i = surrogates_allcond['Cxy'][cond][odor_i][:len(chan_list_eeg),hzCxy_mask].mean(axis=1)
                 xr_allsujet.loc[sujet, 'Cxy_surr', cond, odor_i, :] = np.array(Cxy_allchan_i > Cxy_allchan_surr_i)*1
                 MVL_allchan_surr_i = np.array([np.percentile(surrogates_allcond['MVL'][cond][odor_i][nchan,:], 99) for nchan, _ in enumerate(chan_list_eeg)])
-                xr_allsujet.loc[sujet, 'MVL_surr', cond, odor_i, :] = np.array(MVL_allchan_i > MVL_allchan_surr_i)*1
+                # xr_allsujet.loc[sujet, 'MVL_surr', cond, odor_i, :] = np.array(MVL_allchan_i > MVL_allchan_surr_i)*1
 
         for cond in conditions:
 
@@ -159,8 +159,8 @@ def compute_Pxx_Cxy_Cyclefreq_MVL_Surrogates_allsujet():
                 for band, freq in freq_band_fc_analysis.items():
 
                     hzPxx_mask = (hzPxx >= freq[0]) & (hzPxx <= freq[-1])
-                    Pxx_mean_i = Pxx_allcond[cond][odor_i][:,hzPxx_mask].mean(axis=1)
-                    xr_allsujet.loc[sujet, f'Pxx_{band}', cond, odor_i, :] = Pxx_mean_i
+                    # Pxx_mean_i = Pxx_allcond[cond][odor_i][:,hzPxx_mask].mean(axis=1)
+                    # xr_allsujet.loc[sujet, f'Pxx_{band}', cond, odor_i, :] = Pxx_mean_i
 
     
     #### get stats
@@ -305,6 +305,205 @@ def compute_Cxy_Surrogates_allsujet():
     
 
 ################################
+######## EXTRACT DF PLOT ########
+################################
+
+
+def get_df_TF_allsujet():
+
+    #### create montage
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+    phase_list_lmm = ['inspi', 'expi']
+
+    sujet_group_list = ['allsujet', 'rep', 'norep']
+    term_list = ['(Intercept)', 'condCO2', 'condFR_CV_2', 'condMECA', 'odor-', 'odor+', 'condCO2:odor-', 'condFR_CV_2:odor-', 'condMECA:odor-', 'condCO2:odor+',
+            'condFR_CV_2:odor+', 'condMECA:odor+']
+    term_list_repnorep = ['(Intercept)', 'repTRUE', 'condCO2:repTRUE', 'condFR_CV_2:repTRUE', 'condMECA:repTRUE', 'odor-:repTRUE', 'odor+:repTRUE', 'condCO2:odor-:repTRUE', 
+                          'condFR_CV_2:odor-:repTRUE', 'condMECA:odor-:repTRUE', 'condCO2:odor+:repTRUE', 'condFR_CV_2:odor+:repTRUE', 'condMECA:odor+:repTRUE']
+
+    #### load data
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'TF'))
+    df_TF = pd.read_excel(f"df_allsujet_TF.xlsx").drop(columns=['Unnamed: 0'])
+    prms = get_params()
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'TF', 'lmm'))
+
+    for sujet_group_i, sujet_group in enumerate(sujet_group_list):
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+
+            print(sujet_group, band)
+
+            for chan_i, chan in enumerate(chan_list_eeg):
+
+                for phase_i, phase in enumerate(phase_list_lmm):
+
+                    if (sujet_group_i + band_i + chan_i + phase_i) == 0:
+
+                        df_stats_lmm = pd.read_excel(f"{sujet_group}_lmm_{chan}_{band}_{phase}_res.xlsx")
+                        df_stats_lmm['sujet_group'] = [sujet_group] * df_stats_lmm.shape[0]
+                        df_stats_lmm['chan'] = [chan] * df_stats_lmm.shape[0]
+                        df_stats_lmm['band'] = [band] * df_stats_lmm.shape[0]
+                        df_stats_lmm['phase'] = [phase] * df_stats_lmm.shape[0]
+
+                    else:
+
+                        _df_stats_lmm = pd.read_excel(f"{sujet_group}_lmm_{chan}_{band}_{phase}_res.xlsx")
+                        _df_stats_lmm['sujet_group'] = [sujet_group] * _df_stats_lmm.shape[0]
+                        _df_stats_lmm['chan'] = [chan] * _df_stats_lmm.shape[0]
+                        _df_stats_lmm['band'] = [band] * _df_stats_lmm.shape[0]
+                        _df_stats_lmm['phase'] = [phase] * _df_stats_lmm.shape[0]
+                        df_stats_lmm = pd.concat([df_stats_lmm, _df_stats_lmm])
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+
+        print(band)
+
+        for chan_i, chan in enumerate(chan_list_eeg):
+
+            for phase_i, phase in enumerate(phase_list_lmm):
+
+                if (band_i + chan_i + phase_i) == 0:
+
+                    df_stats_lmm_repnorep = pd.read_excel(f"repnorep_lmm_{chan}_{band}_{phase}_res.xlsx")
+                    df_stats_lmm_repnorep['chan'] = [chan] * df_stats_lmm_repnorep.shape[0]
+                    df_stats_lmm_repnorep['band'] = [band] * df_stats_lmm_repnorep.shape[0]
+                    df_stats_lmm_repnorep['phase'] = [phase] * df_stats_lmm_repnorep.shape[0]
+
+                else:
+
+                    _df_stats_lmm = pd.read_excel(f"repnorep_lmm_{chan}_{band}_{phase}_res.xlsx")
+                    _df_stats_lmm['chan'] = [chan] * _df_stats_lmm.shape[0]
+                    _df_stats_lmm['band'] = [band] * _df_stats_lmm.shape[0]
+                    _df_stats_lmm['phase'] = [phase] * _df_stats_lmm.shape[0]
+                    df_stats_lmm_repnorep = pd.concat([df_stats_lmm_repnorep, _df_stats_lmm])
+
+    array_Pxx = np.zeros((len(sujet_list), len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(conditions), len(odor_list), len(chan_list_eeg)))
+    array_estimate = np.zeros((len(sujet_group_list), len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_eeg), len(term_list)))
+    array_signi = np.zeros((len(sujet_group_list), len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_eeg), len(term_list)))
+    array_estimate_repnorep = np.zeros((len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_eeg), len(term_list_repnorep)))
+    array_signi_repnorep = np.zeros((len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_eeg), len(term_list_repnorep)))
+
+    sujet_idx = {s: i for i, s in enumerate(sujet_list)}
+    band_idx = {b: i for i, b in enumerate(freq_band_dict_lmm.keys())}
+    phase_idx = {p: i for i, p in enumerate(phase_list_lmm)}
+    cond_idx = {c: i for i, c in enumerate(conditions)}
+    odor_idx = {o: i for i, o in enumerate(odor_list)}
+    chan_idx = {ch: i for i, ch in enumerate(chan_list_eeg)}
+
+    # Now fill the array
+    for _, row in df_TF.iterrows():
+        i = sujet_idx[row['sujet']]
+        j = band_idx[row['band']]
+        k = phase_idx[row['phase']]
+        l = cond_idx[row['cond']]
+        m = odor_idx[row['odor']]
+        n = chan_idx[row['chan']]
+        array_Pxx[i, j, k, l, m, n] = row['Pxx']
+
+    for sujet_group_i, sujet_group in enumerate(sujet_group_list):
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+
+            for phase_i, phase in enumerate(phase_list_lmm):
+
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    for term_i, term in enumerate(term_list):
+
+                        array_estimate[sujet_group_i, band_i, phase_i, chan_i, term_i] = df_stats_lmm.query(f"sujet_group == '{sujet_group}' and band == '{band}' and phase == '{phase}' and chan == '{chan}' and term == '{term}'")['estimate'].values[0]
+                        array_signi[sujet_group_i, band_i, phase_i, chan_i, term_i] = df_stats_lmm.query(f"sujet_group == '{sujet_group}' and band == '{band}' and phase == '{phase}' and chan == '{chan}' and term == '{term}'")['p.value'].values[0]
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+
+        for phase_i, phase in enumerate(phase_list_lmm):
+
+            for chan_i, chan in enumerate(chan_list_eeg):
+
+                for term_i, term in enumerate(term_list_repnorep):
+
+                    array_estimate_repnorep[band_i, phase_i, chan_i, term_i] = df_stats_lmm_repnorep.query(f"band == '{band}' and phase == '{phase}' and chan == '{chan}' and term == '{term}'")['estimate'].values[0]
+                    array_signi_repnorep[band_i, phase_i, chan_i, term_i] = df_stats_lmm_repnorep.query(f"band == '{band}' and phase == '{phase}' and chan == '{chan}' and term == '{term}'")['p.value'].values[0]
+            
+    xr_Pxx = xr.DataArray(data=array_Pxx, dims=['sujet', 'band', 'phase', 'cond', 'odor', 'chan'], coords={'sujet' : sujet_list, 'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg})
+    xr_estimate = xr.DataArray(data=array_estimate, dims=['sujet_group', 'band', 'phase', 'chan', 'term'], coords={'sujet_group' : sujet_group_list, 'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'chan' : chan_list_eeg, 'term' : term_list})
+    xr_signi = xr.DataArray(data=array_signi, dims=['sujet_group', 'band', 'phase', 'chan', 'term'], coords={'sujet_group' : sujet_group_list, 'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'chan' : chan_list_eeg, 'term' : term_list})
+    xr_estimate_repnorep = xr.DataArray(data=array_estimate_repnorep, dims=['band', 'phase', 'chan', 'term'], coords={'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'chan' : chan_list_eeg, 'term' : term_list_repnorep})
+    xr_signi_repnorep = xr.DataArray(data=array_signi_repnorep, dims=['band', 'phase', 'chan', 'term'], coords={'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'chan' : chan_list_eeg, 'term' : term_list_repnorep})
+
+    #### lmm region
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'TF', 'lmm'))
+
+    for sujet_group_i, sujet_group in enumerate(sujet_group_list):
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+
+            print(sujet_group, band)
+
+            for region_i, region in enumerate(chan_list_lobes_lmm):
+
+                for phase_i, phase in enumerate(phase_list_lmm):
+
+                    if (sujet_group_i + band_i + region_i + phase_i) == 0:
+
+                        df_stats_lmm_region = pd.read_excel(f"{sujet_group}_lmm_{region}_{band}_{phase}_res.xlsx")
+                        df_stats_lmm_region['sujet_group'] = [sujet_group] * df_stats_lmm_region.shape[0]
+                        df_stats_lmm_region['region'] = [region] * df_stats_lmm_region.shape[0]
+                        df_stats_lmm_region['band'] = [band] * df_stats_lmm_region.shape[0]
+                        df_stats_lmm_region['phase'] = [phase] * df_stats_lmm_region.shape[0]
+
+                    else:
+
+                        _df_stats_lmm = pd.read_excel(f"{sujet_group}_lmm_{region}_{band}_{phase}_res.xlsx")
+                        _df_stats_lmm['sujet_group'] = [sujet_group] * _df_stats_lmm.shape[0]
+                        _df_stats_lmm['region'] = [region] * _df_stats_lmm.shape[0]
+                        _df_stats_lmm['band'] = [band] * _df_stats_lmm.shape[0]
+                        _df_stats_lmm['phase'] = [phase] * _df_stats_lmm.shape[0]
+                        df_stats_lmm_region = pd.concat([df_stats_lmm_region, _df_stats_lmm])
+
+    array_estimate_region = np.zeros((len(sujet_group_list), len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_lobes_lmm), len(term_list)))
+    array_signi_region = np.zeros((len(sujet_group_list), len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_lobes_lmm), len(term_list)))
+    # array_estimate_repnorep_region = np.zeros((len(freq_band_dict_lmm.keys()), len(phase_list_lmm), len(chan_list_lobes_lmm), len(term_list_repnorep)))
+
+    for sujet_group_i, sujet_group in enumerate(sujet_group_list):
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+
+            for phase_i, phase in enumerate(phase_list_lmm):
+
+                for region_i, region in enumerate(chan_list_lobes_lmm):
+
+                    for term_i, term in enumerate(term_list):
+
+                        array_estimate_region[sujet_group_i, band_i, phase_i, region_i, term_i] = df_stats_lmm_region.query(f"sujet_group == '{sujet_group}' and band == '{band}' and phase == '{phase}' and region == '{region}' and term == '{term}'")['estimate'].values[0]
+                        array_signi_region[sujet_group_i, band_i, phase_i, region_i, term_i] = df_stats_lmm_region.query(f"sujet_group == '{sujet_group}' and band == '{band}' and phase == '{phase}' and region == '{region}' and term == '{term}'")['p.value'].values[0]
+
+    # for band_i, band in enumerate(freq_band_dict_lmm):
+
+    #     for phase_i, phase in enumerate(phase_list_lmm):
+
+    #         for region_i, region in enumerate(chan_list_lobes_lmm):
+
+    #             for term_i, term in enumerate(term_list_repnorep):
+
+    #                 array_estimate_repnorep[band_i, phase_i, region_i, term_i] = df_stats_lmm_repnorep_region.query(f"band == '{band}' and phase == '{phase}' and chan == '{chan}' and term == '{term}'")['estimate'].values[0]
+            
+    xr_estimate_region = xr.DataArray(data=array_estimate_region, dims=['sujet_group', 'band', 'phase', 'region', 'term'], coords={'sujet_group' : sujet_group_list, 'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'region' : list(chan_list_lobes_lmm.keys()), 'term' : term_list})
+    xr_signi_region = xr.DataArray(data=array_signi_region, dims=['sujet_group', 'band', 'phase', 'region', 'term'], coords={'sujet_group' : sujet_group_list, 'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'region' : list(chan_list_lobes_lmm.keys()), 'term' : term_list})
+    # xr_stats_repnorep = xr.DataArray(data=array_estimate_repnorep, dims=['band', 'phase', 'region', 'term'], coords={'band' : list(freq_band_dict_lmm.keys()), 'phase' : phase_list_lmm, 'chan' : chan_list_lobes_lmm, 'term' : term_list_repnorep})
+
+    return xr_Pxx, xr_estimate, xr_signi, xr_estimate_repnorep, xr_signi_repnorep, xr_estimate_region, xr_signi_region
+
+
+
+
+
+
+
+
+################################
 ######## TOPOPLOT ########
 ################################
 
@@ -414,7 +613,7 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats):
 
                 #### save
                 os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
-                fig.savefig(f'{data_type}_{sujet_group}_{band_prep}_topo.jpeg', dpi=150)
+                fig.savefig(f'{data_type}_{sujet_group}_topo.jpeg', dpi=150)
                 fig.clf()
                 plt.close('all')
                 gc.collect()
@@ -464,7 +663,7 @@ def plot_save_PSD_Cxy_CF_MVL_TOPOPLOT(xr_allsujet, xr_allsujet_stats):
 
                     #### save
                     os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot'))
-                    fig.savefig(f'{data_type}_{sujet_group}_{band_prep}_{stats_type}_topo.jpeg', dpi=150)
+                    fig.savefig(f'{data_type}_{sujet_group}_{stats_type}_topo.jpeg', dpi=150)
                     fig.clf()
                     plt.close('all')
                     gc.collect()
@@ -753,6 +952,733 @@ def plot_save_Cxy_TOPOPLOT_allsujet_perm():
     os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
     fig.savefig(f'repnorep_topo_Cxy.jpeg', dpi=150)
     plt.close('all')
+
+
+
+
+
+def plot_save_Cxy_TOPOPLOT_allsujet_lmm():
+
+    #### create montage
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+
+    mask_params = dict(markersize=10, markerfacecolor='y')
+
+    sujet_group_list = ['allsujet', 'rep', 'norep']
+    term_list = ['(Intercept)', 'condCO2', 'condFR_CV_2', 'condMECA', 'odor-', 'odor+', 'condCO2:odor-', 'condFR_CV_2:odor-', 'condMECA:odor-', 'condCO2:odor+',
+            'condFR_CV_2:odor+', 'condMECA:odor+']
+    term_list_repnorep = ['(Intercept)', 'REPTRUE', 'condCO2:REPTRUE', 'condFR_CV_2:REPTRUE', 'condMECA:REPTRUE', 'odor-:REPTRUE', 'odor+:REPTRUE', 'condCO2:odor-:REPTRUE', 
+                          'condFR_CV_2:odor-:REPTRUE', 'condMECA:odor-:REPTRUE', 'condCO2:odor+:REPTRUE', 'condFR_CV_2:odor+:REPTRUE', 'condMECA:odor+:REPTRUE']
+
+
+    #### load data
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh', 'stats'))
+    df_Cxy = pd.read_excel(f"Cxy_allsujet.xlsx").drop(columns=['Unnamed: 0'])
+    prms = get_params()
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh', 'stats'))
+
+    for sujet_group_i, sujet_group in enumerate(sujet_group_list):
+
+        for chan_i, chan in enumerate(chan_list_eeg):
+
+            if sujet_group_i == 0 and chan_i == 0:
+
+                df_stats_lmm = pd.read_excel(f"{sujet_group}_lmm_{chan}_res.xlsx")
+                df_stats_lmm['sujet_group'] = [sujet_group] * df_stats_lmm.shape[0]
+                df_stats_lmm['chan'] = [chan] * df_stats_lmm.shape[0]
+
+            else:
+
+                _df_stats_lmm = pd.read_excel(f"{sujet_group}_lmm_{chan}_res.xlsx")
+                _df_stats_lmm['sujet_group'] = [sujet_group] * _df_stats_lmm.shape[0]
+                _df_stats_lmm['chan'] = [chan] * _df_stats_lmm.shape[0]
+                df_stats_lmm = pd.concat([df_stats_lmm, _df_stats_lmm])
+
+    for chan_i, chan in enumerate(chan_list_eeg):
+
+        if chan_i == 0:
+
+            df_stats_lmm_repnorep = pd.read_excel(f"repnorep_lmm_{chan}_res.xlsx")
+            df_stats_lmm_repnorep['chan'] = [chan] * df_stats_lmm_repnorep.shape[0]
+
+        else:
+
+            _df_stats_lmm = pd.read_excel(f"repnorep_lmm_{chan}_res.xlsx")
+            _df_stats_lmm['chan'] = [chan] * _df_stats_lmm.shape[0]
+            df_stats_lmm_repnorep = pd.concat([df_stats_lmm_repnorep, _df_stats_lmm])
+
+    array_Cxy = np.zeros((len(sujet_list), len(conditions), len(odor_list), len(chan_list_eeg)))
+    array_stats = np.zeros((len(sujet_group_list), len(chan_list_eeg), len(term_list)))
+    array_stats_repnorep = np.zeros((len(chan_list_eeg), len(term_list_repnorep)))
+
+    sujet_idx = {s: i for i, s in enumerate(sujet_list)}
+    cond_idx = {c: i for i, c in enumerate(conditions)}
+    odor_idx = {o: i for i, o in enumerate(odor_list)}
+    chan_idx = {ch: i for i, ch in enumerate(chan_list_eeg)}
+
+    for _, row in df_Cxy.iterrows():
+        i = sujet_idx[row['sujet']]
+        j = cond_idx[row['cond']]
+        k = odor_idx[row['odor']]
+        l = chan_idx[row['chan']]
+        array_Cxy[i, j, k, l] = row['Cxy']
+
+    for sujet_group_i, sujet_group in enumerate(sujet_group_list):
+
+        for chan_i, chan in enumerate(chan_list_eeg):
+
+            for term_i, term in enumerate(term_list):
+
+                array_stats[sujet_group_i, chan_i, term_i] = df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == '{term}'")['estimate'].values[0]
+            
+    for chan_i, chan in enumerate(chan_list_eeg):
+
+        for term_i, term in enumerate(term_list_repnorep):
+
+            array_stats_repnorep[chan_i, term_i] = df_stats_lmm_repnorep.query(f"chan == '{chan}' and term == '{term}'")['estimate'].values[0]   
+
+    xr_Cxy = xr.DataArray(data=array_Cxy, dims=['sujet', 'cond', 'odor', 'chan'], coords={'sujet' : sujet_list, 'cond' : conditions, 'odor' : odor_list, 'chan' : chan_list_eeg})
+    xr_stats = xr.DataArray(data=array_stats, dims=['sujet_group', 'chan', 'term'], coords={'sujet_group' : sujet_group_list, 'chan' : chan_list_eeg, 'term' : term_list})
+    xr_stats_repnorep = xr.DataArray(data=array_stats_repnorep, dims=['chan', 'term'], coords={'chan' : chan_list_eeg, 'term' : term_list_repnorep})
+
+    #### params
+    hzCxy = np.linspace(0,srate/2,int(prms['nfft']/2+1))
+    mask_hzCxy = (hzCxy>=freq_surrogates[0]) & (hzCxy<freq_surrogates[1])
+    hzCxy = hzCxy[mask_hzCxy]
+
+    #### lim
+    vlim = {}
+
+    for sujet_group in sujet_group_list:
+        if sujet_group == 'allsujet':
+            sujet_sel = sujet_list
+        elif sujet_group == 'rep':
+            sujet_sel = sujet_best_list_rev 
+        elif sujet_group == 'norep':
+            sujet_sel = sujet_no_respond_rev 
+
+        vlim[sujet_group] = np.array([xr_Cxy.loc[sujet_sel].median('sujet').values.min(), xr_Cxy.loc[sujet_sel].median('sujet').values.max()])
+
+    vlim_stats = {}
+
+    for sujet_group in sujet_group_list:
+
+        vlim_stats[sujet_group] = np.abs(np.array([xr_stats.loc[sujet_group].values.min(), xr_stats.loc[sujet_group].values.max()])).max()
+
+    vlim_stats_repnorep = np.abs(np.array([xr_stats_repnorep.values.min(), xr_stats_repnorep.values.max()])).max()
+
+    #### plot Cxy
+    for sujet_group in sujet_group_list:
+
+        if sujet_group == 'allsujet':
+            sujet_sel = sujet_list
+        elif sujet_group == 'rep':
+            sujet_sel = sujet_best_list_rev 
+        elif sujet_group == 'norep':
+            sujet_sel = sujet_no_respond_rev 
+
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+        plt.suptitle(f'{sujet_group}_Cxy')
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
+
+        #c, cond = 0, 'CO2'
+        for c, cond in enumerate(conditions):
+
+            #r, odor = 0, odor_list[1]
+            for r, odor in enumerate(odor_list):
+
+                #### plot
+                ax = axs[r, c]
+
+                if r == 0:
+                    ax.set_title(cond, fontweight='bold', rotation=0)
+                if c == 0:
+                    ax.set_ylabel(f'{odor}')
+
+                topoplot_data = xr_Cxy.loc[sujet_sel, cond, odor].median('sujet').values
+                if cond == 'FR_CV_1' and odor == 'o':
+                    significance_type = np.zeros(topoplot_data.shape)
+                elif cond != 'FR_CV_1' and odor == 'o':
+                    mask_signi_cond = []
+                    for chan in chan_list_eeg:
+                        mask_signi_cond.append(df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == 'cond{cond}'")['p.value'].values[0] < 0.05)
+                    significance_type = np.array(mask_signi_cond).astype(int)
+                elif cond == 'FR_CV_1' and odor != 'o':
+                    mask_signi_odor = []
+                    for chan in chan_list_eeg:
+                        mask_signi_odor.append(df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == 'odor{odor}'")['p.value'].values[0] < 0.05)
+                    significance_type = np.array(mask_signi_odor).astype(int) * 2
+                else:    
+                    mask_signi_condodor = []
+                    for chan in chan_list_eeg:
+                        mask_signi_condodor.append(df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == 'cond{cond}:odor{odor}'")['p.value'].values[0] < 0.05)
+                    significance_type = np.array(mask_signi_condodor).astype(int) * 3
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        vlim=(vlim[sujet_group][0], vlim[sujet_group][1]), cmap='RdPu')
+
+                # Now manually add the significance markers
+                for idx, (chan_name, signi) in enumerate(zip(chan_list_eeg, significance_type)):
+                    if signi == 0:
+                        continue  # Not significant
+                    pos_x, pos_y = info['chs'][idx]['loc'][:2]
+                    if signi == 1:
+                        color = 'red'  # only cond
+                    elif signi == 2:
+                        color = 'blue'  # only odor
+                    elif signi == 3:
+                        color = 'purple'  # both
+                    ax.scatter(pos_x, pos_y, color=color, s=100, edgecolor='k', zorder=10)
+
+        # plt.show() 
+
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+        fig.savefig(f'lmm_{sujet_group}_topo_Cxy.jpeg', dpi=150)
+        plt.close('all')
+
+        #### estimate
+
+        mask_params = dict(markersize=12, markerfacecolor='y')
+
+        fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+        plt.suptitle(f'{sujet_group}_Cxy')
+        fig.set_figheight(10)
+        fig.set_figwidth(10)
+
+        #c, cond = 0, 'CO2'
+        for c, cond in enumerate(conditions):
+
+            #r, odor = 0, odor_list[1]
+            for r, odor in enumerate(odor_list):
+
+                #### plot
+                ax = axs[r, c]
+
+                if r == 0:
+                    ax.set_title(cond, fontweight='bold', rotation=0)
+                if c == 0:
+                    ax.set_ylabel(f'{odor}')
+
+                if cond == 'FR_CV_1' and odor == 'o':
+                    topoplot_data = xr_stats.loc[sujet_group, :, f'(Intercept)'].values
+                    significance_type = np.zeros(topoplot_data.shape).astype('bool')
+
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        vlim=(-vlim_stats[sujet_group], vlim_stats[sujet_group]), mask=significance_type, 
+                                        mask_params=mask_params, cmap='seismic')
+                    
+                elif cond != 'FR_CV_1' and odor == 'o':
+                    topoplot_data = xr_stats.loc[sujet_group, :, f'cond{cond}'].values
+                    significance_type = np.zeros(topoplot_data.shape)
+                    mask_signi_cond = []
+                    for chan in chan_list_eeg:
+                        mask_signi_cond.append(df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == 'cond{cond}'")['p.value'].values[0] < 0.05)
+                    significance_type = np.array(mask_signi_cond)
+
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        vlim=(-vlim_stats[sujet_group], vlim_stats[sujet_group]), mask=significance_type, 
+                                        mask_params=mask_params, cmap='seismic')
+                    
+
+                elif cond == 'FR_CV_1' and odor != 'o':
+                    topoplot_data = xr_stats.loc[sujet_group, :, f'odor{odor}'].values
+                    mask_signi_odor = []
+                    for chan in chan_list_eeg:
+                        mask_signi_odor.append(df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == 'odor{odor}'")['p.value'].values[0] < 0.05)
+                    significance_type = np.array(mask_signi_odor).astype('bool')
+
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        vlim=(-vlim_stats[sujet_group], vlim_stats[sujet_group]), mask=significance_type, 
+                                        mask_params=mask_params, cmap='seismic')
+                    
+                else:    
+                    topoplot_data = xr_stats.loc[sujet_group, :, f'cond{cond}:odor{odor}'].values
+                    mask_signi_condodor = []
+                    for chan in chan_list_eeg:
+                        mask_signi_condodor.append(df_stats_lmm.query(f"sujet_group == '{sujet_group}' and chan == '{chan}' and term == 'cond{cond}:odor{odor}'")['p.value'].values[0] < 0.05)
+                    significance_type = np.array(mask_signi_condodor).astype('bool')
+
+                    im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                        vlim=(-vlim_stats[sujet_group], vlim_stats[sujet_group]), mask=significance_type, 
+                                        mask_params=mask_params, cmap='seismic')
+
+        # plt.show() 
+
+        os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+        fig.savefig(f'lmm_estimate_{sujet_group}_topo_Cxy.jpeg', dpi=150)
+        plt.close('all')
+
+    #### estimate repnorep
+
+    mask_params = dict(markersize=12, markerfacecolor='y')
+
+    fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+    plt.suptitle(f'repnorep_Cxy')
+    fig.set_figheight(10)
+    fig.set_figwidth(10)
+
+    #c, cond = 0, 'CO2'
+    for c, cond in enumerate(conditions):
+
+        #r, odor = 0, odor_list[1]
+        for r, odor in enumerate(odor_list):
+
+            #### plot
+            ax = axs[r, c]
+
+            if r == 0:
+                ax.set_title(cond, fontweight='bold', rotation=0)
+            if c == 0:
+                ax.set_ylabel(f'{odor}')
+
+            if cond == 'FR_CV_1' and odor == 'o':
+                topoplot_data = xr_stats_repnorep.loc[:, f'REPTRUE'].values
+                significance_type = np.zeros(topoplot_data.shape)
+                mask_signi_cond = []
+                for chan in chan_list_eeg:
+                    mask_signi_cond.append(df_stats_lmm_repnorep.query(f"chan == '{chan}' and term == 'REPTRUE'")['p.value'].values[0] < 0.05)
+                significance_type = np.array(mask_signi_cond)
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    vlim=(-vlim_stats_repnorep, vlim_stats_repnorep), mask=significance_type, 
+                                    mask_params=mask_params, cmap='seismic')
+                
+            elif cond != 'FR_CV_1' and odor == 'o':
+                topoplot_data = xr_stats_repnorep.loc[:, f'cond{cond}:REPTRUE'].values
+                significance_type = np.zeros(topoplot_data.shape)
+                mask_signi_cond = []
+                for chan in chan_list_eeg:
+                    mask_signi_cond.append(df_stats_lmm_repnorep.query(f"chan == '{chan}' and term == 'cond{cond}:REPTRUE'")['p.value'].values[0] < 0.05)
+                significance_type = np.array(mask_signi_cond)
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    vlim=(-vlim_stats_repnorep, vlim_stats_repnorep), mask=significance_type, 
+                                    mask_params=mask_params, cmap='seismic')
+                
+
+            elif cond == 'FR_CV_1' and odor != 'o':
+                topoplot_data = xr_stats_repnorep.loc[:, f'odor{odor}:REPTRUE'].values
+                mask_signi_odor = []
+                for chan in chan_list_eeg:
+                    mask_signi_odor.append(df_stats_lmm_repnorep.query(f"chan == '{chan}' and term == 'odor{odor}:REPTRUE'")['p.value'].values[0] < 0.05)
+                significance_type = np.array(mask_signi_odor).astype('bool')
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    vlim=(-vlim_stats_repnorep, vlim_stats_repnorep), mask=significance_type, 
+                                    mask_params=mask_params, cmap='seismic')
+                
+            else:    
+                topoplot_data = xr_stats_repnorep.loc[:, f'cond{cond}:odor{odor}:REPTRUE'].values
+                mask_signi_condodor = []
+                for chan in chan_list_eeg:
+                    mask_signi_condodor.append(df_stats_lmm_repnorep.query(f"chan == '{chan}' and term == 'cond{cond}:odor{odor}:REPTRUE'")['p.value'].values[0] < 0.05)
+                significance_type = np.array(mask_signi_condodor).astype('bool')
+
+                im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                    vlim=(-vlim_stats_repnorep, vlim_stats_repnorep), mask=significance_type, 
+                                    mask_params=mask_params, cmap='seismic')
+
+    # plt.show() 
+
+    os.chdir(os.path.join(path_results, 'allplot', 'PSD_Coh', 'topoplot_allsujet_Cxy'))
+    fig.savefig(f'lmm_estimate_repnorep_topo_Cxy.jpeg', dpi=150)
+    plt.close('all')
+
+
+def plot_save_Pxx_TOPOPLOT_allsujet_lmm():
+
+    #### create montage
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+    phase_list_lmm = ['inspi', 'expi']
+
+    plevel = 0.05
+
+    mask_params = dict(markersize=10, markerfacecolor='y')
+
+    sujet_group_list = ['allsujet', 'rep', 'norep']
+
+    xr_Pxx, xr_estimate, xr_signi, xr_estimate_repnorep, xr_signi_repnorep, xr_estimate_region, xr_signi_region = get_df_TF_allsujet()
+
+
+    #### lim
+    vlim_estimate = {}
+
+    for sujet_group in sujet_group_list:
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+            
+            for phase_i, phase in enumerate(phase_list_lmm):
+
+                vlim_estimate[sujet_group] = np.abs(np.array([xr_estimate.loc[sujet_group, band, phase].values.min(), xr_estimate.loc[sujet_group, band, phase].values.max()])).max()
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+        
+        for phase_i, phase in enumerate(phase_list_lmm):
+
+            vlim_estimate_repnorep = np.abs(np.array([xr_estimate_repnorep.loc[band, phase].values.min(), xr_estimate_repnorep.loc[band, phase].values.max()])).max()
+
+
+    #### plot Pxx estimate
+    mask_params = dict(markersize=12, markerfacecolor='y')
+
+    for sujet_group in sujet_group_list:
+
+        if sujet_group == 'allsujet':
+            sujet_sel = sujet_list
+        elif sujet_group == 'rep':
+            sujet_sel = sujet_best_list_rev 
+        elif sujet_group == 'norep':
+            sujet_sel = sujet_no_respond_rev 
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+            
+            for phase_i, phase in enumerate(phase_list_lmm): 
+
+                fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+                plt.suptitle(f'{sujet_group}_{band}_{phase}_Pxx')
+                fig.set_figheight(10)
+                fig.set_figwidth(10)
+
+                #c, cond = 0, 'CO2'
+                for c, cond in enumerate(conditions):
+
+                    #r, odor = 0, odor_list[1]
+                    for r, odor in enumerate(odor_list):
+
+                        #### plot
+                        ax = axs[r, c]
+
+                        if r == 0:
+                            ax.set_title(cond, fontweight='bold', rotation=0)
+                        if c == 0:
+                            ax.set_ylabel(f'{odor}')
+
+                        if cond == 'FR_CV_1' and odor == 'o':
+                            topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'(Intercept)'].values
+                            mask_signi = np.zeros(topoplot_data.shape).astype('bool')
+
+                            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                                vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi, 
+                                                mask_params=mask_params, cmap='seismic')
+                            
+                        elif cond != 'FR_CV_1' and odor == 'o':
+                            topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'cond{cond}'].values
+                            mask_signi = xr_signi.loc[sujet_group, band, phase, :, f'cond{cond}'].values < plevel
+
+                            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                                vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi, 
+                                                mask_params=mask_params, cmap='seismic')
+                            
+
+                        elif cond == 'FR_CV_1' and odor != 'o':
+                            topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'odor{odor}'].values
+                            mask_signi = xr_signi.loc[sujet_group, band, phase, :, f'odor{odor}'].values < plevel
+
+                            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                                vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi, 
+                                                mask_params=mask_params, cmap='seismic')
+                            
+                        else:    
+                            topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'cond{cond}:odor{odor}'].values
+                            mask_signi = xr_signi.loc[sujet_group, band, phase, :, f'cond{cond}:odor{odor}'].values < plevel
+
+                            im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                                vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi, 
+                                                mask_params=mask_params, cmap='seismic')
+
+                # plt.show() 
+
+                os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'topoplot_lmm'))
+                fig.savefig(f'{sujet_group}_{band}_{phase}_topo_lmm_Pxx.jpeg', dpi=150)
+                plt.close('all')
+
+    #### plot Pxx estimate repnorep
+    cond_sel = ['FR_CV_1', 'CO2']
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+        
+        for phase_i, phase in enumerate(phase_list_lmm): 
+
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_sel))
+            plt.suptitle(f'repnorep_{band}_{phase}_Pxx')
+            fig.set_figheight(10)
+            fig.set_figwidth(10)
+
+            #c, cond = 0, 'CO2'
+            for c, cond in enumerate(cond_sel):
+
+                #r, odor = 0, odor_list[1]
+                for r, odor in enumerate(odor_list):
+
+                    #### plot
+                    ax = axs[r, c]
+
+                    if r == 0:
+                        ax.set_title(cond, fontweight='bold', rotation=0)
+                    if c == 0:
+                        ax.set_ylabel(f'{odor}')
+
+                    if cond == 'FR_CV_1' and odor == 'o':
+                        topoplot_data = xr_estimate_repnorep.loc[band, phase, :, f'repTRUE'].values
+                        mask_signi = xr_signi_repnorep.loc[band, phase, :, f'repTRUE'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            vlim=(-vlim_estimate_repnorep, vlim_estimate_repnorep), mask=mask_signi, 
+                                            mask_params=mask_params, cmap='seismic')
+                        
+                    elif cond != 'FR_CV_1' and odor == 'o':
+                        topoplot_data = xr_estimate_repnorep.loc[band, phase, :, f'cond{cond}:repTRUE'].values
+                        mask_signi = xr_signi_repnorep.loc[band, phase, :, f'cond{cond}:repTRUE'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            vlim=(-vlim_estimate_repnorep, vlim_estimate_repnorep), mask=mask_signi, 
+                                            mask_params=mask_params, cmap='seismic')
+                        
+
+                    elif cond == 'FR_CV_1' and odor != 'o':
+                        topoplot_data = xr_estimate_repnorep.loc[band, phase, :, f'odor{odor}:repTRUE'].values
+                        mask_signi = xr_signi_repnorep.loc[band, phase, :, f'odor{odor}:repTRUE'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            vlim=(-vlim_estimate_repnorep, vlim_estimate_repnorep), mask=mask_signi, 
+                                            mask_params=mask_params, cmap='seismic')
+                        
+                    else:    
+                        topoplot_data = xr_estimate_repnorep.loc[band, phase, :, f'cond{cond}:odor{odor}:repTRUE'].values
+                        mask_signi = xr_signi_repnorep.loc[band, phase, :, f'cond{cond}:odor{odor}:repTRUE'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                                            vlim=(-vlim_estimate_repnorep, vlim_estimate_repnorep), mask=mask_signi, 
+                                            mask_params=mask_params, cmap='seismic')
+
+            # plt.show() 
+
+            os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'topoplot_lmm'))
+            fig.savefig(f'repnorep_{band}_{phase}_topo_lmm_Pxx.jpeg', dpi=150)
+            plt.close('all')
+
+    #### plot Pxx estimate only CO2
+    cond_phase_order = [('FR_CV_1', 'inspi'), ('FR_CV_1', 'expi'), ('CO2', 'inspi'), ('CO2', 'expi')]
+
+    for sujet_group in sujet_group_list:
+
+        if sujet_group == 'allsujet':
+            sujet_sel = sujet_list
+        elif sujet_group == 'rep':
+            sujet_sel = sujet_best_list_rev 
+        elif sujet_group == 'norep':
+            sujet_sel = sujet_no_respond_rev 
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(cond_phase_order))
+            plt.suptitle(f'{sujet_group}_{band}_Pxx')
+            fig.set_figheight(12)
+            fig.set_figwidth(10)
+
+            for c, (cond, phase) in enumerate(cond_phase_order):
+                for r, odor in enumerate(odor_list):
+
+                    ax = axs[r, c]
+
+                    if r == 0:
+                        ax.set_title(f'{cond}_{phase}', fontweight='bold', rotation=0)
+                    if c == 0:
+                        ax.set_ylabel(f'{odor}')
+
+                    # Topomap logic
+                    if cond == 'FR_CV_1' and odor == 'o':
+                        topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'(Intercept)'].values
+                        mask_signi = np.zeros(topoplot_data.shape).astype('bool')
+
+                        im, _ = mne.viz.plot_topomap(
+                            data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi,
+                            mask_params=mask_params, cmap='seismic'
+                        )
+
+                    elif cond != 'FR_CV_1' and odor == 'o':
+                        topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'cond{cond}'].values
+                        mask_signi = xr_signi.loc[sujet_group, band, phase, :, f'cond{cond}'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(
+                            data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi,
+                            mask_params=mask_params, cmap='seismic'
+                        )
+
+                    elif cond == 'FR_CV_1' and odor != 'o':
+                        topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'odor{odor}'].values
+                        mask_signi = xr_signi.loc[sujet_group, band, phase, :, f'odor{odor}'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(
+                            data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi,
+                            mask_params=mask_params, cmap='seismic'
+                        )
+
+                    else:
+                        topoplot_data = xr_estimate.loc[sujet_group, band, phase, :, f'cond{cond}:odor{odor}'].values
+                        mask_signi = xr_signi.loc[sujet_group, band, phase, :, f'cond{cond}:odor{odor}'].values < plevel
+
+                        im, _ = mne.viz.plot_topomap(
+                            data=topoplot_data, axes=ax, show=False, names=chan_list_eeg, pos=info,
+                            vlim=(-vlim_estimate[sujet_group], vlim_estimate[sujet_group]), mask=mask_signi,
+                            mask_params=mask_params, cmap='seismic'
+                        )
+
+            os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'topoplot_lmm', 'only_CO2'))
+            fig.savefig(f'{sujet_group}_{band}_topo_lmm_Pxx.jpeg', dpi=150)
+            plt.close('all')
+
+
+
+
+def plot_save_Pxx_HIST_allsujet_lmm():
+
+    #### create montage
+    ch_types = ['eeg'] * len(chan_list_eeg)
+    info = mne.create_info(chan_list_eeg, ch_types=ch_types, sfreq=srate)
+    info.set_montage('standard_1020')
+    phase_list_lmm = ['inspi', 'expi']
+
+    short_list_chan_eeg = ['F3', 'F4', 'Fz', 'Cz', 'C4', 'C3', 'P4', 'Pz', 'P3']
+
+    pval_thresh = 0.05
+    mask_params = dict(markersize=10, markerfacecolor='y')
+
+    sujet_group_list = ['allsujet', 'rep', 'norep']
+    term_list = ['(Intercept)', 'condCO2', 'condFR_CV_2', 'condMECA', 'odor-', 'odor+', 'condCO2:odor-', 'condFR_CV_2:odor-', 'condMECA:odor-', 'condCO2:odor+',
+            'condFR_CV_2:odor+', 'condMECA:odor+']
+
+    xr_Pxx, xr_estimate, xr_signi, xr_estimate_repnorep, xr_signi_repnorep, xr_estimate_region, xr_signi_region = get_df_TF_allsujet()
+    
+    df_estimate_lmm = pd.DataFrame()
+
+    for sujet_group in sujet_group_list:
+
+        for band_i, band in enumerate(freq_band_dict_lmm):
+
+            for phase_i, phase in enumerate(phase_list_lmm):
+
+                for chan_i, chan in enumerate(chan_list_eeg):
+
+                    for cond_i, cond in enumerate(conditions):
+
+                        for odor_i, odor in enumerate(odor_list):
+
+                            if cond == 'FR_CV_1' and odor == 'o':
+                                val = xr_estimate.loc[sujet_group, band, phase, chan, f'(Intercept)'].values
+                                val_signi = False
+
+                            elif cond != 'FR_CV_1' and odor == 'o':
+                                val = xr_estimate.loc[sujet_group, band, phase, chan, f'cond{cond}'].values
+                                val_signi = xr_signi.loc[sujet_group, band, phase, chan, f'cond{cond}'].values < pval_thresh
+
+                            elif cond == 'FR_CV_1' and odor != 'o':
+                                val = xr_estimate.loc[sujet_group, band, phase, chan, f'odor{odor}'].values
+                                val_signi = xr_signi.loc[sujet_group, band, phase, chan, f'odor{odor}'].values < pval_thresh
+
+                            else:    
+                                val = xr_estimate.loc[sujet_group, band, phase, chan, f'cond{cond}:odor{odor}'].values
+                                val_signi = xr_signi.loc[sujet_group, band, phase, chan, f'cond{cond}:odor{odor}'].values < pval_thresh
+
+                            _df = pd.DataFrame({'sujet_group': [sujet_group], 'band': [band], 'phase': [phase], 'chan': [chan], 'cond': [cond], 'odor': [odor], 'estimate': [val], 'significant': [val_signi]})
+                            df_estimate_lmm = pd.concat([df_estimate_lmm, _df], ignore_index=True)
+
+    df_estimate_lmm['estimate'] = df_estimate_lmm['estimate'].astype(float)
+
+    # df_estimate_lmm.query(f"sujet_group == 'rep' and band == 'theta' and cond == 'CO2' and odor in ['o', '+'] and chan in {short_list_chan_eeg}")
+
+    #### plot allchan CO2
+    os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'histplot'))
+
+    def barplot_with_highlight(data, x, y, hue, palette, **kwargs):
+        ax = plt.gca()
+
+        sns.barplot(data=data, x=x, y=y, hue=hue, palette=palette, ax=ax, **kwargs)
+
+        patches = ax.patches
+
+        for patch, (_, row) in zip(patches, data.iterrows()):
+            if row.get("significant", False):  # highlight only if significant is True
+                patch.set_edgecolor("tab:green")
+                patch.set_linewidth(2)
+                patch.set_zorder(10)
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+
+        df_plot = df_estimate_lmm.query(f"sujet_group in ['rep', 'norep'] and band == '{band}' and cond == 'CO2' and odor in ['o', '+'] and chan in {short_list_chan_eeg}")
+
+        custom_palette = {
+            'rep': '#1f77b4',
+            'norep': '#ff7f0e',
+        }
+
+        g = sns.FacetGrid(df_plot, row="phase", col="odor", height=3, aspect=2)
+        g.map_dataframe(barplot_with_highlight, x="chan", y="estimate", hue="sujet_group", palette=custom_palette)
+        g.map(plt.axhline, y=0, linestyle='--', color='gray', linewidth=1)
+
+        plt.suptitle(f"CO2_{band}")
+        plt.tight_layout()
+        g.add_legend()
+
+        #plt.show()
+        
+        g.savefig(f'CO2_allchan_{band}_HIST_lmm_Pxx.jpeg', dpi=150)
+        plt.close('all')
+
+    #### plot region lmm
+    os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'histplot'))
+
+    def barplot_with_highlight(data, x, y, hue, palette, **kwargs):
+        ax = plt.gca()
+        sns.barplot(data=data, x=x, y=y, hue=hue, palette=palette, ax=ax, **kwargs)
+
+        # Access drawn bars
+        patches = ax.patches
+
+        for patch, (_, row) in zip(patches, data.iterrows()):
+            if row.get("significant", True):
+                patch.set_edgecolor("tab:green")
+                patch.set_linewidth(2)
+                patch.set_zorder(10)
+
+
+
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+
+        df_plot = df_estimate_region_lmm.query(f"sujet_group in ['rep', 'norep'] and band == '{band}' and cond == 'CO2'")
+
+        custom_palette = {
+            'rep': '#1f77b4',
+            'norep': '#ff7f0e',
+        }
+
+        g = sns.FacetGrid(df_plot, row='phase', col="region")
+        g.map_dataframe(barplot_with_highlight, x="odor", y="estimate", hue="sujet_group", palette=custom_palette)
+        g.map(plt.axhline, y=0, linestyle='--', color='gray', linewidth=1)
+
+        plt.suptitle(f"{band}_CO2")
+        plt.tight_layout()
+        g.add_legend()
+
+        #plt.show()
+        
+        g.savefig(f'CO2_{band}_HIST_lmm_Pxx.jpeg', dpi=150)
+        plt.close('all')
+
+
+    
+
+
 
 
 
@@ -1115,6 +2041,113 @@ def compilation_compute_TF():
 
 
 
+def plot_TF_median():
+
+    #chan_i, chan = 0, chan_list_eeg[0]
+    for chan_i, chan in enumerate(chan_list_eeg):
+
+        print(f'PLOT {chan}', flush=True)
+        
+        #### load
+        tf_conv = np.zeros((len(sujet_list), len(conditions), len(odor_list), nfrex, stretch_point_TF))
+
+        for sujet_i, sujet in enumerate(sujet_list):
+
+            os.chdir(os.path.join(path_precompute, 'allsujet', 'TF', 'conv'))
+            tf_conv[sujet_i] = np.load(f'{sujet}_tf_conv_allcond.npy')[:,:,chan_i]
+
+        xr_dict = {'sujet' : sujet_list, 'cond' : conditions, 'odor' : odor_list, 'nfrex' : np.arange(nfrex), 'phase' : np.arange(stretch_point_TF)}
+        xr_tf = xr.DataArray(data=tf_conv, dims=xr_dict.keys(), coords=xr_dict)
+
+        group_list = ['allsujet', 'rep', 'norep']
+
+        #### scale
+        vmin = {}
+        vmax = {}
+
+        for group_i, group in enumerate(group_list):
+
+            vals = np.array([])
+        
+            for cond in conditions:
+
+                for odor in odor_list:
+
+                    if group == 'allsujet':
+                        tf_cond = xr_tf.loc[:, cond, odor, :,:].values
+                    elif group == 'rep':
+                        tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].values
+                    elif group == 'norep':
+                        tf_cond = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].values
+
+                    tf_median = np.median(tf_cond, axis=0)
+
+                    vals = np.append(vals, tf_median.reshape(-1))
+
+            vmin[group], vmax[group] = vals.min(), vals.max()
+
+            del vals
+
+        #### plot
+        os.chdir(os.path.join(path_results, 'allplot', 'TF'))
+
+        #group = group_list[2]
+        for group in group_list:
+
+            print(f"{group}", flush=True)
+
+            #### plot
+            fig, axs = plt.subplots(nrows=len(odor_list), ncols=len(conditions))
+
+            plt.suptitle(f'{group}_{chan}')
+
+            fig.set_figheight(10)
+            fig.set_figwidth(15)
+
+            time = range(stretch_point_TF)
+
+            #r, odor_i = 0, odor_list[0]
+            for r, odor in enumerate(odor_list):
+
+                #c, cond = 1, conditions[1]
+                for c, cond in enumerate(conditions):
+
+                    if group == 'allsujet':
+                        tf_cond = xr_tf.loc[:, cond, odor, :,:].values
+                    elif group == 'rep':
+                        tf_cond = xr_tf.loc[sujet_best_list_rev, cond, odor, :,:].values
+                    elif group == 'norep':
+                        tf_cond = xr_tf.loc[sujet_no_respond_rev, cond, odor, :,:].values
+
+                    tf_plot = np.median(tf_cond, axis=0)
+                
+                    ax = axs[r,c]
+
+                    if r == 0 :
+                        ax.set_title(cond, fontweight='bold', rotation=0)
+
+                    if c == 0:
+                        ax.set_ylabel(odor)
+
+                    ax.pcolormesh(time, frex, tf_plot, vmin=vmin[group], vmax=vmax[group], shading='gouraud', cmap=plt.get_cmap('seismic'))
+                    ax.vlines(ratio_stretch_TF*stretch_point_TF, ymin=frex[0], ymax=frex[-1], colors='g')
+                    ax.set_yscale('log')
+
+                    ax.set_yticks([2,8,10,30,50,100,150], labels=[2,8,10,30,50,100,150])
+
+            #plt.show()
+
+            #### save
+            os.chdir(os.path.join(path_results, 'allplot', 'TF', 'TF_median'))
+            fig.savefig(f'{group}_{chan}.jpeg', dpi=150)
+                
+            fig.clf()
+            plt.close('all')
+            gc.collect()
+
+        
+
+
 
 ########################################
 ######## COMPILATION FUNCTION ########
@@ -1150,9 +2183,14 @@ if __name__ == '__main__':
     #### Cxy TOPOPLOT
     # plot_save_Cxy_TOPOPLOT_allsujet()
     plot_save_Cxy_TOPOPLOT_allsujet_perm()
+    plot_save_Cxy_TOPOPLOT_allsujet_lmm()
 
     #### TF & ITPC
+    plot_save_Pxx_TOPOPLOT_allsujet_lmm()
+    plot_save_Pxx_HIST_allsujet_lmm()
+    plot_TF_median()
     compilation_compute_TF()
     # execute_function_in_slurm_bash_mem_choice('n19_res_allsujet_power', 'compilation_compute_TF', [nchan, nchan_name, band_prep], 15)
+
 
 

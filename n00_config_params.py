@@ -57,6 +57,8 @@ freq_band_dict = {'wb' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 
                 'lf' : {'theta' : [2,10], 'alpha' : [8,14], 'beta' : [10,40], 'whole' : [2,50]},
                 'hf' : {'l_gamma' : [50, 80], 'h_gamma' : [80, 120]} }
 
+freq_band_dict_lmm = {'theta' : [2,8], 'alpha' : [8,14], 'beta' : [14,40], 'gamma' : [60, 120]}
+
 freq_band_list_precompute = {'wb' : {'theta_1' : [2,10], 'theta_2' : [4,8], 'alpha_1' : [8,12], 'alpha_2' : [8,14], 
                                     'beta_1' : [12,40], 'beta_2' : [10,40], 'whole_1' : [2,50], 'l_gamma_1' : [50, 80], 
                                     'h_gamma_1' : [80, 120]} }
@@ -89,7 +91,18 @@ chan_list_lobes = {'all' : chan_list_eeg,
                    'temporal' : ['FT9', 'T7', 'TP9', 'TP10', 'T8', 'FT10'],
                    'occipital' : ['O1', 'Oz', 'O2']}
 
+# chan_list_lobes_lmm = {
+#                     'frontal' : ['Fp1', 'Fz', 'F3', 'F7', 'F4', 'F8', 'Fp2', 'FC5', 'FC1', 'FC6', 'FC2'], 
+#                    'parietal': ['C3', 'CP5', 'CP1', 'Pz', 'P3', 'P7', 'P4', 'P8', 'CP6', 'CP2', 'Cz', 'C4'],
+#                    'temporal' : ['FT9', 'T7', 'TP9', 'TP10', 'T8', 'FT10'],
+#                    'occipital' : ['O1', 'Oz', 'O2']}
 
+chan_list_lobes_lmm = {
+                    'frontal' : ['Fp1', 'Fz', 'F3', 'F7', 'F4', 'F8', 'Fp2'], 
+                   'central': ['FC5', 'FC1', 'FC6', 'FC2', 'C3', 'CP5', 'CP1', 'CP6', 'CP2', 'Cz', 'C4'],
+                   'parietal': ['Pz', 'P3', 'P7', 'P4', 'P8'],
+                   'temporal' : ['FT9', 'T7', 'TP9', 'TP10', 'T8', 'FT10'],
+                   'occipital' : ['O1', 'Oz', 'O2']}
 
 ################################
 ######## ODOR ORDER ########
@@ -204,6 +217,14 @@ elif PC_ID in ['nodeGPU', 'node14']:
     path_main_workdir = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
     path_general = '/crnldata/cmo/Projets/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
     path_memmap = '/mnt/data/julesgranget'
+    n_core = 15
+
+elif PC_ID == 'jules_pc':
+
+    PC_working = 'jules_pc'
+    path_main_workdir = 'Z:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Script_Python_EEG_Paris_git'
+    path_general = 'Z:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J'
+    path_memmap = 'Z:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
     n_core = 15
 
 else:

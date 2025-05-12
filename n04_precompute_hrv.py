@@ -57,6 +57,10 @@ def load_ecg_cR_corrected(sujet):
 
 
 
+
+
+
+
 ################################
 ######## EXECUTE ########
 ################################
@@ -203,7 +207,70 @@ if __name__ == '__main__':
             pickle.dump(ecg_cR_time_allcond, fp)
 
 
+    #### compute with physio
+    for sujet in sujet_list:
 
+        print(sujet)
+
+        #### load data
+        ecg_allcond, ecg_cR_allcond = load_ecg(sujet, 'wb')
+        respfeatures = load_respfeatures(sujet)
+
+        df_hrv_physio = pd.DataFrame({'sujet' : [], 'cond' : [], 'odor' : [], 'HRV_Mean' : [], 'HRV_SD' : [], 'HRV_Median' : [], 'HRV_Mad' : [], 'HRV_CV' : [], 
+                                      'HRV_MCV' : [], 'HRV_Asymmetry' : [], 'HRV_RMSSD' : [], 'HRV_RespHRV' : [], })
+
+        for cond in conditions:
+
+            for odor in odor_list:
+
+                _ecg = ecg_allcond[cond][odor]
+                _respfeatures = respfeatures[cond][odor]
+                parameters = physio.get_ecg_parameters('human_ecg')
+                ecg, ecg_peaks = physio.compute_ecg(_ecg, srate, parameters=parameters)
+
+                if debug:
+                    plt.plot(ecg)
+                    plt.scatter(ecg_peaks['peak_index'].values, ecg[ecg_peaks['peak_index'].values], color='r')
+                    plt.show()
+
+                metrics = physio.compute_ecg_metrics(ecg_peaks, min_interval_ms=500., max_interval_ms=2000.)
+
+                points_per_cycle = 50
+
+                rsa_cycles, cyclic_cardiac_rate = physio.compute_rsa(
+                    _respfeatures,
+                    ecg_peaks,
+                    srate=10.,
+                    two_segment=True,
+                    points_per_cycle=points_per_cycle,
+                )
+
+                RespHRV = np.median((rsa_cycles['peak_value'] - rsa_cycles['trough_value']).values)
+
+                _df_hrv_physio = pd.DataFrame({'sujet' : [sujet], 'cond' : [cond], 'odor' : [odor], 
+                                               'HRV_Mean' : [metrics['HRV_Mean']], 'HRV_SD' : [metrics['HRV_SD']], 'HRV_Median' : [metrics['HRV_Median']], 
+                                               'HRV_Mad' : [metrics['HRV_Mad']], 'HRV_CV' : [metrics['HRV_CV']], 'HRV_MCV' : [metrics['HRV_MCV']], 
+                                              'HRV_Asymmetry' : [metrics['HRV_Asymmetry']], 'HRV_RMSSD' : [metrics['HRV_RMSSD']], 'HRV_RespHRV' : [RespHRV], })
+                
+                df_hrv_physio = pd.concat([df_hrv_physio, _df_hrv_physio])
+                
+        os.chdir(os.path.join(path_results, sujet, 'HRV'))
+        df_hrv_physio.to_excel(f"{sujet}_df_hrv_physio.xlsx")
+
+
+    #### aggregates
+    for sujet_i, sujet in enumerate(sujet_list):
+
+        print(sujet)
+                
+        os.chdir(os.path.join(path_results, sujet, 'HRV'))
+        if sujet_i == 0:
+            df_hrv_physio = pd.read_excel(f"{sujet}_df_hrv_physio.xlsx").drop(columns=['Unnamed: 0'])
+        else:
+            df_hrv_physio = pd.concat([df_hrv_physio, pd.read_excel(f"{sujet}_df_hrv_physio.xlsx").drop(columns=['Unnamed: 0'])])
+
+    os.chdir(os.path.join(path_results, 'allplot', 'HRV'))
+    df_hrv_physio.to_excel(f"allsujet_df_hrv_physio.xlsx")
 
     ### compute & save
     #analysis_time = '3min'
