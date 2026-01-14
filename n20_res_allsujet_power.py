@@ -1599,40 +1599,116 @@ def plot_save_Pxx_HIST_allsujet_lmm():
     #### plot allchan CO2
     os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'histplot'))
 
-    def barplot_with_highlight(data, x, y, hue, palette, **kwargs):
-        ax = plt.gca()
-
-        sns.barplot(data=data, x=x, y=y, hue=hue, palette=palette, ax=ax, **kwargs)
-
-        patches = ax.patches
-
-        for patch, (_, row) in zip(patches, data.iterrows()):
-            if row.get("significant", False):  # highlight only if significant is True
-                patch.set_edgecolor("tab:green")
-                patch.set_linewidth(2)
-                patch.set_zorder(10)
-
     for band_i, band in enumerate(freq_band_dict_lmm):
 
         df_plot = df_estimate_lmm.query(f"sujet_group in ['rep', 'norep'] and band == '{band}' and cond == 'CO2' and odor in ['o', '+'] and chan in {short_list_chan_eeg}")
 
-        custom_palette = {
-            'rep': '#1f77b4',
-            'norep': '#ff7f0e',
-        }
+        phase_list_plot = ['inspi', 'expi']
+        odor_list_plot = ['o', '+']
 
-        g = sns.FacetGrid(df_plot, row="phase", col="odor", height=3, aspect=2)
-        g.map_dataframe(barplot_with_highlight, x="chan", y="estimate", hue="sujet_group", palette=custom_palette)
-        g.map(plt.axhline, y=0, linestyle='--', color='gray', linewidth=1)
+        custom_palette = {
+                'rep': '#1f77b4',
+                'norep': '#ff7f0e',
+            }
+        
+        ylim = (df_plot['estimate'].min() - 0.1 * np.abs(df_plot['estimate'].min()), df_plot['estimate'].max() + 0.1 * np.abs(df_plot['estimate'].max()))
+
+        fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+
+        for col, phase in enumerate(phase_list_plot):
+
+            for row, odor in enumerate(odor_list_plot):
+
+                ax = axs[row, col]
+                sub_df = df_plot.query(f"phase == '{phase}' and odor == '{odor}'")
+
+                sub_df_sort = pd.DataFrame()
+
+                for sujet_group in ['rep', 'norep']:
+                    for chan in short_list_chan_eeg:
+                        _df = sub_df.query(f"sujet_group == '{sujet_group}' and chan == '{chan}'")
+                        sub_df_sort = pd.concat([sub_df_sort, _df], ignore_index=True)
+
+                sns.barplot(data=sub_df_sort, x="chan", y="estimate", hue="sujet_group", ax=ax, palette=custom_palette)
+
+                ax.set_ylim(ylim)
+
+                patches = ax.patches
+
+                for patch, (_, row) in zip(patches, sub_df_sort.iterrows()):
+                    if row.get("significant", False):  # highlight only if significant is True
+                        patch.set_edgecolor("black")
+                        patch.set_linewidth(2)
+                        patch.set_zorder(10)
+
+                ax.set_title(f'Phase: {phase}, Odor: {odor}')
+                ax.set_xlabel('Estimate')
 
         plt.suptitle(f"CO2_{band}")
         plt.tight_layout()
-        g.add_legend()
 
-        #plt.show()
-        
-        g.savefig(f'CO2_allchan_{band}_HIST_lmm_Pxx.jpeg', dpi=150)
+
+        fig.savefig(f'CO2_allchan_{band}_HIST_lmm_Pxx.jpeg', dpi=150)
         plt.close('all')
+
+    #### ULTRA SHORT plot allchan CO2
+    os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'histplot'))
+
+    for band_i, band in enumerate(freq_band_dict_lmm):
+
+        ultra_short_list_chan_eeg = ['Fz', 'Cz', 'Pz']
+
+        df_plot = df_estimate_lmm.query(f"sujet_group in ['rep', 'norep'] and band == '{band}' and cond == 'CO2' and odor in ['o', '+'] and chan in {ultra_short_list_chan_eeg}")
+
+        phase_list_plot = ['inspi', 'expi']
+        odor_list_plot = ['o', '+']
+
+        custom_palette = {
+                'rep': '#1f77b4',
+                'norep': '#ff7f0e',
+            }
+        
+        ylim = (df_plot['estimate'].min() - 0.1 * np.abs(df_plot['estimate'].min()), df_plot['estimate'].max() + 0.1 * np.abs(df_plot['estimate'].max()))
+
+        fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+
+        for col, phase in enumerate(phase_list_plot):
+
+            for row, odor in enumerate(odor_list_plot):
+
+                ax = axs[row, col]
+                sub_df = df_plot.query(f"phase == '{phase}' and odor == '{odor}'")
+
+                sub_df_sort = pd.DataFrame()
+
+                for sujet_group in ['rep', 'norep']:
+                    for chan in ultra_short_list_chan_eeg:
+                        _df = sub_df.query(f"sujet_group == '{sujet_group}' and chan == '{chan}'")
+                        sub_df_sort = pd.concat([sub_df_sort, _df], ignore_index=True)
+
+                sns.barplot(data=sub_df_sort, x="chan", y="estimate", hue="sujet_group", ax=ax, palette=custom_palette)
+
+                ax.set_ylim(ylim)
+
+                patches = ax.patches
+
+                for patch, (_, row) in zip(patches, sub_df_sort.iterrows()):
+                    if row.get("significant", False):  # highlight only if significant is True
+                        patch.set_edgecolor("black")
+                        patch.set_linewidth(2)
+                        patch.set_zorder(10)
+
+                ax.set_title(f'Phase: {phase}, Odor: {odor}')
+                ax.set_xlabel('Estimate')
+
+        plt.suptitle(f"CO2_{band}")
+        plt.tight_layout()
+
+
+        fig.savefig(f'SHORT_CO2_allchan_{band}_HIST_lmm_Pxx.jpeg', dpi=150)
+        plt.close('all')
+
+    
 
     #### plot region lmm
     os.chdir(os.path.join(path_results, 'allplot', 'TF', 'Pxx', 'histplot'))

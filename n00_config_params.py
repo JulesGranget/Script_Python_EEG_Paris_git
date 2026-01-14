@@ -227,6 +227,14 @@ elif PC_ID == 'jules_pc':
     path_memmap = 'Z:\\cmo\\Projets\\Olfadys\\NBuonviso2022_jules_olfadys\\EEG_Paris_J\\Mmap'
     n_core = 15
 
+elif PC_ID == 'jules-ubuntu1':
+
+    PC_working = 'jules-ubuntu1'
+    path_main_workdir = '/home/jules/Documents/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J/Script_Python_EEG_Paris_git'
+    path_general = '/home/jules/Documents/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_J'
+    path_memmap = '/home/jules/Documents/Olfadys/NBuonviso2022_jules_olfadys/EEG_Paris_JMmap'
+    n_core = 15
+
 else:
 
     PC_working = 'slurmcluster'

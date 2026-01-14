@@ -855,6 +855,421 @@ def plot_network_TF_IE_sum():
 
 
 
+################################
+######## REGRESSION ########
+################################
+
+
+def regression_A2_Cxy():
+
+    os.chdir(os.path.join(path_precompute, 'allsujet', 'PSD_Coh'))
+    df_Cxy = pd.read_excel('Cxy_allsujet.xlsx').query(f"cond in ['MECA', 'CO2']")
+
+    os.chdir(os.path.join(path_data, 'psychometric'))
+    df_mdp = pd.read_excel('OLFADYS_mdp.xlsx')
+
+    question_A2 = ['A2_1', 'A2_2', 'A2_3', 'A2_4', 'A2_5']
+    df_A2 = df_mdp.query(f"question in {question_A2}").groupby(['sujet', 'session', 'cond']).sum(numeric_only=True).reset_index()
+
+    df_Cxy['sujet'] = [f"{_sujet[2:]}{_sujet[:2]}" for _sujet in df_Cxy['sujet']]
+
+    _A2_vec = []
+
+    for row_i, row_val in df_Cxy.iterrows():
+
+        _sujet, _cond, _odor = row_val['sujet'], row_val['cond'], row_val['odor']
+        _A2_vec.append(df_A2.query(f"sujet == '{_sujet}' and session == '{_odor}' and cond == '{_cond}'")['value'].iloc[0])
+
+    df_Cxy['A2'] = _A2_vec
+    df_Cxy = df_Cxy[['sujet', 'cond', 'odor', 'chan', 'Cxy', 'REP', 'A2']]
+
+    df_Cxy_diff = df_Cxy.query(f"odor == 'o'")
+    df_Cxy_diff['Cxy'] = df_Cxy.query(f"odor == '+'")['Cxy'].values - df_Cxy.query(f"odor == 'o'")['Cxy'].values
+    df_Cxy_diff['A2'] = df_Cxy.query(f"odor == '+'")['A2'].values - df_Cxy.query(f"odor == 'o'")['A2'].values
+
+    for chan in chan_list_eeg[:10]:
+        sns.lmplot(data=df_Cxy_diff.query(f"chan == '{chan}' and cond == 'CO2'"),x='Cxy',y='A2',col="REP",ci=None)
+        plt.suptitle(chan)
+        plt.tight_layout()
+        plt.show()
+
+
+
+
+    ######## CHAN ########
+
+        
+    def spearman_permutation_test_parallel(df_perm, n_perm_spearman, percentile_thresh_list, n_jobs=n_core):
+
+        x_obs, y_obs = df_perm['A2'].values, df_perm['Cxy'].values
+        rho_obs, signi_p = scipy.stats.spearmanr(x_obs, y_obs)
+        cov_obs = np.cov(x_obs, y_obs)[0, 1]
+
+        surr_rho = []
+        surr_cov = []
+
+        for i in range(n_perm_spearman):
+            y_perm_i = np.random.choice(np.arange(x_obs.size), x_obs.size, replace=False)   
+            y_perm = df_perm['Cxy'].values[y_perm_i]
+            x_perm_i = np.random.choice(np.arange(x_obs.size), x_obs.size, replace=False)   
+            x_perm = df_perm['A2'].values[x_perm_i]
+
+            if debug:
+
+                _df = pd.concat([pd.DataFrame({'Cxy' : y_perm, 'A2' : x_perm, 'cond' : ['perm'] * y_perm.size}),
+                                              pd.DataFrame({'Cxy' : y_obs, 'A2' : x_obs, 'cond' : ['raw'] * y_perm.size})])
+                sns.lmplot(data=_df,x='Cxy',y='A2',hue='cond',ci=None)
+                plt.show()
+
+            _rho, _ = scipy.stats.spearmanr(x_perm, y_perm)
+            _cov = np.cov(x_perm, y_perm)[0, 1]
+
+            surr_rho.append(_rho)
+            surr_cov.append(_cov)
+
+        surr_rho = np.array(surr_rho)
+        surr_cov = np.array(surr_cov)
+
+        if debug:
+
+            count, _, _ = plt.hist(surr_rho, bins=50)
+            plt.vlines([rho_obs], ymin=0, ymax=count.max(), color='g', label='obs')
+            plt.vlines([np.percentile(surr_rho, 97.5)], ymin=0, ymax=count.max(), color='r', label='97.5')
+            plt.vlines([np.percentile(surr_rho, 2.5)], ymin=0, ymax=count.max(), color='r', label='2.5')
+            plt.show()
+
+            count, _, _ = plt.hist(surr_cov, bins=50)
+            plt.vlines([cov_obs], ymin=0, ymax=count.max(), color='g', label='obs')
+            plt.vlines([np.percentile(surr_cov, 97.5)], ymin=0, ymax=count.max(), color='r', label='97.5')
+            plt.vlines([np.percentile(surr_cov, 2.5)], ymin=0, ymax=count.max(), color='r', label='2.5')
+            plt.show()
+
+        lower, upper = np.percentile(surr_rho, percentile_thresh_list)
+        signi_rho = rho_obs < lower or rho_obs > upper
+
+        lower, upper = np.percentile(surr_cov, percentile_thresh_list)
+        signi_cov = cov_obs < lower or cov_obs > upper
+
+        return rho_obs, signi_rho, cov_obs, signi_cov
+
+    # Parameters
+    percentile_thresh_list = [2.5, 97.5]
+    n_perm_spearman = 1000
+
+    results = []
+
+    for chan in chan_list_eeg:
+
+        for REP in [True, False]:
+
+            df_perm = df_Cxy_diff.query(f"chan == '{chan}' and cond == 'CO2' and REP == {REP}")
+            rho, signi_rho, cov, signi_cov = spearman_permutation_test_parallel(df_perm, n_perm_spearman, percentile_thresh_list)
+            results.append({'chan': chan, 'REP': REP, 'rho': rho, 'signi_rho': signi_rho, 'cov': cov, 'signi_cov': signi_cov})
+
+    df_spearman_diff = pd.DataFrame(results)
+
+    df_plot = df_spearman_diff.sort_values('rho', ascending=True)
+    df_plot.query(f"signi_rho == True")
+    df_plot.query(f"signi_cov == True")
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax = sns.barplot(data=df_plot, x='rho', y='chan', hue='REP')
+
+    ax.axvline(0, color='r', linestyle='--')
+
+    # Loop through bars and highlight significant ones
+    for patch in ax.patches:
+        rho = patch.get_width()
+
+        # Match row in df_plot based on exact rho value
+        match = df_plot[df_plot['rho'] == rho]
+
+        if not match.empty and match.iloc[0]['signi_rho']:
+            patch.set_edgecolor('black')
+            patch.set_linewidth(2)
+        else:
+            patch.set_edgecolor('none')
+
+    plt.suptitle("rho")
+    plt.tight_layout()
+    os.chdir(os.path.join(path_results, 'allplot', 'psychometric'))
+    fig.savefig('rho_diff_chan.jpeg')
+
+    plt.show()
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax = sns.barplot(data=df_plot, x='cov', y='chan', hue='REP')
+
+    ax.axvline(0, color='r', linestyle='--')
+
+    # Loop through bars and highlight significant ones
+    for patch in ax.patches:
+        cov = patch.get_width()
+
+        # Match row in df_plot based on exact rho value
+        match = df_plot[df_plot['cov'] == cov]
+
+        if not match.empty and match.iloc[0]['signi_cov']:
+            patch.set_edgecolor('black')
+            patch.set_linewidth(2)
+        else:
+            patch.set_edgecolor('none')
+
+    plt.suptitle("cov")
+    plt.tight_layout()
+    os.chdir(os.path.join(path_results, 'allplot', 'psychometric'))
+    fig.savefig('cov_diff_chan.jpeg')
+
+    plt.show()
+
+
+
+    ######## REGION ########
+
+    dict_Cxy_region = []
+
+    for region, chan_region in chan_list_lobes_lmm.items():
+
+        for sujet in df_Cxy['sujet'].unique():
+            
+            for cond in df_Cxy['cond'].unique():
+                
+                for odor in df_Cxy['odor'].unique():
+                
+                    _df = df_Cxy.query(f"sujet == '{sujet}' and cond == '{cond}' and odor == '{odor}' and chan in {chan_region}")
+                    _Cxy = _df[['sujet', 'Cxy', 'A2']].groupby('sujet').median()['Cxy'].iloc[0]
+                    _A2 = _df[['sujet', 'Cxy', 'A2']].groupby('sujet').median()['A2'].iloc[0]
+                    _REP = _df['REP'].unique()[0]
+                    dict_Cxy_region.append({'region' : region, 'sujet' : sujet, 'cond' : cond, 'odor' : odor, 'Cxy' : _Cxy, 'A2' : _A2, 'REP' : _REP})
+
+    df_Cxy_region = pd.DataFrame(dict_Cxy_region)
+    
+    results = []
+
+    for region in chan_list_lobes_lmm:
+
+        for REP in [True, False]:
+
+            df_perm = df_Cxy_region.query(f"cond == 'CO2' and REP == {REP} and region == '{region}'")[['sujet', 'Cxy', 'A2']].groupby(['sujet']).median()
+
+            if debug:
+
+                sns.lmplot(data=df_perm, x='Cxy', y='A2')
+                plt.show()
+
+            rho, signi_rho, cov, signi_cov = spearman_permutation_test_parallel(df_perm, n_perm_spearman, percentile_thresh_list)
+            results.append({'region' : region, 'REP': REP, 'rho': rho, 'signi_rho': signi_rho, 'cov': cov, 'signi_cov': signi_cov})
+
+    df_spearman_diff_region = pd.DataFrame(results)
+
+    df_plot = df_spearman_diff_region.sort_values('rho', ascending=False)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax = sns.barplot(data=df_plot, x='rho', y='region', hue='REP')
+
+    ax.axvline(0, color='r', linestyle='--')
+
+    # Loop through bars and highlight significant ones
+    for patch in ax.patches:
+        rho = patch.get_width()
+
+        # Match row in df_plot based on exact rho value
+        match = df_plot[df_plot['rho'] == rho]
+
+        if not match.empty and match.iloc[0]['signi_rho']:
+            patch.set_edgecolor('black')
+            patch.set_linewidth(2)
+        else:
+            patch.set_edgecolor('none')
+
+    plt.suptitle("rho")
+    plt.tight_layout()
+
+    os.chdir(os.path.join(path_results, 'allplot', 'psychometric'))
+    fig.savefig('rho_diff_region.jpeg')
+
+    plt.show()
+
+    df_plot = df_spearman_diff_region.sort_values('cov', ascending=False)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax = sns.barplot(data=df_plot, x='cov', y='region', hue='REP')
+
+    ax.axvline(0, color='r', linestyle='--')
+
+    # Loop through bars and highlight significant ones
+    for patch in ax.patches:
+        cov = patch.get_width()
+
+        # Match row in df_plot based on exact rho value
+        match = df_plot[df_plot['cov'] == cov]
+
+        if not match.empty and match.iloc[0]['signi_cov']:
+            patch.set_edgecolor('black')
+            patch.set_linewidth(2)
+        else:
+            patch.set_edgecolor('none')
+
+    plt.suptitle("cov")
+    plt.tight_layout()
+
+    os.chdir(os.path.join(path_results, 'allplot', 'psychometric'))
+    fig.savefig('cov_diff_region.jpeg')
+
+    plt.show()
+
+
+    ######## ALLCHAN ########
+
+    stat, p = scipy.stats.wilcoxon(df_spearman_diff.query(f"REP == True")['rho'].values, df_spearman_diff.query(f"REP == False")['rho'].values)
+
+    fig, ax = plt.subplots()
+    sns.boxplot(data=df_spearman_diff, x='REP', y='rho', ax=ax)
+
+    pairs = [[True, False]]
+    pvals = [p]
+
+    annot = Annotator(
+        ax=ax, pairs=pairs, data=df_spearman_diff,
+        x='REP', y='rho'
+    )
+    annot.configure(test=None, text_format='star', loc='inside')
+    annot.set_pvalues_and_annotate(pvals)
+
+    plt.title('rho')
+    plt.tight_layout()
+
+    os.chdir(os.path.join(path_results, 'allplot', 'psychometric'))
+    fig.savefig('rho_diff_allchan.jpeg')
+
+    plt.show()
+
+    stat, p = scipy.stats.wilcoxon(df_spearman_diff.query(f"REP == True")['cov'].values, df_spearman_diff.query(f"REP == False")['cov'].values)
+
+    fig, ax = plt.subplots()
+    sns.boxplot(data=df_spearman_diff, x='REP', y='cov', ax=ax)
+
+    pairs = [[True, False]]
+    pvals = [p]
+
+    annot = Annotator(
+        ax=ax, pairs=pairs, data=df_spearman_diff,
+        x='REP', y='cov'
+    )
+    annot.configure(test=None, text_format='star', loc='inside')
+    annot.set_pvalues_and_annotate(pvals)
+
+    plt.title('cov')
+    plt.tight_layout()
+
+    os.chdir(os.path.join(path_results, 'allplot', 'psychometric'))
+    fig.savefig('cov_diff_allchan.jpeg')
+
+    plt.show()
+
+
+
+
+
+
+    #### NO DIFF
+    results = []
+
+    for chan in chan_list_eeg:
+
+        for REP in [True, False]:
+
+            for odor in ['o', '+']:
+
+                df_perm = df_Cxy.query(f"chan == '{chan}' and cond == 'CO2' and REP == {REP} and odor == '{odor}'")
+                rho, signi, signi_p = spearman_permutation_test_parallel(df_perm, n_perm_spearman, percentile_thresh_list)
+                results.append({'chan': chan, 'odor' : odor, 'REP': REP, 'rho': rho, 'signi': signi, 'signi_p': signi_p})
+
+    df_spearman = pd.DataFrame(results)
+
+    df_plot = df_spearman.query("REP == False").sort_values('rho', ascending=False)
+
+    plt.figure(figsize=(8, 6))
+    ax = sns.barplot(data=df_plot, x='rho', y='chan', hue='odor', order=df_plot['chan'])
+
+    # Horizontal line at 0
+    ax.axvline(0, color='r', linestyle='--')
+
+    # Add black border to bars where p == 1
+    for patch, (_, row) in zip(ax.patches, df_plot.iterrows()):
+        if row['signi'] == True:
+        # if row['signi_p'] < 0.05:
+            patch.set_edgecolor('black')
+            patch.set_linewidth(2)
+        else:
+            patch.set_edgecolor('none')  # no border for non-significant bars
+
+    plt.suptitle(f"diff")
+    plt.tight_layout()
+    plt.show()
+
+
+    dict_Cxy_region = []
+
+    for region, chan_region in chan_list_lobes_lmm.items():
+
+        for sujet in df_Cxy['sujet'].unique():
+            
+            for cond in df_Cxy['cond'].unique():
+                
+                for odor in df_Cxy['odor'].unique():
+                
+                    _df = df_Cxy.query(f"sujet == '{sujet}' and cond == '{cond}' and odor == '{odor}' and chan in {chan_region}")
+                    _Cxy = _df[['sujet', 'Cxy', 'A2']].groupby('sujet').median()['Cxy'].iloc[0]
+                    _A2 = _df[['sujet', 'Cxy', 'A2']].groupby('sujet').median()['A2'].iloc[0]
+                    _REP = _df['REP'].unique()[0]
+                    dict_Cxy_region.append({'region' : region, 'sujet' : sujet, 'cond' : cond, 'odor' : odor, 'Cxy' : _Cxy, 'A2' : _A2, 'REP' : _REP})
+
+    df_Cxy_region = pd.DataFrame(dict_Cxy_region)
+    
+    results = []
+
+    for region in chan_list_lobes_lmm:
+
+        for REP in [True, False]:
+
+            df_perm = df_Cxy_region.query(f"cond == 'CO2' and REP == {REP} and region == '{region}'")[['sujet', 'Cxy', 'A2']].groupby(['sujet']).median()
+
+            if debug:
+
+                sns.lmplot(data=df_perm, x='Cxy', y='A2')
+                plt.show()
+
+            rho, signi, signi_p = spearman_permutation_test_parallel(df_perm, n_perm_spearman, percentile_thresh_list)
+            results.append({'region' : region, 'REP': REP, 'rho': rho, 'signi': signi, 'signi_p': signi_p})
+
+    df_spearman_diff = pd.DataFrame(results)
+
+    df_plot = df_spearman_diff.sort_values('rho', ascending=False)
+
+    plt.figure(figsize=(8, 6))
+    ax = sns.barplot(data=df_plot, x='rho', y='region', hue='REP', order=df_plot['region'])
+
+    # Horizontal line at 0
+    ax.axvline(0, color='r', linestyle='--')
+
+    # Add black border to bars where p == 1
+    for patch, (_, row) in zip(ax.patches, df_plot.iterrows()):
+        # if row['signi'] == True:
+        if row['signi_p'] < 0.05:
+            patch.set_edgecolor('black')
+            patch.set_linewidth(2)
+        else:
+            patch.set_edgecolor('none')  # no border for non-significant bars
+
+    plt.suptitle(f"diff")
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
 
 ################################
 ######## EXECUTE ########
@@ -869,5 +1284,7 @@ if __name__ == '__main__':
     plot_network_TF_IE()
 
     plot_network_TF_IE_sum()
+
+    regression_A2_Cxy()
 
 
